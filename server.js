@@ -22,21 +22,27 @@ io.on('connection', (socket) => {
     socket.data.email = email; // Remember who this socket is
   });
 
-  socket.on('rob-bank', () => {
-    const email = socket.data.email;
-    if (!email) return;
-    const p = players.get(email);
-    if (!p || Date.now() - p.lastRob < 60000) return;
+socket.on('rob-bank', () => {
+  const email = socket.data.email;
+  if (!email) return;
+  const p = players.get(email);
+  if (!p || Date.now() - p.lastRob < 60000) return;
 
-    const money = Math.floor(Math.random() * 91) + 10;
-    const loss = Math.floor(Math.random() * 11) + 10;
+  const money = Math.floor(Math.random() * 91) + 10;
+  const loss = Math.floor(Math.random() * 11) + 10;
 
-    p.balance += money;
-    p.health = Math.max(0, p.health - loss);
-    p.lastRob = Date.now();
+  p.balance += money;
+  p.health = Math.max(0, p.health - loss);
+  p.lastRob = Date.now();
 
-    socket.emit('update-stats', p);
-  });
+  socket.emit('update-stats', p);
+
+  // NEW: If player died, completely delete their data (fresh start next login)
+  if (p.health <= 0) {
+    players.delete(email);
+    console.log(`Player ${email} died and was reset`);
+  }
+});
 
   socket.on('message', (msg) => {
     const email = socket.data.email || 'Anonymous';

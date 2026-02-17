@@ -24,12 +24,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squad Game',
-      home: AuthScreen(),   // Starts with login / register
+      home: AuthScreen(),
     );
   }
 }
 
-// ====================== LOGIN / REGISTER SCREEN ======================
+// ====================== LOGIN / REGISTER ======================
 class AuthScreen extends StatefulWidget {
   @override
   _AuthScreenState createState() => _AuthScreenState();
@@ -43,36 +43,33 @@ class _AuthScreenState extends State<AuthScreen> {
   String message = '';
 
   Future<void> handleAuth() async {
-    setState(() => isLoading = true);
-    message = '';
+    setState(() { isLoading = true; message = ''; });
 
     try {
       if (isLogin) {
-        // Login
         await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
       } else {
-        // Register new account
-        UserCredential user = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        await user.user!.sendEmailVerification();
-        setState(() => message = '✅ Account created!\nCheck your email and click the verification link.');
+        setState(() => message = '✅ Account created! Check your email and click the verification link.');
         return;
       }
 
-      // After login, check if email is verified
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && user.emailVerified) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => GameScreen()),
-        );
+        // If no display name → force them to set one (new account or after death)
+        if (user.displayName == null || user.displayName!.isEmpty) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
+        } else {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
+        }
       } else {
-        setState(() => message = 'Please check your email and click the verification link first.');
+        setState(() => message = 'Please verify your email first.');
       }
     } catch (e) {
       setState(() => message = e.toString());
@@ -83,37 +80,25 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(isLogin ? 'Login to Squad Game' : 'Create Account')),
+      appBar: AppBar(title: Text(isLogin ? 'Login' : 'Create Account')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: 'Email address'),
-              keyboardType: TextInputType.emailAddress,
-            ),
+            TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email')),
             const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
+            TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: isLoading ? null : handleAuth,
-              child: Text(isLoading ? 'Please wait...' : (isLogin ? 'Login' : 'Create Account')),
+              child: Text(isLoading ? 'Loading...' : (isLogin ? 'Login' : 'Create Account')),
             ),
             TextButton(
               onPressed: () => setState(() => isLogin = !isLogin),
-              child: Text(isLogin ? 'Need an account? Register' : 'Already have an account? Login'),
+              child: Text(isLogin ? 'Create new account' : 'Already have an account? Login'),
             ),
-            if (message.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 20),
-                child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
-              ),
+            if (message.isNotEmpty) Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
           ],
         ),
       ),
@@ -121,7 +106,61 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ====================== MAIN GAME SCREEN (only shown after login + verification) ======================
+// ====================== SET DISPLAY NAME (after new account or after death) ======================
+class SetDisplayNameScreen extends StatefulWidget {
+  @override
+  _SetDisplayNameScreenState createState() => _SetDisplayNameScreenState();
+}
+
+class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
+  final _nameController = TextEditingController();
+  bool isLoading = false;
+
+  Future<void> saveDisplayName() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
+      await FirebaseAuth.instance.currentUser!.reload();
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+    setState(() => isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Choose Your Display Name')),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('What should other players call you?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 30),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: 'Display Name', border: OutlineInputBorder()),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: isLoading ? null : saveDisplayName,
+              child: Text(isLoading ? 'Saving...' : 'Save Display Name'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -145,14 +184,12 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void connectToServer() {
-    socket = IO.io('https://squad-game-server.onrender.com', IO.OptionBuilder()
-        .setTransports(['websocket'])
-        .build());
+    socket = IO.io('https://squad-game-server.onrender.com', IO.OptionBuilder().setTransports(['websocket']).build());
 
     socket?.onConnect((_) {
-      setState(() => messages.add('✅ Connected to server!'));
       final user = FirebaseAuth.instance.currentUser;
-      socket?.emit('register', user?.email ?? 'anonymous');
+      socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
+      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
     });
 
     socket?.on('time', (data) => setState(() => time = data));
@@ -184,14 +221,16 @@ class _GameScreenState extends State<GameScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 20),
               const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: () => FirebaseAuth.instance.signOut().then((_) {
+                onPressed: () async {
+                  // Clear display name so they have to choose a new one on next login
+                  await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
+                  await FirebaseAuth.instance.signOut();
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
-                }),
-                child: const Text('Logout & Try Again'),
+                },
+                child: const Text('Logout & Start New Life'),
               ),
             ],
           ),
@@ -199,14 +238,10 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
-    final balance = stats['balance']?.toString() ?? '0';
-    final health = (stats['health'] ?? 100) / 100.0;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Squad Game')),
+      appBar: AppBar(title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}')),
       body: Column(
         children: [
-          // Top bar: Time + Balance + Health
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -214,29 +249,13 @@ class _GameScreenState extends State<GameScreen> {
             child: Column(
               children: [
                 Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 8),
-                Text('Bank: \$$balance', style: const TextStyle(fontSize: 20, color: Colors.green)),
-                const SizedBox(height: 12),
-                Stack(
-                  children: [
-                    Container(height: 12, decoration: BoxDecoration(color: Colors.red[300], borderRadius: BorderRadius.circular(6))),
-                    Container(height: 12, width: health * MediaQuery.of(context).size.width * 0.8, decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(6))),
-                  ],
-                ),
+                Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
+                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
                 Text('Health: ${stats['health'] ?? 100}/100'),
               ],
             ),
           ),
-
-          // Chat area
-          Expanded(
-            child: ListView.builder(
-              itemCount: messages.length,
-              itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-            ),
-          ),
-
-          // Chat input
+          Expanded(child: ListView.builder(itemCount: messages.length, itemBuilder: (_, i) => ListTile(title: Text(messages[i])))),
           Padding(
             padding: const EdgeInsets.all(8),
             child: Row(
@@ -251,16 +270,14 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
-
-          // Rob Bank button
           Padding(
             padding: const EdgeInsets.all(16),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: cooldown ? null : robBank,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700], padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: Text(cooldown ? 'Rob Cooldown (60s)' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
+                child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
               ),
             ),
           ),
