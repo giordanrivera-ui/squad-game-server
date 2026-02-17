@@ -1,57 +1,89 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const admin = require('firebase-admin');
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const players = new Map();
+// === FIREBASE ADMIN SETUP ===
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false });
+const db = admin.firestore();
+
+const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
+  timeZone: 'Europe/London', 
+  hour: '2-digit', 
+  minute: '2-digit', 
+  hour12: false 
+});
 
 setInterval(() => {
   io.emit('time', timeFormatter.format(new Date()));
 }, 30000);
 
 io.on('connection', (socket) => {
-  socket.on('register', (email) => {
-    if (!players.has(email)) {
-      players.set(email, { balance: 0, health: 100, lastRob: 0 });
+  socket.on('register', async (data) => {
+    const email = data.email;
+    const displayName = data.displayName || 'Anonymous';
+
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+
+    let playerData;
+    if (doc.exists) {
+      playerData = doc.data();
+    } else {
+      playerData = { balance: 0, health: 100, lastRob: 0, displayName: displayName };
+      await docRef.set(playerData);
     }
-    socket.emit('init', players.get(email));
-    socket.data.email = email; // Remember who this socket is
+
+    socket.data.email = email;
+    socket.data.displayName = displayName;
+
+    socket.emit('init', playerData);
   });
 
-socket.on('rob-bank', () => {
-  const email = socket.data.email;
-  if (!email) return;
-  const p = players.get(email);
-  if (!p || Date.now() - p.lastRob < 60000) return;
+  socket.on('rob-bank', async () => {
+    const email = socket.data.email;
+    if (!email) return;
 
-  const money = Math.floor(Math.random() * 91) + 10;
-  const loss = Math.floor(Math.random() * 11) + 10;
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
 
-  p.balance += money;
-  p.health = Math.max(0, p.health - loss);
-  p.lastRob = Date.now();
+    let p = doc.data();
 
-  socket.emit('update-stats', p);
+    if (Date.now() - (p.lastRob || 0) < 60000) return;
 
-  // NEW: If player died, completely delete their data (fresh start next login)
-  if (p.health <= 0) {
-    players.delete(email);
-    console.log(`Player ${email} died and was reset`);
-  }
-});
+    const money = Math.floor(Math.random() * 91) + 10;
+    const loss = Math.floor(Math.random() * 11) + 10;
+
+    p.balance += money;
+    p.health = Math.max(0, p.health - loss);
+    p.lastRob = Date.now();
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    if (p.health <= 0) {
+      await docRef.delete();
+      console.log(`Player ${email} died and data was reset`);
+    }
+  });
 
   socket.on('message', (msg) => {
-    const email = socket.data.email || 'Anonymous';
-    io.emit('message', `${email}: ${msg}`);
+    const name = socket.data.displayName || 'Anonymous';
+    io.emit('message', `${name}: ${msg}`);
   });
 
-  socket.on('disconnect', () => {
-    // Keep player data (they can log back in)
-  });
+  socket.on('disconnect', () => {});
 });
 
 const port = process.env.PORT || 3000;
