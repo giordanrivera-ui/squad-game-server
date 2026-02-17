@@ -1,4 +1,3 @@
-// Updated server.js - Copy this entire code and replace your old server.js
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -6,71 +5,48 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-const players = new Map(); // Stores player data: socket.id -> {balance, health, lastRob}
+const players = new Map();
 
-const timeFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/London',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false
-});
+const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false });
 
-// Send UK time to all players every 30 seconds
 setInterval(() => {
-  const now = new Date();
-  const timeStr = timeFormatter.format(now);
-  io.emit('time', timeStr);
+  io.emit('time', timeFormatter.format(new Date()));
 }, 30000);
 
 io.on('connection', (socket) => {
-  console.log('Player joined:', socket.id);
-
-  // Initialize new player
-  players.set(socket.id, {
-    balance: 1000,
-    health: 100,
-    lastRob: 0
-  });
-
-  // Send initial stats to this player only
-  socket.emit('init', players.get(socket.id));
-
-  // Broadcast messages (chat)
-  socket.on('message', (msg) => {
-    io.emit('message', msg); // Broadcast to everyone
-  });
-
-  // Handle rob-bank request
-  socket.on('rob-bank', () => {
-    const player = players.get(socket.id);
-    if (!player) return;
-
-    const now = Date.now();
-    if (now - player.lastRob < 60000) {
-      // Cooldown active - ignore
-      return;
+  socket.on('register', (email) => {
+    if (!players.has(email)) {
+      players.set(email, { balance: 0, health: 100, lastRob: 0 });
     }
-
-    // Random money: 10-100
-    const money = Math.floor(Math.random() * 91) + 10;
-    // Random health loss: 10-20
-    const healthLoss = Math.floor(Math.random() * 11) + 10;
-
-    player.balance += money;
-    player.health = Math.max(0, player.health - healthLoss);
-    player.lastRob = now;
-
-    // Send updated stats back to this player only
-    socket.emit('update-stats', player);
-    console.log(`Player ${socket.id.slice(0,8)} robbed: +$${money}, -${healthLoss} HP`);
+    socket.emit('init', players.get(email));
+    socket.data.email = email; // Remember who this socket is
   });
 
-  // Clean up on disconnect
+  socket.on('rob-bank', () => {
+    const email = socket.data.email;
+    if (!email) return;
+    const p = players.get(email);
+    if (!p || Date.now() - p.lastRob < 60000) return;
+
+    const money = Math.floor(Math.random() * 91) + 10;
+    const loss = Math.floor(Math.random() * 11) + 10;
+
+    p.balance += money;
+    p.health = Math.max(0, p.health - loss);
+    p.lastRob = Date.now();
+
+    socket.emit('update-stats', p);
+  });
+
+  socket.on('message', (msg) => {
+    const email = socket.data.email || 'Anonymous';
+    io.emit('message', `${email}: ${msg}`);
+  });
+
   socket.on('disconnect', () => {
-    console.log('Player left:', socket.id);
-    players.delete(socket.id);
+    // Keep player data (they can log back in)
   });
 });
 
 const port = process.env.PORT || 3000;
-server.listen(port, () => console.log(`Server running on port ${port}!`));
+server.listen(port, () => console.log(`Server running on ${port}`));
