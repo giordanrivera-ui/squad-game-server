@@ -1,13 +1,13 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const admin = require('firebase-admin');   // ← This is the important one
+const admin = require('firebase-admin');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Initialize Firebase Admin using the environment variable you set on Render
+// Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -22,6 +22,8 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
   hour12: false 
 });
 
+const onlinePlayers = new Set();   // NEW: Tracks who is currently online
+
 setInterval(() => {
   io.emit('time', timeFormatter.format(new Date()));
 }, 30000);
@@ -33,19 +35,17 @@ io.on('connection', (socket) => {
 
     if (!email) return;
 
+    // Load or create player data
     const docRef = db.collection('players').doc(email);
     const doc = await docRef.get();
-
-    let playerData;
-    if (doc.exists) {
-      playerData = doc.data();
-    } else {
-      playerData = { balance: 0, health: 100, lastRob: 0, displayName: displayName };
-      await docRef.set(playerData);
-    }
+    let playerData = doc.exists ? doc.data() : { balance: 0, health: 100, lastRob: 0, displayName: displayName };
 
     socket.data.email = email;
     socket.data.displayName = displayName;
+
+    // Add to online list
+    onlinePlayers.add(displayName);
+    io.emit('online-players', Array.from(onlinePlayers));   // Broadcast to everyone
 
     socket.emit('init', playerData);
   });
@@ -83,7 +83,12 @@ io.on('connection', (socket) => {
     io.emit('message', `${name}: ${msg}`);
   });
 
-  socket.on('disconnect', () => {});
+  socket.on('disconnect', () => {
+    if (socket.data.displayName) {
+      onlinePlayers.delete(socket.data.displayName);
+      io.emit('online-players', Array.from(onlinePlayers));   // Update everyone when someone leaves
+    }
+  });
 });
 
 const port = process.env.PORT || 3000;

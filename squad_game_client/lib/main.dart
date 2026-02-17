@@ -62,7 +62,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && user.emailVerified) {
-        // If no display name → force them to set one (new account or after death)
         if (user.displayName == null || user.displayName!.isEmpty) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
         } else {
@@ -106,7 +105,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ====================== SET DISPLAY NAME (after new account or after death) ======================
+// ====================== SET DISPLAY NAME ======================
 class SetDisplayNameScreen extends StatefulWidget {
   @override
   _SetDisplayNameScreenState createState() => _SetDisplayNameScreenState();
@@ -169,6 +168,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   IO.Socket? socket;
   List<String> messages = [];
+  List<String> onlinePlayers = [];           // ← NEW
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
@@ -189,7 +189,6 @@ class _GameScreenState extends State<GameScreen> {
     socket?.onConnect((_) {
       final user = FirebaseAuth.instance.currentUser;
       socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
-      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
     });
 
     socket?.on('time', (data) => setState(() => time = data));
@@ -201,6 +200,11 @@ class _GameScreenState extends State<GameScreen> {
       });
     });
     socket?.on('message', (data) => setState(() => messages.add(data)));
+
+    // NEW: Listen for online players list
+    socket?.on('online-players', (data) {
+      setState(() => onlinePlayers = List<String>.from(data));
+    });
   }
 
   void robBank() {
@@ -225,7 +229,6 @@ class _GameScreenState extends State<GameScreen> {
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: () async {
-                  // Clear display name so they have to choose a new one on next login
                   await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
                   await FirebaseAuth.instance.signOut();
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
@@ -239,9 +242,23 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}')),
+      appBar: AppBar(
+        title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text(
+                'Online: ${onlinePlayers.length}',
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          // Top bar: Time + Balance + Health
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -255,7 +272,27 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
-          Expanded(child: ListView.builder(itemCount: messages.length, itemBuilder: (_, i) => ListTile(title: Text(messages[i])))),
+
+          // Online players list
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue[900],
+            child: Text(
+              'Online: ${onlinePlayers.join(', ')}',
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+            ),
+          ),
+
+          // Chat
+          Expanded(
+            child: ListView.builder(
+              itemCount: messages.length,
+              itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+            ),
+          ),
+
+          // Chat input + Rob button (same as before)
           Padding(
             padding: const EdgeInsets.all(8),
             child: Row(
