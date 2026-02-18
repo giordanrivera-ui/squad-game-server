@@ -24,7 +24,43 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squad Game',
-      home: AuthScreen(),
+      home: AuthWrapper(),   // ← This is the new smart wrapper
+    );
+  }
+}
+
+// ====================== AUTH WRAPPER (handles auto-login on refresh) ======================
+class AuthWrapper extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Still loading
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final user = snapshot.data;
+
+        // Not logged in
+        if (user == null) {
+          return AuthScreen();
+        }
+
+        // Logged in but email not verified
+        if (!user.emailVerified) {
+          return AuthScreen(); // Show login screen again
+        }
+
+        // Logged in + verified → check if they need to set display name
+        if (user.displayName == null || user.displayName!.isEmpty) {
+          return SetDisplayNameScreen();
+        }
+
+        // Everything good → go straight to game
+        return GameScreen();
+      },
     );
   }
 }
@@ -58,17 +94,6 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         setState(() => message = '✅ Account created! Check your email and click the verification link.');
         return;
-      }
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.emailVerified) {
-        if (user.displayName == null || user.displayName!.isEmpty) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
-        } else {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
-        }
-      } else {
-        setState(() => message = 'Please verify your email first.');
       }
     } catch (e) {
       setState(() => message = e.toString());
@@ -168,7 +193,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   IO.Socket? socket;
   List<String> messages = [];
-  List<String> onlinePlayers = [];           // ← NEW
+  List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
@@ -189,6 +214,7 @@ class _GameScreenState extends State<GameScreen> {
     socket?.onConnect((_) {
       final user = FirebaseAuth.instance.currentUser;
       socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
+      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
     });
 
     socket?.on('time', (data) => setState(() => time = data));
@@ -200,11 +226,7 @@ class _GameScreenState extends State<GameScreen> {
       });
     });
     socket?.on('message', (data) => setState(() => messages.add(data)));
-
-    // NEW: Listen for online players list
-    socket?.on('online-players', (data) {
-      setState(() => onlinePlayers = List<String>.from(data));
-    });
+    socket?.on('online-players', (data) => setState(() => onlinePlayers = List<String>.from(data)));
   }
 
   void robBank() {
@@ -247,18 +269,12 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                'Online: ${onlinePlayers.length}',
-                style: const TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
+            child: Center(child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white))),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Top bar: Time + Balance + Health
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -272,38 +288,32 @@ class _GameScreenState extends State<GameScreen> {
               ],
             ),
           ),
-
-          // Online players list
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Colors.blue[900],
-            child: Text(
-              'Online: ${onlinePlayers.join(', ')}',
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-            ),
+            child: Text('Online: ${onlinePlayers.join(', ')}', style: const TextStyle(color: Colors.white)),
           ),
-
-          // Chat
           Expanded(
             child: ListView.builder(
               itemCount: messages.length,
               itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
             ),
           ),
-
-          // Chat input + Rob button (same as before)
           Padding(
             padding: const EdgeInsets.all(8),
             child: Row(
               children: [
                 Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-                ElevatedButton(onPressed: () {
-                  if (_controller.text.isNotEmpty) {
-                    socket?.emit('message', _controller.text);
-                    _controller.clear();
-                  }
-                }, child: const Text('Send')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_controller.text.isNotEmpty) {
+                      socket?.emit('message', _controller.text);
+                      _controller.clear();
+                    }
+                  },
+                  child: const Text('Send'),
+                ),
               ],
             ),
           ),
