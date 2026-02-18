@@ -168,14 +168,16 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   IO.Socket? socket;
   List<String> messages = [];
-  List<String> onlinePlayers = [];           // ← NEW
+  List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
-  Map<String, dynamic> stats = {'balance': 0, 'health': 100};
+  Map<String, dynamic> stats = {'balance': 0, 'health': 100, 'location': 'Riverstone'};
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
+
+  int _currentScreen = 0; // 0 = Dashboard, 1 = Players Online
 
   @override
   void initState() {
@@ -189,6 +191,7 @@ class _GameScreenState extends State<GameScreen> {
     socket?.onConnect((_) {
       final user = FirebaseAuth.instance.currentUser;
       socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
+      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
     });
 
     socket?.on('time', (data) => setState(() => time = data));
@@ -200,11 +203,7 @@ class _GameScreenState extends State<GameScreen> {
       });
     });
     socket?.on('message', (data) => setState(() => messages.add(data)));
-
-    // NEW: Listen for online players list
-    socket?.on('online-players', (data) {
-      setState(() => onlinePlayers = List<String>.from(data));
-    });
+    socket?.on('online-players', (data) => setState(() => onlinePlayers = List<String>.from(data)));
   }
 
   void robBank() {
@@ -243,81 +242,179 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                'Online: ${onlinePlayers.length}',
-                style: const TextStyle(fontSize: 16, color: Colors.white),
+        title: Text(_currentScreen == 0 
+            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
+            : 'Players Online'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+      ),
+
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Colors.blue),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    FirebaseAuth.instance.currentUser?.displayName ?? "Player",
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    stats['location'] ?? "Unknown",
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Dashboard'),
+              onTap: () {
+                setState(() => _currentScreen = 0);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Players Online'),
+              onTap: () {
+                setState(() => _currentScreen = 1);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          // Top bar: Time + Balance + Health
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey[900],
-            child: Column(
-              children: [
-                Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
-                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-                Text('Health: ${stats['health'] ?? 100}/100'),
-              ],
-            ),
-          ),
 
-          // Online players list
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue[900],
-            child: Text(
-              'Online: ${onlinePlayers.join(', ')}',
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-            ),
-          ),
+      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
+    );
+  }
 
-          // Chat
-          Expanded(
-            child: ListView.builder(
-              itemCount: messages.length,
-              itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-            ),
+  Widget _buildDashboard() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: Colors.grey[900],
+          child: Column(
+            children: [
+              Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
+              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
+              Text('Health: ${stats['health'] ?? 100}/100'),
+              const SizedBox(height: 8),
+              Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+            ],
           ),
-
-          // Chat input + Rob button (same as before)
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-                ElevatedButton(onPressed: () {
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: messages.length,
+            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
+              ElevatedButton(
+                onPressed: () {
                   if (_controller.text.isNotEmpty) {
                     socket?.emit('message', _controller.text);
                     _controller.clear();
                   }
-                }, child: const Text('Send')),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: cooldown ? null : robBank,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
-                child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
+                },
+                child: const Text('Send'),
               ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: cooldown ? null : robBank,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
+              child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlayersScreen() {
+    return onlinePlayers.isEmpty
+        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
+        : ListView.builder(
+            itemCount: onlinePlayers.length,
+            itemBuilder: (context, index) {
+              final name = onlinePlayers[index];
+              return ListTile(
+                leading: const Icon(Icons.person, color: Colors.blue),
+                title: Text(name, style: const TextStyle(fontSize: 18)),
+                onTap: () => _showPlayerMenu(context, name),
+              );
+            },
+          );
+  }
+
+  void _showPlayerMenu(BuildContext context, String name) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: Text('View $name\'s Profile'),
+            onTap: () {
+              Navigator.pop(context);
+              _showProfile(context, name);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.message),
+            title: const Text('Message'),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Messaging $name...')));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.group_add),
+            title: const Text('Invite to Operation'),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invite sent to $name!')));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProfile(BuildContext context, String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("$name's Profile"),
+        content: const Text("Profile details will be shown here in the future."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         ],
       ),
     );
