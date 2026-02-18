@@ -185,7 +185,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN ======================
+// ====================== GAME SCREEN (Single Scaffold - Menu always works) ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -198,12 +198,13 @@ class _GameScreenState extends State<GameScreen> {
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
-  Map<String, dynamic> stats = {'balance': 0, 'health': 100, 'location': 'Riverstone'};
+  Map<String, dynamic> stats = {'balance': 0, 'health': 100};
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
 
-  int _currentScreen = 0; // 0 = Dashboard, 1 = Players
+  // 0 = Dashboard, 1 = Players Online
+  int _currentScreen = 0;
 
   @override
   void initState() {
@@ -283,23 +284,9 @@ class _GameScreenState extends State<GameScreen> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(color: Colors.blue),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    FirebaseAuth.instance.currentUser?.displayName ?? "Player",
-                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    stats['location'] ?? "Unknown",
-                    style: const TextStyle(color: Colors.white70, fontSize: 16),
-                  ),
-                ],
-              ),
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blue),
+              child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
               leading: const Icon(Icons.home),
@@ -338,9 +325,6 @@ class _GameScreenState extends State<GameScreen> {
               Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
               LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
               Text('Health: ${stats['health'] ?? 100}/100'),
-              const SizedBox(height: 8),
-              Text('Location: ${stats['location'] ?? "Unknown"}', 
-                  style: const TextStyle(fontSize: 16, color: Colors.white70)),
             ],
           ),
         ),
