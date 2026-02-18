@@ -200,8 +200,10 @@ class _GameScreenState extends State<GameScreen> {
   Map<String, dynamic> stats = {'balance': 0, 'health': 100};
   bool cooldown = false;
   bool isDead = false;
-  bool showPlayersScreen = false;        // ← NEW: Controls which screen to show
   Timer? cooldownTimer;
+
+  // NEW: Controls which screen is shown
+  int _currentScreen = 0; // 0 = Dashboard (main game), 1 = Players Online
 
   @override
   void initState() {
@@ -264,32 +266,11 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
-    // Show Players Screen if requested
-    if (showPlayersScreen) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Players Online'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => setState(() => showPlayersScreen = false),
-          ),
-        ),
-        body: onlinePlayers.isEmpty
-            ? const Center(child: Text('No one is online right now'))
-            : ListView.builder(
-                itemCount: onlinePlayers.length,
-                itemBuilder: (context, index) => ListTile(
-                  leading: const Icon(Icons.person),
-                  title: Text(onlinePlayers[index]),
-                ),
-              ),
-      );
-    }
-
-    // Main Game Screen
     return Scaffold(
       appBar: AppBar(
-        title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+        title: Text(_currentScreen == 0 
+            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
+            : 'Players Online'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -297,15 +278,17 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white)),
+          if (_currentScreen == 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white)),
+              ),
             ),
-          ),
         ],
       ),
 
+      // ==================== SIDE MENU ========================
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -315,70 +298,97 @@ class _GameScreenState extends State<GameScreen> {
               child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
             ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Dashboard'),
+              onTap: () {
+                setState(() => _currentScreen = 0);
+                Navigator.pop(context); // close menu
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Players Online'),
               onTap: () {
-                Navigator.pop(context);           // Close drawer
-                setState(() => showPlayersScreen = true);   // Switch to players screen
+                setState(() => _currentScreen = 1);
+                Navigator.pop(context); // close menu
               },
             ),
-            // You can add more menu items here later
+            // Add more items here later
           ],
         ),
       ),
 
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey[900],
-            child: Column(
-              children: [
-                Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
-                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-                Text('Health: ${stats['health'] ?? 100}/100'),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: messages.length,
-              itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_controller.text.isNotEmpty) {
-                      socket?.emit('message', _controller.text);
-                      _controller.clear();
-                    }
-                  },
-                  child: const Text('Send'),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: cooldown ? null : robBank,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
-                child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
-              ),
-            ),
-          ),
-        ],
-      ),
+      // ==================== BODY - Switches between screens ====================
+      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
     );
+  }
+
+  // Main Dashboard (original game screen)
+  Widget _buildDashboard() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          color: Colors.grey[900],
+          child: Column(
+            children: [
+              Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+              Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
+              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
+              Text('Health: ${stats['health'] ?? 100}/100'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: messages.length,
+            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
+              ElevatedButton(
+                onPressed: () {
+                  if (_controller.text.isNotEmpty) {
+                    socket?.emit('message', _controller.text);
+                    _controller.clear();
+                  }
+                },
+                child: const Text('Send'),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: cooldown ? null : robBank,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
+              child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Players Online Screen
+  Widget _buildPlayersScreen() {
+    return onlinePlayers.isEmpty
+        ? const Center(child: Text('No one is online right now'))
+        : ListView.builder(
+            itemCount: onlinePlayers.length,
+            itemBuilder: (context, index) => ListTile(
+              leading: const Icon(Icons.person),
+              title: Text(onlinePlayers[index]),
+            ),
+          );
   }
 
   @override
