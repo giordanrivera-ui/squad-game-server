@@ -184,7 +184,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN ======================
+// ====================== GAME SCREEN (Root with Drawer) ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -201,9 +201,6 @@ class _GameScreenState extends State<GameScreen> {
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
-
-  // 0 = Dashboard, 1 = Players Online
-  int _currentScreen = 0;
 
   @override
   void initState() {
@@ -266,51 +263,62 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentScreen == 0 
-            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
-            : 'Players Online'),
-        // Menu icon always visible
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+    return WillPopScope(
+      onWillPop: () async {
+        // If we're on Players screen, go back to Dashboard
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return false;
+        }
+        return true; // Allow closing app from Dashboard
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Squad Game'),
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
           ),
         ),
-      ),
 
-      // Side Menu (always available)
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Dashboard'),
-              onTap: () {
-                setState(() => _currentScreen = 0);
-                Navigator.pop(context); // Close menu
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Players Online'),
-              onTap: () {
-                setState(() => _currentScreen = 1);
-                Navigator.pop(context); // Close menu
-              },
-            ),
-          ],
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              const DrawerHeader(
+                decoration: BoxDecoration(color: Colors.blue),
+                child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.home),
+                title: const Text('Dashboard'),
+                onTap: () {
+                  Navigator.pop(context); // close drawer
+                  // If we're not on dashboard, pop back to it
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.people),
+                title: const Text('Players Online'),
+                onTap: () {
+                  Navigator.pop(context); // close drawer
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => PlayersScreen(onlinePlayers: onlinePlayers)),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
-      ),
 
-      // Main body switches between Dashboard and Players
-      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
+        body: _buildDashboard(),   // Default screen
+      ),
     );
   }
 
@@ -368,18 +376,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildPlayersScreen() {
-    return onlinePlayers.isEmpty
-        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
-        : ListView.builder(
-            itemCount: onlinePlayers.length,
-            itemBuilder: (context, index) => ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
-            ),
-          );
-  }
-
   @override
   void dispose() {
     cooldownTimer?.cancel();
@@ -388,7 +384,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
-// ====================== NEW PLAYERS SCREEN ======================
+// ====================== PLAYERS SCREEN ======================
 class PlayersScreen extends StatelessWidget {
   final List<String> onlinePlayers;
 
@@ -399,10 +395,6 @@ class PlayersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Players Online'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: onlinePlayers.isEmpty
           ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
