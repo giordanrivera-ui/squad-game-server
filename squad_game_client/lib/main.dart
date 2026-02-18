@@ -24,33 +24,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squad Game',
-      home: AuthWrapper(),
-    );
-  }
-}
-
-// ====================== AUTH WRAPPER (Auto-login on refresh) ======================
-class AuthWrapper extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
-        final user = snapshot.data;
-        if (user == null || !user.emailVerified) {
-          return AuthScreen();
-        }
-
-        if (user.displayName == null || user.displayName!.isEmpty) {
-          return SetDisplayNameScreen();
-        }
-
-        return GameScreen();
-      },
+      home: AuthScreen(),
     );
   }
 }
@@ -194,7 +168,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   IO.Socket? socket;
   List<String> messages = [];
-  List<String> onlinePlayers = [];
+  List<String> onlinePlayers = [];           // ← NEW
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
@@ -202,9 +176,6 @@ class _GameScreenState extends State<GameScreen> {
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
-
-  // NEW: Controls which screen is shown
-  int _currentScreen = 0; // 0 = Dashboard (main game), 1 = Players Online
 
   @override
   void initState() {
@@ -218,7 +189,6 @@ class _GameScreenState extends State<GameScreen> {
     socket?.onConnect((_) {
       final user = FirebaseAuth.instance.currentUser;
       socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
-      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
     });
 
     socket?.on('time', (data) => setState(() => time = data));
@@ -230,7 +200,11 @@ class _GameScreenState extends State<GameScreen> {
       });
     });
     socket?.on('message', (data) => setState(() => messages.add(data)));
-    socket?.on('online-players', (data) => setState(() => onlinePlayers = List<String>.from(data)));
+
+    // NEW: Listen for online players list
+    socket?.on('online-players', (data) {
+      setState(() => onlinePlayers = List<String>.from(data));
+    });
   }
 
   void robBank() {
@@ -269,127 +243,84 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentScreen == 0 
-            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
-            : 'Players Online'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+        title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
         actions: [
-          if (_currentScreen == 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white)),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text(
+                'Online: ${onlinePlayers.length}',
+                style: const TextStyle(fontSize: 16, color: Colors.white),
               ),
             ),
+          ),
         ],
       ),
-
-      // ==================== SIDE MENU ========================
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+      body: Column(
+        children: [
+          // Top bar: Time + Balance + Health
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey[900],
+            child: Column(
+              children: [
+                Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
+                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
+                Text('Health: ${stats['health'] ?? 100}/100'),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Dashboard'),
-              onTap: () {
-                setState(() => _currentScreen = 0);
-                Navigator.pop(context); // close menu
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Players Online'),
-              onTap: () {
-                setState(() => _currentScreen = 1);
-                Navigator.pop(context); // close menu
-              },
-            ),
-            // Add more items here later
-          ],
-        ),
-      ),
-
-      // ==================== BODY - Switches between screens ====================
-      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
-    );
-  }
-
-  // Main Dashboard (original game screen)
-  Widget _buildDashboard() {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[900],
-          child: Column(
-            children: [
-              Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-              Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
-              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-              Text('Health: ${stats['health'] ?? 100}/100'),
-            ],
           ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: messages.length,
-            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+
+          // Online players list
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue[900],
+            child: Text(
+              'Online: ${onlinePlayers.join(', ')}',
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-              ElevatedButton(
-                onPressed: () {
+
+          // Chat
+          Expanded(
+            child: ListView.builder(
+              itemCount: messages.length,
+              itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+            ),
+          ),
+
+          // Chat input + Rob button (same as before)
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
+                ElevatedButton(onPressed: () {
                   if (_controller.text.isNotEmpty) {
                     socket?.emit('message', _controller.text);
                     _controller.clear();
                   }
-                },
-                child: const Text('Send'),
+                }, child: const Text('Send')),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: cooldown ? null : robBank,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
+                child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
               ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: cooldown ? null : robBank,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
-              child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
-  }
-
-  // Players Online Screen
-  Widget _buildPlayersScreen() {
-    return onlinePlayers.isEmpty
-        ? const Center(child: Text('No one is online right now'))
-        : ListView.builder(
-            itemCount: onlinePlayers.length,
-            itemBuilder: (context, index) => ListTile(
-              leading: const Icon(Icons.person),
-              title: Text(onlinePlayers[index]),
-            ),
-          );
   }
 
   @override
