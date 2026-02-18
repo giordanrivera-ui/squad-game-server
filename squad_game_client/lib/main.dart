@@ -185,7 +185,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN (Single Scaffold - Menu always works) ======================
+// ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -203,8 +203,8 @@ class _GameScreenState extends State<GameScreen> {
   bool isDead = false;
   Timer? cooldownTimer;
 
-  // 0 = Dashboard, 1 = Players Online
-  int _currentScreen = 0;
+  // NEW: Controls which screen is shown
+  int _currentScreen = 0; // 0 = Dashboard (main game), 1 = Players Online
 
   @override
   void initState() {
@@ -278,8 +278,18 @@ class _GameScreenState extends State<GameScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
+        actions: [
+          if (_currentScreen == 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white)),
+              ),
+            ),
+        ],
       ),
 
+      // ==================== SIDE MENU ========================
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -293,7 +303,7 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Dashboard'),
               onTap: () {
                 setState(() => _currentScreen = 0);
-                Navigator.pop(context);
+                Navigator.pop(context); // close menu
               },
             ),
             ListTile(
@@ -301,17 +311,20 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Players Online'),
               onTap: () {
                 setState(() => _currentScreen = 1);
-                Navigator.pop(context);
+                Navigator.pop(context); // close menu
               },
             ),
+            // Add more items here later
           ],
         ),
       ),
 
+      // ==================== BODY - Switches between screens ====================
       body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
     );
   }
 
+  // Main Dashboard (original game screen)
   Widget _buildDashboard() {
     return Column(
       children: [
@@ -366,14 +379,15 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  // Players Online Screen
   Widget _buildPlayersScreen() {
     return onlinePlayers.isEmpty
-        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
+        ? const Center(child: Text('No one is online right now'))
         : ListView.builder(
             itemCount: onlinePlayers.length,
             itemBuilder: (context, index) => ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
+              leading: const Icon(Icons.person),
+              title: Text(onlinePlayers[index]),
             ),
           );
   }
