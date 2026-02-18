@@ -24,41 +24,31 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squad Game',
-      home: AuthWrapper(),   // ← This is the new smart wrapper
+      home: AuthWrapper(),
     );
   }
 }
 
-// ====================== AUTH WRAPPER (handles auto-login on refresh) ======================
+// ====================== AUTH WRAPPER (Auto-login on refresh) ======================
 class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Still loading
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         final user = snapshot.data;
-
-        // Not logged in
-        if (user == null) {
+        if (user == null || !user.emailVerified) {
           return AuthScreen();
         }
 
-        // Logged in but email not verified
-        if (!user.emailVerified) {
-          return AuthScreen(); // Show login screen again
-        }
-
-        // Logged in + verified → check if they need to set display name
         if (user.displayName == null || user.displayName!.isEmpty) {
           return SetDisplayNameScreen();
         }
 
-        // Everything good → go straight to game
         return GameScreen();
       },
     );
@@ -94,6 +84,17 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         setState(() => message = '✅ Account created! Check your email and click the verification link.');
         return;
+      }
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.emailVerified) {
+        if (user.displayName == null || user.displayName!.isEmpty) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
+        } else {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
+        }
+      } else {
+        setState(() => message = 'Please verify your email first.');
       }
     } catch (e) {
       setState(() => message = e.toString());
@@ -184,7 +185,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN (Root with Drawer) ======================
+// ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -197,10 +198,12 @@ class _GameScreenState extends State<GameScreen> {
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
-  Map<String, dynamic> stats = {'balance': 0, 'health': 100};
+  Map<String, dynamic> stats = {'balance': 0, 'health': 100, 'location': 'Riverstone'};
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
+
+  int _currentScreen = 0; // 0 = Dashboard, 1 = Players
 
   @override
   void initState() {
@@ -263,62 +266,62 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
-    return WillPopScope(
-      onWillPop: () async {
-        // If we're on Players screen, go back to Dashboard
-        if (Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-          return false;
-        }
-        return true; // Allow closing app from Dashboard
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Squad Game'),
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_currentScreen == 0 
+            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
+            : 'Players Online'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              const DrawerHeader(
-                decoration: BoxDecoration(color: Colors.blue),
-                child: Text('Squad Game Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.home),
-                title: const Text('Dashboard'),
-                onTap: () {
-                  Navigator.pop(context); // close drawer
-                  // If we're not on dashboard, pop back to it
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.people),
-                title: const Text('Players Online'),
-                onTap: () {
-                  Navigator.pop(context); // close drawer
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => PlayersScreen(onlinePlayers: onlinePlayers)),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-
-        body: _buildDashboard(),   // Default screen
       ),
+
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Colors.blue),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    FirebaseAuth.instance.currentUser?.displayName ?? "Player",
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    stats['location'] ?? "Unknown",
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Dashboard'),
+              onTap: () {
+                setState(() => _currentScreen = 0);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Players Online'),
+              onTap: () {
+                setState(() => _currentScreen = 1);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+
+      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
     );
   }
 
@@ -335,6 +338,9 @@ class _GameScreenState extends State<GameScreen> {
               Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
               LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
               Text('Health: ${stats['health'] ?? 100}/100'),
+              const SizedBox(height: 8),
+              Text('Location: ${stats['location'] ?? "Unknown"}', 
+                  style: const TextStyle(fontSize: 16, color: Colors.white70)),
             ],
           ),
         ),
@@ -376,35 +382,22 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget _buildPlayersScreen() {
+    return onlinePlayers.isEmpty
+        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
+        : ListView.builder(
+            itemCount: onlinePlayers.length,
+            itemBuilder: (context, index) => ListTile(
+              leading: const Icon(Icons.person, color: Colors.blue),
+              title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
+            ),
+          );
+  }
+
   @override
   void dispose() {
     cooldownTimer?.cancel();
     socket?.disconnect();
     super.dispose();
-  }
-}
-
-// ====================== PLAYERS SCREEN ======================
-class PlayersScreen extends StatelessWidget {
-  final List<String> onlinePlayers;
-
-  const PlayersScreen({Key? key, required this.onlinePlayers}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Players Online'),
-      ),
-      body: onlinePlayers.isEmpty
-          ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
-          : ListView.builder(
-              itemCount: onlinePlayers.length,
-              itemBuilder: (context, index) => ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
-              ),
-            ),
-    );
   }
 }

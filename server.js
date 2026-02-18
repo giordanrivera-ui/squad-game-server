@@ -15,14 +15,27 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+// All available locations
+const normalLocations = [
+  "Riverstone",
+  "Thornbury",
+  "Vostokgrad",
+  "Eichenwald",
+  "Montclair",
+  "Valleora",
+  "Lónghǎi",
+  "Sakuragawa",
+  "Cawayan Heights"
+];
+
+const hiddenLocation = "Hidden Mountain";
+
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
   hour: '2-digit', 
   minute: '2-digit', 
   hour12: false 
 });
-
-const onlinePlayers = new Set();   // NEW: Tracks who is currently online
 
 setInterval(() => {
   io.emit('time', timeFormatter.format(new Date()));
@@ -35,17 +48,29 @@ io.on('connection', (socket) => {
 
     if (!email) return;
 
-    // Load or create player data
     const docRef = db.collection('players').doc(email);
     const doc = await docRef.get();
-    let playerData = doc.exists ? doc.data() : { balance: 0, health: 100, lastRob: 0, displayName: displayName };
+
+    let playerData;
+
+    if (doc.exists) {
+      playerData = doc.data();
+    } else {
+      // New player → random starting location
+      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+      
+      playerData = {
+        balance: 0,
+        health: 100,
+        lastRob: 0,
+        displayName: displayName,
+        location: randomLocation
+      };
+      await docRef.set(playerData);
+    }
 
     socket.data.email = email;
     socket.data.displayName = displayName;
-
-    // Add to online list
-    onlinePlayers.add(displayName);
-    io.emit('online-players', Array.from(onlinePlayers));   // Broadcast to everyone
 
     socket.emit('init', playerData);
   });
@@ -74,7 +99,6 @@ io.on('connection', (socket) => {
 
     if (p.health <= 0) {
       await docRef.delete();
-      console.log(`Player ${email} died and data was reset`);
     }
   });
 
@@ -83,12 +107,7 @@ io.on('connection', (socket) => {
     io.emit('message', `${name}: ${msg}`);
   });
 
-  socket.on('disconnect', () => {
-    if (socket.data.displayName) {
-      onlinePlayers.delete(socket.data.displayName);
-      io.emit('online-players', Array.from(onlinePlayers));   // Update everyone when someone leaves
-    }
-  });
+  socket.on('disconnect', () => {});
 });
 
 const port = process.env.PORT || 3000;
