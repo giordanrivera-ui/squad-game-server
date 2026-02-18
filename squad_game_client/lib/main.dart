@@ -238,6 +238,11 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  // Opens the side menu
+  void _openMenu() {
+    Scaffold.of(context).openDrawer();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -266,13 +271,70 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: _openMenu,
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Center(child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white))),
+            child: Center(
+              child: Text('Online: ${onlinePlayers.length}', style: const TextStyle(color: Colors.white)),
+            ),
           ),
         ],
       ),
+
+      // ==================== SIDE MENU (DRAWER) ====================
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blue),
+              child: Text(
+                'Squad Game Menu',
+                style: TextStyle(color: Colors.white, fontSize: 24),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Players Online'),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Players Online'),
+                    content: SizedBox(
+                      width: double.maxFinite,
+                      height: 300,
+                      child: onlinePlayers.isEmpty
+                          ? const Center(child: Text('No one is online'))
+                          : ListView.builder(
+                              itemCount: onlinePlayers.length,
+                              itemBuilder: (context, index) => ListTile(
+                                title: Text(onlinePlayers[index]),
+                                leading: const Icon(Icons.person),
+                              ),
+                            ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            // Add more menu items here later (e.g. Leaderboard, Settings, etc.)
+            // ListTile( leading: Icon(Icons.leaderboard), title: Text('Leaderboard'), onTap: () {} ),
+          ],
+        ),
+      ),
+
       body: Column(
         children: [
           Container(
@@ -287,12 +349,6 @@ class _GameScreenState extends State<GameScreen> {
                 Text('Health: ${stats['health'] ?? 100}/100'),
               ],
             ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue[900],
-            child: Text('Online: ${onlinePlayers.join(', ')}', style: const TextStyle(color: Colors.white)),
           ),
           Expanded(
             child: ListView.builder(
