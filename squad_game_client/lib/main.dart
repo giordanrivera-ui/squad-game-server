@@ -185,7 +185,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN (Main Dashboard) ======================
+// ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -202,6 +202,8 @@ class _GameScreenState extends State<GameScreen> {
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
+
+  int _currentScreen = 0; // 0 = Dashboard, 1 = Players
 
   @override
   void initState() {
@@ -227,11 +229,7 @@ class _GameScreenState extends State<GameScreen> {
       });
     });
     socket?.on('message', (data) => setState(() => messages.add(data)));
-
-    // Live online players list
-    socket?.on('online-players', (data) {
-      if (mounted) setState(() => onlinePlayers = List<String>.from(data));
-    });
+    socket?.on('online-players', (data) => setState(() => onlinePlayers = List<String>.from(data)));
   }
 
   void robBank() {
@@ -270,7 +268,9 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+        title: Text(_currentScreen == 0 
+            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
+            : 'Players Online'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -287,6 +287,7 @@ class _GameScreenState extends State<GameScreen> {
               decoration: const BoxDecoration(color: Colors.blue),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     FirebaseAuth.instance.currentUser?.displayName ?? "Player",
@@ -303,24 +304,24 @@ class _GameScreenState extends State<GameScreen> {
             ListTile(
               leading: const Icon(Icons.home),
               title: const Text('Dashboard'),
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                setState(() => _currentScreen = 0);
+                Navigator.pop(context);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Players Online'),
               onTap: () {
+                setState(() => _currentScreen = 1);
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => PlayersScreen(onlinePlayers: onlinePlayers)),
-                );
               },
             ),
           ],
         ),
       ),
 
-      body: _buildDashboard(),
+      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
     );
   }
 
@@ -338,7 +339,8 @@ class _GameScreenState extends State<GameScreen> {
               LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
               Text('Health: ${stats['health'] ?? 100}/100'),
               const SizedBox(height: 8),
-              Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+              Text('Location: ${stats['location'] ?? "Unknown"}', 
+                  style: const TextStyle(fontSize: 16, color: Colors.white70)),
             ],
           ),
         ),
@@ -380,48 +382,22 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget _buildPlayersScreen() {
+    return onlinePlayers.isEmpty
+        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
+        : ListView.builder(
+            itemCount: onlinePlayers.length,
+            itemBuilder: (context, index) => ListTile(
+              leading: const Icon(Icons.person, color: Colors.blue),
+              title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
+            ),
+          );
+  }
+
   @override
   void dispose() {
     cooldownTimer?.cancel();
     socket?.disconnect();
     super.dispose();
-  }
-}
-
-// ====================== PLAYERS SCREEN ======================
-class PlayersScreen extends StatefulWidget {
-  final List<String> onlinePlayers;
-
-  const PlayersScreen({Key? key, required this.onlinePlayers}) : super(key: key);
-
-  @override
-  _PlayersScreenState createState() => _PlayersScreenState();
-}
-
-class _PlayersScreenState extends State<PlayersScreen> {
-  late List<String> onlinePlayers;
-
-  @override
-  void initState() {
-    super.initState();
-    onlinePlayers = widget.onlinePlayers;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Players Online'),
-      ),
-      body: onlinePlayers.isEmpty
-          ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
-          : ListView.builder(
-              itemCount: onlinePlayers.length,
-              itemBuilder: (context, index) => ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text(onlinePlayers[index], style: const TextStyle(fontSize: 18)),
-              ),
-            ),
-    );
   }
 }
