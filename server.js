@@ -42,7 +42,7 @@ const travelCosts = {
 };
 
 // ==================== ONLINE PLAYERS TRACKING ====================
-const onlinePlayers = new Set();   // Tracks currently online display names
+const onlinePlayers = new Set();
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -70,7 +70,6 @@ io.on('connection', (socket) => {
     if (doc.exists) {
       playerData = doc.data();
     } else {
-      // NEW PLAYER → Random starting location
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
 
       playerData = {
@@ -84,19 +83,19 @@ io.on('connection', (socket) => {
       await docRef.set(playerData);
     }
 
-    // Remember this socket
     socket.data.email = email;
     socket.data.displayName = displayName;
 
-    // Add to online list and broadcast
     onlinePlayers.add(displayName);
     io.emit('online-players', Array.from(onlinePlayers));
 
-    // Send player data to the client
+    // ← Debug message so we can see it working
+    console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
+
     socket.emit('init', playerData);
   });
 
-  socket.on('rob-bank', async () => {
+  socket.on('rob-bank', async () => { /* your rob code - unchanged */ 
     const email = socket.data.email;
     if (!email) return;
 
@@ -139,25 +138,24 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
 
-    // Can't fly to same city or unknown city
     if (p.location === destination || travelCosts[destination] === undefined) return;
 
     const cost = travelCosts[destination];
 
-    if (p.balance < cost) return;   // not enough money
+    if (p.balance < cost) return;
 
-    // Fly!
     p.balance -= cost;
     p.location = destination;
 
     await docRef.set(p);
-    socket.emit('update-stats', p);   // tells the game screen to update
+    socket.emit('update-stats', p);
   });
 
   socket.on('disconnect', () => {
     if (socket.data.displayName) {
       onlinePlayers.delete(socket.data.displayName);
       io.emit('online-players', Array.from(onlinePlayers));
+      console.log(`[SERVER] ${socket.data.displayName} left - online now: ${onlinePlayers.size}`);
     }
   });
 });
