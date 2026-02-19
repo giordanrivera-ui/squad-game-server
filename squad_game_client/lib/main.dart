@@ -71,7 +71,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool isLoading = false;
   String message = '';
 
-  Future<void> handleAuth() async {
+    Future<void> handleAuth() async {
     setState(() { isLoading = true; message = ''; });
 
     try {
@@ -89,16 +89,16 @@ class _AuthScreenState extends State<AuthScreen> {
         return;
       }
 
+      // NO MORE Navigator.pushReplacement here!
+      // The StreamBuilder (Mom Watcher) will automatically show GameScreen now
+
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.emailVerified) {
-        if (user.displayName == null || user.displayName!.isEmpty) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
-        } else {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
-        }
-      } else {
+      if (user != null && !user.emailVerified) {
         setState(() => message = 'Please verify your email first.');
       }
+      // If verified and has displayName → StreamBuilder will switch to GameScreen automatically
+      // No extra navigation = no race = no instant disconnect!
+
     } catch (e) {
       setState(() => message = e.toString());
     }
