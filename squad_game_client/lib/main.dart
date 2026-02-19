@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'socket_service.dart';
+import 'constants.dart';
 import 'dart:async';
+import 'online_players_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +31,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ====================== AUTH WRAPPER (Auto-login on refresh) ======================
+// ====================== AUTH WRAPPER ======================
 class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -55,7 +57,7 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-// ====================== LOGIN / REGISTER ======================
+// ====================== LOGIN / REGISTER (unchanged) ======================
 class AuthScreen extends StatefulWidget {
   @override
   _AuthScreenState createState() => _AuthScreenState();
@@ -131,7 +133,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ====================== SET DISPLAY NAME ======================
+// ====================== SET DISPLAY NAME (unchanged) ======================
 class SetDisplayNameScreen extends StatefulWidget {
   @override
   _SetDisplayNameScreenState createState() => _SetDisplayNameScreenState();
@@ -185,14 +187,15 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN ======================
+// ====================== GAME SCREEN - NOW MUCH CLEANER ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
-  IO.Socket? socket;
+  final SocketService _socketService = SocketService();
+
   List<String> messages = [];
   List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
@@ -203,40 +206,47 @@ class _GameScreenState extends State<GameScreen> {
   bool isDead = false;
   Timer? cooldownTimer;
 
-  int _currentScreen = 0; // 0 = Dashboard, 1 = Players Online
+  int _currentScreen = 0;
 
   @override
   void initState() {
     super.initState();
-    connectToServer();
+    _connectToServer();
   }
 
-  void connectToServer() {
-    socket = IO.io('https://squad-game-server.onrender.com', IO.OptionBuilder().setTransports(['websocket']).build());
+  void _connectToServer() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    socket?.onConnect((_) {
-      final user = FirebaseAuth.instance.currentUser;
-      socket?.emit('register', {'email': user?.email, 'displayName': user?.displayName ?? 'Anonymous'});
-      setState(() => messages.add('✅ Connected as ${user?.displayName}'));
-    });
+    _socketService.connect(user.email!, user.displayName ?? 'Anonymous');
 
-    socket?.on('time', (data) => setState(() => time = data));
-    socket?.on('init', (data) => setState(() => stats = Map.from(data)));
-    socket?.on('update-stats', (data) {
+    // Listen to socket events
+    _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
+    _socketService.socket?.on(SocketEvents.init, (data) => setState(() => stats = Map.from(data)));
+    _socketService.socket?.on(SocketEvents.updateStats, (data) {
       setState(() {
         stats = Map.from(data);
         if (stats['health'] <= 0) isDead = true;
       });
     });
-    socket?.on('message', (data) => setState(() => messages.add(data)));
-    socket?.on('online-players', (data) => setState(() => onlinePlayers = List<String>.from(data)));
+    _socketService.socket?.on(SocketEvents.message, (data) {
+      setState(() {
+        messages.add(data);
+        if (messages.length > GameConstants.maxChatMessages) {
+          messages.removeAt(0);
+        }
+      });
+    });
+    _socketService.socket?.on(SocketEvents.onlinePlayers, (data) {
+      setState(() => onlinePlayers = List<String>.from(data));
+    });
   }
 
   void robBank() {
     if (cooldown || isDead) return;
-    socket?.emit('rob-bank');
+    _socketService.robBank();
     setState(() => cooldown = true);
-    cooldownTimer = Timer(const Duration(seconds: 60), () {
+    cooldownTimer = Timer(const Duration(seconds: GameConstants.robCooldownSeconds), () {
       if (mounted) setState(() => cooldown = false);
     });
   }
@@ -256,6 +266,7 @@ class _GameScreenState extends State<GameScreen> {
                 onPressed: () async {
                   await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
                   await FirebaseAuth.instance.signOut();
+                  _socketService.disconnect();
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
                 },
                 child: const Text('Logout & Start New Life'),
@@ -321,7 +332,11 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
 
-      body: _currentScreen == 0 ? _buildDashboard() : _buildPlayersScreen(),
+      body: _currentScreen == 0 
+          ? _buildDashboard() 
+          : OnlinePlayersScreen(
+              onlinePlayers: onlinePlayers,
+            ),
     );
   }
 
@@ -356,10 +371,8 @@ class _GameScreenState extends State<GameScreen> {
               Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
               ElevatedButton(
                 onPressed: () {
-                  if (_controller.text.isNotEmpty) {
-                    socket?.emit('message', _controller.text);
-                    _controller.clear();
-                  }
+                  _socketService.sendMessage(_controller.text);
+                  _controller.clear();
                 },
                 child: const Text('Send'),
               ),
@@ -381,21 +394,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-    Widget _buildPlayersScreen() {
-    return onlinePlayers.isEmpty
-        ? const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)))
-        : ListView.builder(
-            itemCount: onlinePlayers.length,
-            itemBuilder: (context, index) {
-              final name = onlinePlayers[index];
-              return ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text(name, style: const TextStyle(fontSize: 18)),
-                onTap: () => _showPlayerMenu(context, name),
-              );
-            },
-          );
-  }
 
   void _showPlayerMenu(BuildContext context, String name) {
     showModalBottomSheet(
@@ -449,7 +447,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     cooldownTimer?.cancel();
-    socket?.disconnect();
+    _socketService.disconnect();
     super.dispose();
   }
 }
