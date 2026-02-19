@@ -5,6 +5,7 @@ import 'socket_service.dart';
 import 'constants.dart';
 import 'dart:async';
 import 'online_players_screen.dart';
+import 'airport_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -328,6 +329,22 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
+                        ListTile(
+              leading: const Icon(Icons.airplanemode_active),
+              title: const Text('Airport'),
+              onTap: () {
+                Navigator.pop(context); // close the drawer
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AirportScreen(
+                      currentLocation: stats['location'] ?? 'Unknown',
+                      currentBalance: stats['balance'] ?? 0,
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -391,56 +408,6 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
       ],
-    );
-  }
-
-
-  void _showPlayerMenu(BuildContext context, String name) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.person),
-            title: Text('View $name\'s Profile'),
-            onTap: () {
-              Navigator.pop(context);
-              _showProfile(context, name);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.message),
-            title: const Text('Message'),
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Messaging $name...')));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.group_add),
-            title: const Text('Invite to Operation'),
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invite sent to $name!')));
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showProfile(BuildContext context, String name) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("$name's Profile"),
-        content: const Text("Profile details will be shown here in the future."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-        ],
-      ),
     );
   }
 

@@ -70,6 +70,11 @@ class SocketService {
     }
   }
 
+  // Send travel request to server
+  void travel(String destination) {
+    socket?.emit(SocketEvents.travel, destination);
+  }
+
   // Disconnect when leaving the game
   void disconnect() {
     socket?.disconnect();
