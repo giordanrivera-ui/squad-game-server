@@ -28,19 +28,6 @@ const normalLocations = [
   "Cawayan Heights"
 ];
 
-// ==================== TRAVEL COSTS ====================
-const travelCosts = {
-  "Riverstone": 40,
-  "Thornbury": 45,
-  "Vostokgrad": 110,
-  "Eichenwald": 60,
-  "Montclair": 85,
-  "Valleora": 70,
-  "Lónghǎi": 140,
-  "Sakuragawa": 95,
-  "Cawayan Heights": 55
-};
-
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();   // Tracks currently online display names
 
@@ -127,31 +114,6 @@ io.on('connection', (socket) => {
   socket.on('message', (msg) => {
     const name = socket.data.displayName || 'Anonymous';
     io.emit('message', `${name}: ${msg}`);
-  });
-
-  socket.on('travel', async (destination) => {
-    const email = socket.data.email;
-    if (!email || typeof destination !== 'string') return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // Can't fly to same city or unknown city
-    if (p.location === destination || travelCosts[destination] === undefined) return;
-
-    const cost = travelCosts[destination];
-
-    if (p.balance < cost) return;   // not enough money
-
-    // Fly!
-    p.balance -= cost;
-    p.location = destination;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);   // tells the game screen to update
   });
 
   socket.on('disconnect', () => {
