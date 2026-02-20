@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "224646200519",
+    "project_id": "squad-game-1d87d",
+    "storage_bucket": "squad-game-1d87d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:224646200519:android:eb47e25c9b36f43163d2e2",
+        "android_client_info": {
+          "package_name": "com.example.squad_game_client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvNg8-mNq3yFWD4aqFQsZUOFk0CMV18BQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

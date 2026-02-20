@@ -14,6 +14,7 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+const messaging = admin.messaging();  // NEW FOR FCM: Initialize messaging
 
 // ==================== LOCATIONS ====================
 const normalLocations = [
@@ -44,6 +45,9 @@ const travelCosts = {
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
+
+// NEW FOR IMPROVED PUSH: A big toy box for each player's messages to group them!
+const notificationQueues = new Map(); // Key: recipient displayName, Value: {messages: [], timer: null}
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -159,8 +163,8 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== PRIVATE MESSAGES (updated to carry the message ID) ====================
-  socket.on('private-message', (data) => {
+  // ==================== PRIVATE MESSAGES (updated for grouping push) ====================
+  socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 
     const from = socket.data.displayName;
@@ -179,11 +183,85 @@ io.on('connection', (socket) => {
       targetSocket.emit('private-message', baseMsg);
       socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
     }
+
+    // NEW FOR IMPROVED PUSH: Add to queue instead of sending right away
+    const recipient = data.to;
+    if (!notificationQueues.has(recipient)) {
+      notificationQueues.set(recipient, {messages: [], timer: null});
+    }
+    const queue = notificationQueues.get(recipient);
+    queue.messages.push({from: from, msg: data.msg});
+
+    if (!queue.timer) {
+      queue.timer = setTimeout(async () => {
+        // Like opening the toy box after waiting!
+        const count = queue.messages.length;
+        let title = '';
+        let body = '';
+
+        if (count === 1) {
+          title = `New Message from ${queue.messages[0].from}`;
+          body = queue.messages[0].msg.length > 50 ? `${queue.messages[0].msg.substring(0, 47)}...` : queue.messages[0].msg;
+        } else {
+          const senders = [...new Set(queue.messages.map(m => m.from))]; // Unique friends
+          title = `You have ${count} new messages`;
+          body = `From ${senders.join(' and ')}`; // Like "From Bob and Alice"
+        }
+
+        // Get the phone beep token (same as before)
+        const recipientDoc = await db.collection('players').where('displayName', '==', recipient).limit(1).get();
+        if (!recipientDoc.empty) {
+          const recipientData = recipientDoc.docs[0].data();
+          const fcmToken = recipientData.fcmToken;
+          if (fcmToken) {
+            const payload = {
+              notification: {
+                title: title,
+                body: body,
+              },
+            };
+            try {
+              await messaging.send({ ...payload, token: fcmToken });
+              console.log(`Grouped notification sent to ${recipient}`);
+            } catch (error) {
+              console.error('Error sending grouped notification:', error);
+            }
+          }
+        }
+
+        // Empty the box for next time
+        queue.messages = [];
+        queue.timer = null;
+      }, 5000); // Wait 5 seconds (like counting 1-2-3-4-5)
+    }
   });
 
-  socket.on('announcement', (text) => {
+  socket.on('announcement', async (text) => {
     if (typeof text === 'string' && text.length > 0) {
       io.emit('announcement', text);
+
+      // NEW FOR FCM: Send to all players with tokens (no grouping for now, since rare)
+      const allPlayers = await db.collection('players').get();
+      const tokens = [];
+      allPlayers.forEach((doc) => {
+        const playerData = doc.data();
+        if (playerData.fcmToken) tokens.push(playerData.fcmToken);
+      });
+
+      if (tokens.length > 0) {
+        const payload = {
+          notification: {
+            title: 'Mod Announcement',
+            body: text.length > 50 ? `${text.substring(0, 47)}...` : text,
+          },
+        };
+        try {
+          await messaging.sendMulticast({ ...payload, tokens });
+          console.log(`Announcement notification sent to ${tokens.length} players`);
+        } catch (error) {
+          console.error('Error sending announcement notifications:', error);
+        }
+      }
     }
   });
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';  // NEW FOR FCM
+import 'package:cloud_firestore/cloud_firestore.dart';  // NEW FOR FCM (save token)
 import 'socket_service.dart';
 import 'constants.dart';
 import 'dart:async';
@@ -190,9 +192,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ... (rest of main.dart remains the same)
-
-// ====================== GAME SCREEN - NOW MUCH CLEANER ======================
+// ====================== GAME SCREEN - UPDATED FOR FCM ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -218,6 +218,50 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _connectToServer();
+    _initFCM();  // NEW FOR FCM: Initialize push notifications
+  }
+
+  // NEW FOR FCM: Request permission, get token, save to Firestore
+  Future<void> _initFCM() async {
+    final messaging = FirebaseMessaging.instance;
+
+    // Request permission (iOS requires this; Android auto-grants)
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Get device token
+    final fcmToken = await messaging.getToken();
+    if (fcmToken != null) {
+      final email = FirebaseAuth.instance.currentUser?.email;
+      if (email != null) {
+        await FirebaseFirestore.instance
+            .collection('players')
+            .doc(email)
+            .set({'fcmToken': fcmToken}, SetOptions(merge: true));
+        print('FCM Token saved: $fcmToken');  // For debugging
+      }
+    }
+
+    // Handle token refresh
+    messaging.onTokenRefresh.listen((newToken) async {
+      final email = FirebaseAuth.instance.currentUser?.email;
+      if (email != null) {
+        await FirebaseFirestore.instance
+            .collection('players')
+            .doc(email)
+            .set({'fcmToken': newToken}, SetOptions(merge: true));
+      }
+    });
+
+    // Optional: Handle background messages (e.g., navigate on tap)
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      // Handle when app opened from notification (e.g., go to messages screen)
+      setState(() => _currentScreen = 2);
+    });
   }
 
   void _connectToServer() {
@@ -539,4 +583,10 @@ class _GameScreenState extends State<GameScreen> {
     // _socketService.disconnect();
     super.dispose();
   }
+}
+
+// NEW FOR FCM: Background message handler (must be top-level)
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Handle data here if needed (e.g., log or update local storage)
+  print('Background message: ${message.notification?.title}');
 }
