@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'socket_service.dart';  // NEW: Import to access the singleton
 
 class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -21,9 +22,31 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       leading: Builder(
-        builder: (context) => IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: onMenuPressed,   // still uses your safe callback
+        builder: (context) => Stack(  // UPDATED: Wrap in Stack for red dot
+          children: [
+            IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: onMenuPressed,
+            ),
+            ValueListenableBuilder<bool>(
+              valueListenable: SocketService().hasUnreadMessages,  // UPDATED: Listen to notifier
+              builder: (context, hasUnread, child) {
+                if (!hasUnread) return const SizedBox.shrink();
+                return Positioned(
+                  right: 11,
+                  top: 11,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
       title: Text(title),
