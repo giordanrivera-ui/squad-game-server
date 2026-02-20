@@ -43,6 +43,7 @@ const travelCosts = {
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
+const onlineSockets = new Map();   // NEW: name → socket so we can send private letters
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -87,15 +88,16 @@ io.on('connection', (socket) => {
     socket.data.displayName = displayName;
 
     onlinePlayers.add(displayName);
+    onlineSockets.set(displayName, socket);
+
     io.emit('online-players', Array.from(onlinePlayers));
 
-    // ← Debug message so we can see it working
     console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
 
     socket.emit('init', playerData);
   });
 
-  socket.on('rob-bank', async () => { /* your rob code - unchanged */ 
+  socket.on('rob-bank', async () => {
     const email = socket.data.email;
     if (!email) return;
 
@@ -151,11 +153,36 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
+  // ==================== NEW MAILBOX CODE ====================
+  socket.on('private-message', (data) => {
+    if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
+
+    const from = socket.data.displayName;
+    if (!from) return;
+
+    const targetSocket = onlineSockets.get(data.to);
+    if (targetSocket) {
+      // Send to the other player
+      targetSocket.emit('private-message', { from: from, msg: data.msg });
+
+      // Echo back to you so you see it in your mailbox
+      socket.emit('private-message', { to: data.to, msg: data.msg, isFromMe: true });
+    }
+  });
+
+  socket.on('announcement', (text) => {
+    if (typeof text === 'string' && text.length > 0) {
+      io.emit('announcement', text);   // everyone sees it
+    }
+  });
+
   socket.on('disconnect', () => {
     if (socket.data.displayName) {
-      onlinePlayers.delete(socket.data.displayName);
+      const name = socket.data.displayName;
+      onlinePlayers.delete(name);
+      onlineSockets.delete(name);
       io.emit('online-players', Array.from(onlinePlayers));
-      console.log(`[SERVER] ${socket.data.displayName} left - online now: ${onlinePlayers.size}`);
+      console.log(`[SERVER] ${name} left - online now: ${onlinePlayers.size}`);
     }
   });
 });

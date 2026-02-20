@@ -6,6 +6,7 @@ import 'constants.dart';
 import 'dart:async';
 import 'online_players_screen.dart';
 import 'airport_screen.dart';
+import 'messages_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -281,8 +282,10 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentScreen == 0 
-            ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
-            : 'Players Online'),
+          ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
+          : _currentScreen == 1 
+              ? 'Players Online'
+              : 'Messages'),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu),
@@ -321,6 +324,14 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
+            ListTile(   // ← NEW MESSAGES
+              leading: const Icon(Icons.mail),
+              title: const Text('Messages'),
+              onTap: () {
+                setState(() => _currentScreen = 2);
+                Navigator.pop(context);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.people),
               title: const Text('Players Online'),
@@ -351,9 +362,9 @@ class _GameScreenState extends State<GameScreen> {
 
       body: _currentScreen == 0 
           ? _buildDashboard() 
-          : OnlinePlayersScreen(
-              onlinePlayers: onlinePlayers,
-            ),
+          : _currentScreen == 1 
+              ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
+              : MessagesScreen(),   // ← NEW
     );
   }
 

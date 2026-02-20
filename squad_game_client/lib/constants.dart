@@ -8,7 +8,9 @@ class SocketEvents {
   static const String init = 'init';
   static const String updateStats = 'update-stats';
   static const String onlinePlayers = 'online-players';
-  static const String travel = 'travel';   // ← NEW for airport
+  static const String travel = 'travel';
+  static const String privateMessage = 'private-message';   // ← NEW
+  static const String announcement = 'announcement';        // ← NEW for mods
 }
 
 class GameConstants {
@@ -16,7 +18,6 @@ class GameConstants {
   static const int robCooldownSeconds = 60;
   static const int maxChatMessages = 100;
 
-  // The 9 cities (same as server)
   static const List<String> normalLocations = [
     "Riverstone",
     "Thornbury",
@@ -29,7 +30,6 @@ class GameConstants {
     "Cawayan Heights"
   ];
 
-  // How much it costs to fly to each city
   static const Map<String, int> travelCosts = {
     "Riverstone": 40,
     "Thornbury": 45,

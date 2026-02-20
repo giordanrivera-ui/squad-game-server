@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'socket_service.dart';
 
 class OnlinePlayersScreen extends StatelessWidget {
   final List<String> onlinePlayers;
@@ -8,12 +9,10 @@ class OnlinePlayersScreen extends StatelessWidget {
     required this.onlinePlayers,
   });
 
-  // This is the menu that pops up when you tap a player
   void _showPlayerMenu(BuildContext context, String name) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -21,8 +20,8 @@ class OnlinePlayersScreen extends StatelessWidget {
             leading: const Icon(Icons.person),
             title: Text('View $name\'s Profile'),
             onTap: () {
-              Navigator.pop(context);        // close the menu
-              _showProfile(context, name);   // show the profile
+              Navigator.pop(context);
+              _showProfile(context, name);
             },
           ),
           ListTile(
@@ -30,9 +29,7 @@ class OnlinePlayersScreen extends StatelessWidget {
             title: const Text('Message'),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Messaging $name...')),
-              );
+              _showSendMessageDialog(context, name);
             },
           ),
           ListTile(
@@ -40,9 +37,7 @@ class OnlinePlayersScreen extends StatelessWidget {
             title: const Text('Invite to Operation'),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Invite sent to $name!')),
-              );
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invite sent to $name!')));
             },
           ),
         ],
@@ -50,7 +45,6 @@ class OnlinePlayersScreen extends StatelessWidget {
     );
   }
 
-  // This shows the profile popup (right now it's just "coming soon")
   void _showProfile(BuildContext context, String name) {
     showDialog(
       context: context,
@@ -58,9 +52,38 @@ class OnlinePlayersScreen extends StatelessWidget {
         title: Text("$name's Profile"),
         content: const Text("Profile details will be shown here in the future."),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  // NEW: quick letter box when you tap "Message"
+  void _showSendMessageDialog(BuildContext context, String toName) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Message $toName'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Type your message...'),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            onPressed: () {
+              final msg = controller.text.trim();
+              if (msg.isNotEmpty) {
+                SocketService().sendPrivateMessage(toName, msg);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Message sent to $toName!')),
+                );
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Send'),
           ),
         ],
       ),
@@ -70,12 +93,7 @@ class OnlinePlayersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (onlinePlayers.isEmpty) {
-      return const Center(
-        child: Text(
-          'No one is online right now',
-          style: TextStyle(fontSize: 18),
-        ),
-      );
+      return const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)));
     }
 
     return ListView.builder(
@@ -85,9 +103,6 @@ class OnlinePlayersScreen extends StatelessWidget {
         return ListTile(
           leading: const Icon(Icons.person, color: Colors.blue),
           title: Text(name, style: const TextStyle(fontSize: 18)),
-          
-          // ← This is the magic line!
-          // When you tap, the small box shows its own menu
           onTap: () => _showPlayerMenu(context, name),
         );
       },
