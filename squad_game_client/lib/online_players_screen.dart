@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'socket_service.dart';
+import 'chat_screen.dart';   // ← NEW import (important!)
 
 class OnlinePlayersScreen extends StatelessWidget {
   final List<String> onlinePlayers;
@@ -12,7 +12,8 @@ class OnlinePlayersScreen extends StatelessWidget {
   void _showPlayerMenu(BuildContext context, String name) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -28,8 +29,13 @@ class OnlinePlayersScreen extends StatelessWidget {
             leading: const Icon(Icons.message),
             title: const Text('Message'),
             onTap: () {
-              Navigator.pop(context);
-              _showSendMessageDialog(context, name);
+              Navigator.pop(context);           // close menu
+              Navigator.push(                   // ← NEW: go straight to full chat
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(partner: name),
+                ),
+              );
             },
           ),
           ListTile(
@@ -37,7 +43,9 @@ class OnlinePlayersScreen extends StatelessWidget {
             title: const Text('Invite to Operation'),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Invite sent to $name!')));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Invite sent to $name!')),
+              );
             },
           ),
         ],
@@ -58,42 +66,15 @@ class OnlinePlayersScreen extends StatelessWidget {
     );
   }
 
-  // NEW: quick letter box when you tap "Message"
-  void _showSendMessageDialog(BuildContext context, String toName) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Message $toName'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Type your message...'),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              final msg = controller.text.trim();
-              if (msg.isNotEmpty) {
-                SocketService().sendPrivateMessage(toName, msg);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Message sent to $toName!')),
-                );
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (onlinePlayers.isEmpty) {
-      return const Center(child: Text('No one is online right now', style: TextStyle(fontSize: 18)));
+      return const Center(
+        child: Text(
+          'No one is online right now',
+          style: TextStyle(fontSize: 18),
+        ),
+      );
     }
 
     return ListView.builder(
