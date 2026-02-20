@@ -227,7 +227,7 @@ class _GameScreenState extends State<GameScreen> {
     // Listen to socket events
     _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
     _socketService.socket?.on(SocketEvents.init, (data) {
-      setState(() => stats = Map.from(data));
+      setState(() => stats = Map.from(data['player'] ?? {}));
       _socketService.loadMessages();   // ← NEW: load your saved messages
       if ((stats['health'] ?? 100) <= 0) isDead = true;
     });

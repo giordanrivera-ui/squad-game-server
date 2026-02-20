@@ -17,28 +17,4 @@ class GameConstants {
   static const String serverUrl = 'https://squad-game-server.onrender.com';
   static const int robCooldownSeconds = 60;
   static const int maxChatMessages = 100;
-
-  static const List<String> normalLocations = [
-    "Riverstone",
-    "Thornbury",
-    "Vostokgrad",
-    "Eichenwald",
-    "Montclair",
-    "Valleora",
-    "Lónghǎi",
-    "Sakuragawa",
-    "Cawayan Heights"
-  ];
-
-  static const Map<String, int> travelCosts = {
-    "Riverstone": 40,
-    "Thornbury": 45,
-    "Vostokgrad": 110,
-    "Eichenwald": 60,
-    "Montclair": 85,
-    "Valleora": 70,
-    "Lónghǎi": 140,
-    "Sakuragawa": 95,
-    "Cawayan Heights": 55,
-  };
 }

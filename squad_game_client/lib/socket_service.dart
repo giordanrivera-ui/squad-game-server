@@ -16,6 +16,9 @@ class SocketService {
 
   String? _currentEmail;
 
+  List<String> normalLocations = [];
+  Map<String, int> travelCosts = {};
+
   void connect(String email, String displayName) {
     if (socket != null && socket!.connected) return;
 
@@ -33,6 +36,14 @@ class SocketService {
         'email': email,
         'displayName': displayName,
       });
+    });
+
+    socket?.on(SocketEvents.init, (data) {
+      if (data is Map) {
+        normalLocations = List<String>.from(data['locations'] ?? []);
+        travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
+        print('Got locations from server: $normalLocations'); // This is for testing - you can delete later
+      }
     });
 
     // Private message received

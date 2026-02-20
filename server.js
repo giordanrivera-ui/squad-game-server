@@ -96,7 +96,11 @@ io.on('connection', (socket) => {
 
     console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
 
-    socket.emit('init', playerData);
+    socket.emit('init', {
+      player: playerData,
+      locations: normalLocations,
+      travelCosts: travelCosts
+    });
   });
 
   socket.on('rob-bank', async () => {

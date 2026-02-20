@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'constants.dart';
 import 'socket_service.dart';
 
 class AirportScreen extends StatefulWidget {
@@ -24,8 +23,8 @@ class _AirportScreenState extends State<AirportScreen> {
   String? _selectedDestination;
 
   int? get _cost => _selectedDestination != null
-      ? GameConstants.travelCosts[_selectedDestination!]
-      : null;
+    ? SocketService().travelCosts[_selectedDestination!]
+    : null;
 
   bool get _canTravel => _selectedDestination != null &&
                          _cost != null &&
@@ -45,9 +44,10 @@ class _AirportScreenState extends State<AirportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final available = GameConstants.normalLocations
-        .where((city) => city != widget.currentLocation)
-        .toList();
+    final socketService = SocketService();
+    final available = socketService.normalLocations
+      .where((city) => city != widget.currentLocation)
+      .toList();
 
     return Column(
       children: [
@@ -69,7 +69,7 @@ class _AirportScreenState extends State<AirportScreen> {
             itemCount: available.length,
             itemBuilder: (context, index) {
               final city = available[index];
-              final cityCost = GameConstants.travelCosts[city] ?? 0;
+              final cityCost = socketService.travelCosts[city] ?? 0;
 
               return RadioListTile<String>(
                 title: Text(city, style: const TextStyle(fontSize: 18)),
