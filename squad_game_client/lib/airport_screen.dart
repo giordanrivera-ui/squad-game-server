@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
 import 'socket_service.dart';
-import 'status_app_bar.dart';
 
 class AirportScreen extends StatefulWidget {
   final String currentLocation;
