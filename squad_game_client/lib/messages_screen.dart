@@ -9,6 +9,11 @@ class MessagesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final socketService = SocketService();
 
+    // NEW: Mark announcements as read when opening this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      socketService.markAsRead(announcements: true);
+    });
+
     return ValueListenableBuilder<List<Map<String, dynamic>>>(
       valueListenable: socketService.inboxNotifier,
       builder: (context, allMessages, child) {
@@ -74,11 +79,43 @@ class MessagesScreen extends StatelessWidget {
                       ),
                     );
                   },
+                  trailing: IconButton(  // NEW: Trash icon for deleting conversation
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _showDeleteConfirmation(context, partner),
+                  ),
                 );
               }),
           ],
         );
       },
+    );
+  }
+
+  // NEW: Confirmation dialog for deleting conversation
+  void _showDeleteConfirmation(BuildContext context, String partner) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Conversation'),
+        content: Text('Are you sure you want to delete all messages with $partner? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              SocketService().deleteConversation(partner);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Conversation with $partner deleted.')),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 

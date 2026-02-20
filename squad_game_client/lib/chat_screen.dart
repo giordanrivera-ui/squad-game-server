@@ -14,6 +14,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _inputController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // NEW: Mark conversation as read when opening
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SocketService().markAsRead(partner: widget.partner);
+    });
+  }
+
+  @override
   void dispose() {
     _inputController.dispose();
     super.dispose();

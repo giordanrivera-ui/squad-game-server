@@ -190,6 +190,8 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
+// ... (rest of main.dart remains the same)
+
 // ====================== GAME SCREEN - NOW MUCH CLEANER ======================
 class GameScreen extends StatefulWidget {
   @override
@@ -210,7 +212,7 @@ class _GameScreenState extends State<GameScreen> {
   Timer? cooldownTimer;
 
   int _currentScreen = 0;
-    final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -287,14 +289,35 @@ class _GameScreenState extends State<GameScreen> {
 
     return Scaffold(
       key: _scaffoldKey,
-
-            appBar: _currentScreen == 0
+      appBar: _currentScreen == 0
           ? AppBar(
               title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
               leading: Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
+                builder: (context) => Stack(  // NEW: Add red dot to menu icon
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.menu),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _socketService.hasUnreadMessages,
+                      builder: (context, hasUnread, child) {
+                        if (!hasUnread) return const SizedBox.shrink();
+                        return Positioned(
+                          right: 11,
+                          top: 11,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
             )
@@ -339,12 +362,34 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
-            ListTile(   // ← NEW MESSAGES
-              leading: const Icon(Icons.mail),
-              title: const Text('Messages'),
-              onTap: () {
-                setState(() => _currentScreen = 2);
-                Navigator.pop(context);
+            ValueListenableBuilder<bool>(  // NEW: Add red dot to Messages tile
+              valueListenable: _socketService.hasUnreadMessages,
+              builder: (context, hasUnread, child) {
+                return ListTile(
+                  leading: Stack(
+                    children: [
+                      const Icon(Icons.mail),
+                      if (hasUnread)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                          ),
+                        ),
+                    ],
+                  ),
+                  title: const Text('Messages'),
+                  onTap: () {
+                    setState(() => _currentScreen = 2);
+                    Navigator.pop(context);
+                  },
+                );
               },
             ),
             ListTile(
@@ -367,18 +412,18 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
 
-    body: _currentScreen == 0 
-    ? _buildDashboard() 
-    : _currentScreen == 1 
-        ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
-        : _currentScreen == 2 
-            ? MessagesScreen()
-            : AirportScreen(   // ← NEW
-                currentLocation: stats['location'] ?? 'Unknown',
-                currentBalance: stats['balance'] ?? 0,
-                currentHealth: stats['health'] ?? 100,
-                currentTime: time,
-              ),
+      body: _currentScreen == 0 
+          ? _buildDashboard() 
+          : _currentScreen == 1 
+              ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
+              : _currentScreen == 2 
+                  ? MessagesScreen()
+                  : AirportScreen(   // ← NEW
+                      currentLocation: stats['location'] ?? 'Unknown',
+                      currentBalance: stats['balance'] ?? 0,
+                      currentHealth: stats['health'] ?? 100,
+                      currentTime: time,
+                    ),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
@@ -444,7 +489,7 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-    void _showNewMessageDialog(BuildContext context) {
+  void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();
     final msgController = TextEditingController();
 

@@ -14,6 +14,9 @@ class SocketService {
   // The permanent mailbox
   final ValueNotifier<List<Map<String, dynamic>>> inboxNotifier = ValueNotifier([]);
 
+  // NEW: Track unread messages
+  final ValueNotifier<bool> hasUnreadMessages = ValueNotifier(false);
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -59,11 +62,13 @@ class SocketService {
           'type': 'private',
           'data': normalized,
           'timestamp': DateTime.now().toIso8601String(),
+          'isRead': false,  // NEW: Mark as unread
         };
 
         // FIXED: type-safe way (no more List<dynamic> error)
         inboxNotifier.value = [newItem, ...inboxNotifier.value];
         _saveMessagesToFirestore();
+        _updateUnreadStatus();  // NEW: Check for unreads
       }
     });
 
@@ -75,11 +80,13 @@ class SocketService {
           'text': text,
           'id': DateTime.now().millisecondsSinceEpoch.toString(),
           'timestamp': DateTime.now().toIso8601String(),
+          'isRead': false,  // NEW: Mark as unread
         };
 
         // FIXED: type-safe way
         inboxNotifier.value = [newItem, ...inboxNotifier.value];
         _saveMessagesToFirestore();
+        _updateUnreadStatus();  // NEW: Check for unreads
       }
     });
 
@@ -110,13 +117,46 @@ class SocketService {
               (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
 
           inboxNotifier.value = loaded;
+          _updateUnreadStatus();  // NEW: Check after loading
           return;
         }
       }
       inboxNotifier.value = [];
+      _updateUnreadStatus();  // NEW
     } catch (e) {
       print('Error loading messages: $e');
       inboxNotifier.value = [];
+      _updateUnreadStatus();  // NEW
+    }
+  }
+
+  // NEW: Update unread status
+  void _updateUnreadStatus() {
+    hasUnreadMessages.value = inboxNotifier.value.any((msg) => !(msg['isRead'] ?? true));
+  }
+
+  // NEW: Mark messages as read (used in screens)
+  void markAsRead({String? partner, bool announcements = false}) {
+    bool changed = false;
+    inboxNotifier.value = inboxNotifier.value.map((item) {
+      if (announcements && item['type'] == 'announcement' && !(item['isRead'] ?? true)) {
+        item['isRead'] = true;
+        changed = true;
+      } else if (partner != null && item['type'] == 'private') {
+        final data = item['data'] as Map<String, dynamic>;
+        final bool isFromMe = data['isFromMe'] ?? false;
+        final String msgPartner = isFromMe ? (data['to'] ?? '') : (data['from'] ?? '');
+        if (msgPartner == partner && !(item['isRead'] ?? true)) {
+          item['isRead'] = true;
+          changed = true;
+        }
+      }
+      return item;
+    }).toList();
+
+    if (changed) {
+      _saveMessagesToFirestore();
+      _updateUnreadStatus();
     }
   }
 
@@ -132,6 +172,22 @@ class SocketService {
         })
         .toList();
     await _saveMessagesToFirestore();
+    _updateUnreadStatus();  // NEW
+  }
+
+  // NEW: Delete entire conversation
+  Future<void> deleteConversation(String partner) async {
+    inboxNotifier.value = inboxNotifier.value
+        .where((item) {
+          if (item['type'] != 'private') return true;
+          final data = item['data'] as Map<String, dynamic>;
+          final bool isFromMe = data['isFromMe'] ?? false;
+          final String msgPartner = isFromMe ? (data['to'] ?? '') : (data['from'] ?? '');
+          return msgPartner != partner;
+        })
+        .toList();
+    await _saveMessagesToFirestore();
+    _updateUnreadStatus();
   }
 
   Future<void> _saveMessagesToFirestore() async {
