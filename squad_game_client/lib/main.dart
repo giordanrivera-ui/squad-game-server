@@ -7,6 +7,7 @@ import 'dart:async';
 import 'online_players_screen.dart';
 import 'airport_screen.dart';
 import 'messages_screen.dart';
+import 'status_app_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -284,19 +285,22 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_currentScreen == 0 
-          ? 'Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'
-          : _currentScreen == 1 
-              ? 'Players Online'
-              : 'Messages'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-      ),
+            appBar: _currentScreen == 0
+          ? AppBar(
+              title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
+            )
+          : StatusAppBar(
+              title: _currentScreen == 1 ? 'Players Online' : 'Messages',
+              stats: stats,
+              time: time,
+              onMenuPressed: () => Scaffold.of(context).openDrawer(),
+            ),
 
       drawer: Drawer(
         child: ListView(
@@ -355,6 +359,9 @@ class _GameScreenState extends State<GameScreen> {
                     builder: (_) => AirportScreen(
                       currentLocation: stats['location'] ?? 'Unknown',
                       currentBalance: stats['balance'] ?? 0,
+                      currentHealth: stats['health'] ?? 100,
+                      currentTime: time,
+                      onMenuPressed: () => Scaffold.of(context).openDrawer(),
                     ),
                   ),
                 );
@@ -369,6 +376,14 @@ class _GameScreenState extends State<GameScreen> {
           : _currentScreen == 1 
               ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
               : MessagesScreen(),   // ← NEW
+
+      floatingActionButton: _currentScreen == 2
+          ? FloatingActionButton(
+              onPressed: () => _showNewMessageDialog(context),
+              child: const Icon(Icons.add_comment),
+              tooltip: 'New Message',
+            )
+          : null,
     );
   }
 
@@ -423,6 +438,50 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
       ],
+    );
+  }
+
+    void _showNewMessageDialog(BuildContext context) {
+    final toController = TextEditingController();
+    final msgController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Private Message'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: toController,
+              decoration: const InputDecoration(labelText: 'To (exact player name)'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: msgController,
+              decoration: const InputDecoration(labelText: 'Your message'),
+              maxLines: 4,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final to = toController.text.trim();
+              final msg = msgController.text.trim();
+              if (to.isNotEmpty && msg.isNotEmpty) {
+                SocketService().sendPrivateMessage(to, msg);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Message sent to $to!')),
+                );
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
     );
   }
 

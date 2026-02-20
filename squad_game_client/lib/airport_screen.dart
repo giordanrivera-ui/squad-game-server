@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'constants.dart';
 import 'socket_service.dart';
+import 'status_app_bar.dart';
 
 class AirportScreen extends StatefulWidget {
   final String currentLocation;
   final int currentBalance;
+  final int currentHealth;
+  final String currentTime;
+  final VoidCallback onMenuPressed;
 
   const AirportScreen({
     super.key,
     required this.currentLocation,
     required this.currentBalance,
+    required this.currentHealth,
+    required this.currentTime,
+    required this.onMenuPressed,
   });
 
   @override
@@ -17,43 +24,47 @@ class AirportScreen extends StatefulWidget {
 }
 
 class _AirportScreenState extends State<AirportScreen> {
-  String? _selectedDestination;           // which city the player picked
-  final SocketService _socketService = SocketService();
+  String? _selectedDestination;
 
-  // How much does the selected city cost?
-  int? get _cost => _selectedDestination != null 
-      ? GameConstants.travelCosts[_selectedDestination!] 
+  // Helper getters (same as before)
+  int? get _cost => _selectedDestination != null
+      ? GameConstants.travelCosts[_selectedDestination!]
       : null;
 
-  // Is the Travel button allowed to work?
-  bool get _canTravel => _selectedDestination != null && 
-                         _cost != null && 
+  bool get _canTravel => _selectedDestination != null &&
+                         _cost != null &&
                          widget.currentBalance >= _cost!;
 
   void _travel() {
     if (!_canTravel) return;
 
-    _socketService.travel(_selectedDestination!);
+    SocketService().travel(_selectedDestination!);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('✈️ Flying to new city... Enjoy the flight!')),
     );
 
-    Navigator.pop(context);   // go back to main game screen
+    Navigator.pop(context);   // go back to main screen
   }
 
   @override
   Widget build(BuildContext context) {
-    // All cities except the one you are already in
     final available = GameConstants.normalLocations
         .where((city) => city != widget.currentLocation)
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('✈️ Airport')),
+      appBar: StatusAppBar(
+        title: '✈️ Airport',
+        stats: {
+          'balance': widget.currentBalance,
+          'health': widget.currentHealth,
+        },
+        time: widget.currentTime,
+        onMenuPressed: widget.onMenuPressed,
+      ),
       body: Column(
         children: [
-          // Top box showing where you are now
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -61,16 +72,12 @@ class _AirportScreenState extends State<AirportScreen> {
             child: Column(
               children: [
                 const Text('You are in', style: TextStyle(fontSize: 18)),
-                Text(widget.currentLocation, 
+                Text(widget.currentLocation,
                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                Text('Money: \$${widget.currentBalance}', 
-                     style: const TextStyle(fontSize: 20, color: Colors.green)),
               ],
             ),
           ),
 
-          // List of cities with radio buttons
           Expanded(
             child: ListView.builder(
               itemCount: available.length,
@@ -96,7 +103,6 @@ class _AirportScreenState extends State<AirportScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Big cost text when you pick a city
                 if (_selectedDestination != null)
                   Text(
                     'Flight to $_selectedDestination costs \$${_cost}',
@@ -107,7 +113,6 @@ class _AirportScreenState extends State<AirportScreen> {
 
                 const SizedBox(height: 12),
 
-                // Helper text under the travel button
                 if (_selectedDestination == null)
                   const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
                 else if (_cost! > widget.currentBalance)
@@ -117,7 +122,6 @@ class _AirportScreenState extends State<AirportScreen> {
 
                 const SizedBox(height: 20),
 
-                // The big Travel button (grey when you can't use it)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
