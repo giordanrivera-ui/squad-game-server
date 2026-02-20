@@ -210,6 +210,7 @@ class _GameScreenState extends State<GameScreen> {
   Timer? cooldownTimer;
 
   int _currentScreen = 0;
+    final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -285,6 +286,8 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     return Scaffold(
+      key: _scaffoldKey,
+
             appBar: _currentScreen == 0
           ? AppBar(
               title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
@@ -296,10 +299,14 @@ class _GameScreenState extends State<GameScreen> {
               ),
             )
           : StatusAppBar(
-              title: _currentScreen == 1 ? 'Players Online' : 'Messages',
+              title: _currentScreen == 1 
+                  ? 'Players Online' 
+                  : _currentScreen == 2 
+                      ? 'Messages' 
+                      : '✈️ Airport',   // ← added
               stats: stats,
               time: time,
-              onMenuPressed: () => Scaffold.of(context).openDrawer(),
+              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
             ),
 
       drawer: Drawer(
@@ -348,34 +355,30 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
-                        ListTile(
+            ListTile(
               leading: const Icon(Icons.airplanemode_active),
               title: const Text('Airport'),
               onTap: () {
-                Navigator.pop(context); // close the drawer
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AirportScreen(
-                      currentLocation: stats['location'] ?? 'Unknown',
-                      currentBalance: stats['balance'] ?? 0,
-                      currentHealth: stats['health'] ?? 100,
-                      currentTime: time,
-                      onMenuPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                  ),
-                );
+                setState(() => _currentScreen = 3);   // ← changed to 3
+                Navigator.pop(context);
               },
             ),
           ],
         ),
       ),
 
-      body: _currentScreen == 0 
-          ? _buildDashboard() 
-          : _currentScreen == 1 
-              ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
-              : MessagesScreen(),   // ← NEW
+    body: _currentScreen == 0 
+    ? _buildDashboard() 
+    : _currentScreen == 1 
+        ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
+        : _currentScreen == 2 
+            ? MessagesScreen()
+            : AirportScreen(   // ← NEW
+                currentLocation: stats['location'] ?? 'Unknown',
+                currentBalance: stats['balance'] ?? 0,
+                currentHealth: stats['health'] ?? 100,
+                currentTime: time,
+              ),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

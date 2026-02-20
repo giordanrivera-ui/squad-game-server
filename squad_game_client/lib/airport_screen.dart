@@ -8,7 +8,6 @@ class AirportScreen extends StatefulWidget {
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
-  final VoidCallback onMenuPressed;
 
   const AirportScreen({
     super.key,
@@ -16,7 +15,6 @@ class AirportScreen extends StatefulWidget {
     required this.currentBalance,
     required this.currentHealth,
     required this.currentTime,
-    required this.onMenuPressed,
   });
 
   @override
@@ -26,7 +24,6 @@ class AirportScreen extends StatefulWidget {
 class _AirportScreenState extends State<AirportScreen> {
   String? _selectedDestination;
 
-  // Helper getters (same as before)
   int? get _cost => _selectedDestination != null
       ? GameConstants.travelCosts[_selectedDestination!]
       : null;
@@ -44,7 +41,7 @@ class _AirportScreenState extends State<AirportScreen> {
       const SnackBar(content: Text('✈️ Flying to new city... Enjoy the flight!')),
     );
 
-    Navigator.pop(context);   // go back to main screen
+    // No Navigator.pop needed anymore
   }
 
   @override
@@ -53,94 +50,82 @@ class _AirportScreenState extends State<AirportScreen> {
         .where((city) => city != widget.currentLocation)
         .toList();
 
-    return Scaffold(
-      appBar: StatusAppBar(
-        title: '✈️ Airport',
-        stats: {
-          'balance': widget.currentBalance,
-          'health': widget.currentHealth,
-        },
-        time: widget.currentTime,
-        onMenuPressed: widget.onMenuPressed,
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            color: Colors.blue[50],
-            child: Column(
-              children: [
-                const Text('You are in', style: TextStyle(fontSize: 18)),
-                Text(widget.currentLocation,
-                     style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          color: Colors.blue[50],
+          child: Column(
+            children: [
+              const Text('You are in', style: TextStyle(fontSize: 18)),
+              Text(widget.currentLocation,
+                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            ],
           ),
+        ),
 
-          Expanded(
-            child: ListView.builder(
-              itemCount: available.length,
-              itemBuilder: (context, index) {
-                final city = available[index];
-                final cityCost = GameConstants.travelCosts[city] ?? 0;
+        Expanded(
+          child: ListView.builder(
+            itemCount: available.length,
+            itemBuilder: (context, index) {
+              final city = available[index];
+              final cityCost = GameConstants.travelCosts[city] ?? 0;
 
-                return RadioListTile<String>(
-                  title: Text(city, style: const TextStyle(fontSize: 18)),
-                  subtitle: Text('Cost: \$$cityCost'),
-                  value: city,
-                  groupValue: _selectedDestination,
-                  onChanged: (value) {
-                    setState(() => _selectedDestination = value);
-                  },
-                );
-              },
-            ),
+              return RadioListTile<String>(
+                title: Text(city, style: const TextStyle(fontSize: 18)),
+                subtitle: Text('Cost: \$$cityCost'),
+                value: city,
+                groupValue: _selectedDestination,
+                onChanged: (value) {
+                  setState(() => _selectedDestination = value);
+                },
+              );
+            },
           ),
+        ),
 
-          // Cost text + helper message + Travel button
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                if (_selectedDestination != null)
-                  Text(
-                    'Flight to $_selectedDestination costs \$${_cost}',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
-                  )
-                else
-                  const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.grey)),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              if (_selectedDestination != null)
+                Text(
+                  'Flight to $_selectedDestination costs \$${_cost}',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
+                )
+              else
+                const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.grey)),
 
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-                if (_selectedDestination == null)
-                  const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
-                else if (_cost! > widget.currentBalance)
-                  const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
-                else
-                  const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
+              if (_selectedDestination == null)
+                const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
+              else if (_cost! > widget.currentBalance)
+                const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
+              else
+                const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
 
-                const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _canTravel ? _travel : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _canTravel ? Colors.green : Colors.grey,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                    ),
-                    child: const Text(
-                      '✈️ TRAVEL NOW ✈️',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _canTravel ? _travel : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _canTravel ? Colors.green : Colors.grey,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                  ),
+                  child: const Text(
+                    '✈️ TRAVEL NOW ✈️',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

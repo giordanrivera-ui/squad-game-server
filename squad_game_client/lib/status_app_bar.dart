@@ -20,9 +20,11 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
     final health = stats['health'] ?? 100;
 
     return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.menu),
-        onPressed: onMenuPressed,
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: onMenuPressed,   // still uses your safe callback
+        ),
       ),
       title: Text(title),
       actions: [
