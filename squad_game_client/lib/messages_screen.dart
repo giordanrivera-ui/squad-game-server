@@ -36,12 +36,20 @@ class MessagesScreen extends StatelessWidget {
             itemCount: messages.length,
             itemBuilder: (context, index) {
               final item = messages[index];
+              final String msgId = item['type'] == 'announcement'
+                  ? item['id']
+                  : (item['data'] as Map)['id'];
+
               if (item['type'] == 'announcement') {
                 return ListTile(
                   leading: const Icon(Icons.campaign, color: Colors.orange, size: 32),
                   title: const Text('📢 Mod Announcement', style: TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(item['text']),
                   tileColor: Colors.orange[50],
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => socketService.deleteMessage(msgId),
+                  ),
                 );
               } else {
                 final data = item['data'] as Map<String, dynamic>;
@@ -56,6 +64,10 @@ class MessagesScreen extends StatelessWidget {
                   ),
                   title: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(data['msg'] ?? ''),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => socketService.deleteMessage(msgId),
+                  ),
                 );
               }
             },
@@ -70,6 +82,8 @@ class MessagesScreen extends StatelessWidget {
     );
   }
 
+  // _showNewMessageDialog and _showTestAnnouncementDialog stay EXACTLY the same as before
+  // (I didn't change them — just copy them from your current file if you want)
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();
     final msgController = TextEditingController();

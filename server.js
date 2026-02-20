@@ -43,7 +43,7 @@ const travelCosts = {
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
-const onlineSockets = new Map();   // NEW: name → socket so we can send private letters
+const onlineSockets = new Map();
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -71,6 +71,7 @@ io.on('connection', (socket) => {
     if (doc.exists) {
       playerData = doc.data();
     } else {
+      // NEW PLAYER → now also starts with empty messages box
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
 
       playerData = {
@@ -78,7 +79,8 @@ io.on('connection', (socket) => {
         health: 100,
         lastRob: 0,
         displayName: displayName,
-        location: randomLocation
+        location: randomLocation,
+        messages: []   // ← NEW: empty message box
       };
 
       await docRef.set(playerData);
@@ -153,26 +155,31 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== NEW MAILBOX CODE ====================
+  // ==================== PRIVATE MESSAGES (updated to carry the message ID) ====================
   socket.on('private-message', (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 
     const from = socket.data.displayName;
     if (!from) return;
 
+    const msgId = data.id || Date.now().toString();
+
+    const baseMsg = {
+      from: from,
+      msg: data.msg,
+      id: msgId
+    };
+
     const targetSocket = onlineSockets.get(data.to);
     if (targetSocket) {
-      // Send to the other player
-      targetSocket.emit('private-message', { from: from, msg: data.msg });
-
-      // Echo back to you so you see it in your mailbox
-      socket.emit('private-message', { to: data.to, msg: data.msg, isFromMe: true });
+      targetSocket.emit('private-message', baseMsg);
+      socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
     }
   });
 
   socket.on('announcement', (text) => {
     if (typeof text === 'string' && text.length > 0) {
-      io.emit('announcement', text);   // everyone sees it
+      io.emit('announcement', text);
     }
   });
 
