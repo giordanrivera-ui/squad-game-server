@@ -14,7 +14,6 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-const messaging = admin.messaging();  // NEW FOR FCM: Initialize messaging
 
 // ==================== LOCATIONS ====================
 const normalLocations = [
@@ -45,9 +44,6 @@ const travelCosts = {
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
-
-// NEW FOR IMPROVED PUSH: A big toy box for each player's messages to group them!
-const notificationQueues = new Map(); // Key: recipient displayName, Value: {messages: [], timer: null}
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -84,7 +80,8 @@ io.on('connection', (socket) => {
         lastRob: 0,
         displayName: displayName,
         location: randomLocation,
-        messages: []   // ← NEW: empty message box
+        messages: [],   // empty message box
+        fcmTokens: []   // NEW: For push note keys
       };
 
       await docRef.set(playerData);
@@ -163,7 +160,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== PRIVATE MESSAGES (updated for grouping push) ====================
+  // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 
@@ -178,90 +175,110 @@ io.on('connection', (socket) => {
       id: msgId
     };
 
+    // NEW: Find recipient by name (assume unique)
+    const querySnapshot = await db.collection('players').where('displayName', '==', data.to).limit(1).get();
+    if (querySnapshot.empty) return;
+
+    const recipientDoc = querySnapshot.docs[0];
+    const toEmail = recipientDoc.id;
+    const recipientData = recipientDoc.data();
+
+    // NEW: Save message for recipient
+    const msgForRecipient = {
+      type: 'private',
+      data: baseMsg,
+      timestamp: new Date().toISOString(),
+      isRead: false
+    };
+
+    await recipientDoc.ref.update({
+      messages: admin.firestore.FieldValue.arrayUnion(msgForRecipient)
+    });
+
+    // NEW: Save for sender too
+    const senderDoc = await db.collection('players').doc(socket.data.email).get();
+    if (senderDoc.exists) {
+      const msgForSender = {
+        type: 'private',
+        data: { ...baseMsg, to: data.to, isFromMe: true },
+        timestamp: new Date().toISOString(),
+        isRead: true  // Sender sees their own as read
+      };
+
+      await senderDoc.ref.update({
+        messages: admin.firestore.FieldValue.arrayUnion(msgForSender)
+      });
+    }
+
+    // Send to recipient if online
     const targetSocket = onlineSockets.get(data.to);
     if (targetSocket) {
       targetSocket.emit('private-message', baseMsg);
-      socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
-    }
-
-    // NEW FOR IMPROVED PUSH: Add to queue instead of sending right away
-    const recipient = data.to;
-    if (!notificationQueues.has(recipient)) {
-      notificationQueues.set(recipient, {messages: [], timer: null});
-    }
-    const queue = notificationQueues.get(recipient);
-    queue.messages.push({from: from, msg: data.msg});
-
-    if (!queue.timer) {
-      queue.timer = setTimeout(async () => {
-        // Like opening the toy box after waiting!
-        const count = queue.messages.length;
-        let title = '';
-        let body = '';
-
-        if (count === 1) {
-          title = `New Message from ${queue.messages[0].from}`;
-          body = queue.messages[0].msg.length > 50 ? `${queue.messages[0].msg.substring(0, 47)}...` : queue.messages[0].msg;
-        } else {
-          const senders = [...new Set(queue.messages.map(m => m.from))]; // Unique friends
-          title = `You have ${count} new messages`;
-          body = `From ${senders.join(' and ')}`; // Like "From Bob and Alice"
+    } else if (recipientData.fcmTokens && recipientData.fcmTokens.length > 0) {
+      // NEW: Send push if offline
+      const fcmMessage = {
+        tokens: recipientData.fcmTokens,
+        notification: {
+          title: `${from} sent a message`,
+          body: data.msg
+        },
+        android: {
+          notification: {
+            group: `messages_from_${from.replace(/\s/g, '_')}`  // Bunch by sender
+          },
+          priority: 'high'
+        },
+        data: {
+          type: 'private',
+          from: from,
+          msg: data.msg,
+          id: msgId
         }
+      };
 
-        // Get the phone beep token (same as before)
-        const recipientDoc = await db.collection('players').where('displayName', '==', recipient).limit(1).get();
-        if (!recipientDoc.empty) {
-          const recipientData = recipientDoc.docs[0].data();
-          const fcmToken = recipientData.fcmToken;
-          if (fcmToken) {
-            const payload = {
-              notification: {
-                title: title,
-                body: body,
-              },
-            };
-            try {
-              await messaging.send({ ...payload, token: fcmToken });
-              console.log(`Grouped notification sent to ${recipient}`);
-            } catch (error) {
-              console.error('Error sending grouped notification:', error);
-            }
-          }
-        }
-
-        // Empty the box for next time
-        queue.messages = [];
-        queue.timer = null;
-      }, 5000); // Wait 5 seconds (like counting 1-2-3-4-5)
+      await admin.messaging().sendMulticast(fcmMessage);
+      console.log(`Sent push to ${data.to}`);
     }
+
+    // Echo to sender
+    socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
   });
 
+  // ==================== ANNOUNCEMENTS ====================
   socket.on('announcement', async (text) => {
     if (typeof text === 'string' && text.length > 0) {
-      io.emit('announcement', text);
-
-      // NEW FOR FCM: Send to all players with tokens (no grouping for now, since rare)
-      const allPlayers = await db.collection('players').get();
-      const tokens = [];
-      allPlayers.forEach((doc) => {
-        const playerData = doc.data();
-        if (playerData.fcmToken) tokens.push(playerData.fcmToken);
+      // NEW: Save to special announcements box
+      const annRef = await db.collection('announcements').add({
+        text: text,
+        timestamp: new Date().toISOString()
       });
+      const annId = annRef.id;
 
-      if (tokens.length > 0) {
-        const payload = {
+      // Send to all online
+      io.emit('announcement', { text: text, id: annId });
+
+      // NEW: Send push to group
+      const fcmMessage = {
+        topic: 'announcements',
+        notification: {
+          title: 'Mod Announcement',
+          body: text
+        },
+        android: {
           notification: {
-            title: 'Mod Announcement',
-            body: text.length > 50 ? `${text.substring(0, 47)}...` : text,
+            group: 'mod_announcements'  // Bunch announcements
           },
-        };
-        try {
-          await messaging.sendMulticast({ ...payload, tokens });
-          console.log(`Announcement notification sent to ${tokens.length} players`);
-        } catch (error) {
-          console.error('Error sending announcement notifications:', error);
+          priority: 'high'
+        },
+        data: {
+          type: 'announcement',
+          text: text,
+          id: annId
         }
-      }
+      };
+
+      await admin.messaging().send(fcmMessage);
+      console.log('Sent announcement push');
     }
   });
 

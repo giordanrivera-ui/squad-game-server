@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';  // NEW FOR FCM
-import 'package:cloud_firestore/cloud_firestore.dart';  // NEW FOR FCM (save token)
+import 'package:firebase_messaging/firebase_messaging.dart'; // NEW: For push notes
+import 'package:cloud_firestore/cloud_firestore.dart'; // FIXED: Added this import for FirebaseFirestore and FieldValue
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'socket_service.dart';
 import 'constants.dart';
 import 'dart:async';
@@ -11,18 +12,32 @@ import 'airport_screen.dart';
 import 'messages_screen.dart';
 import 'status_app_bar.dart';
 
+// FIXED: Global plugin instance
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+// NEW: Background helper - runs when app is sleeping and gets a note
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('Got a background note: ${message.messageId}'); // For testing
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyBORGcBRzeMGsLm30vdSMiAjbFbi30olJE",
-      authDomain: "squad-game-1d87d.firebaseapp.com",
-      projectId: "squad-game-1d87d",
-      storageBucket: "squad-game-1d87d.firebasestorage.app",
-      messagingSenderId: "224646200519",
-      appId: "1:224646200519:web:de4f329b3a63a1ff63d2e2",
-    ),
-  );
+
+  // FIXED: Initialize Firebase only if not already done (no options for mobile)
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp();  // No options - uses google-services.json on Android
+  }
+
+  // FIXED: Initialize local notifications plugin
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon'); // Use your drawable icon
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // NEW: Set up the bell helper for sleeping app
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(MyApp());
 }
 
@@ -138,7 +153,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ====================== SET DISPLAY NAME (unchanged) ======================
+// ====================== SET DISPLAY NAME (added unique check) ======================
 class SetDisplayNameScreen extends StatefulWidget {
   @override
   _SetDisplayNameScreenState createState() => _SetDisplayNameScreenState();
@@ -155,6 +170,14 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     setState(() => isLoading = true);
 
     try {
+      // NEW: Check if name is unique
+      final query = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
+      if (query.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken. Pick a different one.')));
+        setState(() => isLoading = false);
+        return;
+      }
+
       await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
       await FirebaseAuth.instance.currentUser!.reload();
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
@@ -192,7 +215,7 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   }
 }
 
-// ====================== GAME SCREEN - UPDATED FOR FCM ======================
+// ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -218,50 +241,71 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     _connectToServer();
-    _initFCM();  // NEW FOR FCM: Initialize push notifications
+    _setupPushNotifications(); // NEW: Set up the bell
   }
 
-  // NEW FOR FCM: Request permission, get token, save to Firestore
-  Future<void> _initFCM() async {
-    final messaging = FirebaseMessaging.instance;
-
-    // Request permission (iOS requires this; Android auto-grants)
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Get device token
-    final fcmToken = await messaging.getToken();
-    if (fcmToken != null) {
-      final email = FirebaseAuth.instance.currentUser?.email;
-      if (email != null) {
-        await FirebaseFirestore.instance
-            .collection('players')
-            .doc(email)
-            .set({'fcmToken': fcmToken}, SetOptions(merge: true));
-        print('FCM Token saved: $fcmToken');  // For debugging
+  // NEW: Set up the bell for notes
+  void _setupPushNotifications() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        _showLocalNotification(message); // Show pop-up if app is open
       }
+    });
+
+    // NEW: When tap pop-up from sleeping app, open messages screen
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      setState(() => _currentScreen = 2); // Go to messages
+    });
+
+    // NEW: If app started from pop-up
+    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        setState(() => _currentScreen = 2);
+      }
+    });
+
+    // NEW: Create notification channel
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'high_importance_channel', // Matches manifest meta-data
+      'High Importance Notifications',
+      description: 'Used for important notifications.',
+      importance: Importance.high,
+    );
+    flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
+  // NEW: Show pop-up note when app is open
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    // FIXED: Dynamically set groupKey based on message type/sender
+    String groupKey = 'default_group';
+    if (message.data['type'] == 'private') {
+      final from = message.data['from'] as String?;
+      if (from != null) {
+        groupKey = 'messages_from_${from.replaceAll(' ', '_')}';
+      }
+    } else if (message.data['type'] == 'announcement') {
+      groupKey = 'mod_announcements';
     }
 
-    // Handle token refresh
-    messaging.onTokenRefresh.listen((newToken) async {
-      final email = FirebaseAuth.instance.currentUser?.email;
-      if (email != null) {
-        await FirebaseFirestore.instance
-            .collection('players')
-            .doc(email)
-            .set({'fcmToken': newToken}, SetOptions(merge: true));
-      }
-    });
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'squad_game_channel',
+      'Squad Game Notifications',
+      channelDescription: 'Notifications for new messages',
+      importance: Importance.max,
+      priority: Priority.high,
+      groupKey: groupKey, // Use dynamic groupKey for bunching
+    );
 
-    // Optional: Handle background messages (e.g., navigate on tap)
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      // Handle when app opened from notification (e.g., go to messages screen)
-      setState(() => _currentScreen = 2);
-    });
+    final NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      message.messageId?.hashCode ?? 0,
+      message.notification?.title,
+      message.notification?.body,
+      notificationDetails,
+    );
   }
 
   void _connectToServer() {
@@ -270,11 +314,24 @@ class _GameScreenState extends State<GameScreen> {
 
     _socketService.connect(user.email!, user.displayName ?? 'Anonymous');
 
+    // NEW: Get special key for push notes and save it
+    FirebaseMessaging.instance.requestPermission();
+    FirebaseMessaging.instance.getToken().then((token) {
+      if (token != null) {
+        FirebaseFirestore.instance.collection('players').doc(user.email).update({
+          'fcmTokens': FieldValue.arrayUnion([token])
+        });
+      }
+    });
+
+    // NEW: Join the big announcement group
+    FirebaseMessaging.instance.subscribeToTopic('announcements');
+
     // Listen to socket events
     _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
     _socketService.socket?.on(SocketEvents.init, (data) {
       setState(() => stats = Map.from(data['player'] ?? {}));
-      _socketService.loadMessages();   // ← NEW: load your saved messages
+      _socketService.loadMessages();
       if ((stats['health'] ?? 100) <= 0) isDead = true;
     });
     _socketService.socket?.on(SocketEvents.updateStats, (data) {
@@ -337,7 +394,7 @@ class _GameScreenState extends State<GameScreen> {
           ? AppBar(
               title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
               leading: Builder(
-                builder: (context) => Stack(  // NEW: Add red dot to menu icon
+                builder: (context) => Stack(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.menu),
@@ -370,7 +427,7 @@ class _GameScreenState extends State<GameScreen> {
                   ? 'Players Online' 
                   : _currentScreen == 2 
                       ? 'Messages' 
-                      : '✈️ Airport',   // ← added
+                      : '✈️ Airport',
               stats: stats,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -406,7 +463,7 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
-            ValueListenableBuilder<bool>(  // NEW: Add red dot to Messages tile
+            ValueListenableBuilder<bool>(
               valueListenable: _socketService.hasUnreadMessages,
               builder: (context, hasUnread, child) {
                 return ListTile(
@@ -448,7 +505,7 @@ class _GameScreenState extends State<GameScreen> {
               leading: const Icon(Icons.airplanemode_active),
               title: const Text('Airport'),
               onTap: () {
-                setState(() => _currentScreen = 3);   // ← changed to 3
+                setState(() => _currentScreen = 3);
                 Navigator.pop(context);
               },
             ),
@@ -462,7 +519,7 @@ class _GameScreenState extends State<GameScreen> {
               ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
               : _currentScreen == 2 
                   ? MessagesScreen()
-                  : AirportScreen(   // ← NEW
+                  : AirportScreen(
                       currentLocation: stats['location'] ?? 'Unknown',
                       currentBalance: stats['balance'] ?? 0,
                       currentHealth: stats['health'] ?? 100,
@@ -583,10 +640,4 @@ class _GameScreenState extends State<GameScreen> {
     // _socketService.disconnect();
     super.dispose();
   }
-}
-
-// NEW FOR FCM: Background message handler (must be top-level)
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Handle data here if needed (e.g., log or update local storage)
-  print('Background message: ${message.notification?.title}');
 }

@@ -51,12 +51,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBORGcBRzeMGsLm30vdSMiAjbFbi30olJE',
-    appId: '1:224646200519:web:de4f329b3a63a1ff63d2e2',
+    appId: '1:224646200519:web:15c2a6ca7a4f656663d2e2',
     messagingSenderId: '224646200519',
     projectId: 'squad-game-1d87d',
     authDomain: 'squad-game-1d87d.firebaseapp.com',
     storageBucket: 'squad-game-1d87d.firebasestorage.app',
-    measurementId: 'G-W18CXP9E8Y',
+    measurementId: 'G-VRDMS1WX81',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

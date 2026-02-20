@@ -14,7 +14,7 @@ class SocketService {
   // The permanent mailbox
   final ValueNotifier<List<Map<String, dynamic>>> inboxNotifier = ValueNotifier([]);
 
-  // NEW: Track unread messages
+  // Track unread messages
   final ValueNotifier<bool> hasUnreadMessages = ValueNotifier(false);
 
   String? _currentEmail;
@@ -45,7 +45,7 @@ class SocketService {
       if (data is Map) {
         normalLocations = List<String>.from(data['locations'] ?? []);
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
-        print('Got locations from server: $normalLocations'); // This is for testing - you can delete later
+        print('Got locations from server: $normalLocations');
       }
     });
 
@@ -58,35 +58,39 @@ class SocketService {
           normalized['id'] = DateTime.now().millisecondsSinceEpoch.toString();
         }
 
+        // NEW: Check if already have this message (no duplicates)
+        if (inboxNotifier.value.any((m) => m['data']?['id'] == normalized['id'])) return;
+
         final newItem = <String, dynamic>{
           'type': 'private',
           'data': normalized,
           'timestamp': DateTime.now().toIso8601String(),
-          'isRead': false,  // NEW: Mark as unread
+          'isRead': false,
         };
 
-        // FIXED: type-safe way (no more List<dynamic> error)
         inboxNotifier.value = [newItem, ...inboxNotifier.value];
         _saveMessagesToFirestore();
-        _updateUnreadStatus();  // NEW: Check for unreads
+        _updateUnreadStatus();
       }
     });
 
     // Announcement from mods
-    socket?.on(SocketEvents.announcement, (text) {
-      if (text is String && text.isNotEmpty) {
+    socket?.on(SocketEvents.announcement, (data) {
+      if (data is Map && data['text'] is String && data['text'].isNotEmpty && data['id'] is String) {
+        // NEW: Check if already have this announcement
+        if (inboxNotifier.value.any((m) => m['id'] == data['id'])) return;
+
         final newItem = <String, dynamic>{
           'type': 'announcement',
-          'text': text,
-          'id': DateTime.now().millisecondsSinceEpoch.toString(),
+          'text': data['text'],
+          'id': data['id'],
           'timestamp': DateTime.now().toIso8601String(),
-          'isRead': false,  // NEW: Mark as unread
+          'isRead': false,
         };
 
-        // FIXED: type-safe way
         inboxNotifier.value = [newItem, ...inboxNotifier.value];
         _saveMessagesToFirestore();
-        _updateUnreadStatus();  // NEW: Check for unreads
+        _updateUnreadStatus();
       }
     });
 
@@ -112,30 +116,47 @@ class SocketService {
               .map((m) => Map<String, dynamic>.from(m as Map<dynamic, dynamic>))
               .toList();
 
-          // Newest on top
           loaded.sort((a, b) =>
               (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
 
           inboxNotifier.value = loaded;
-          _updateUnreadStatus();  // NEW: Check after loading
-          return;
         }
       }
-      inboxNotifier.value = [];
-      _updateUnreadStatus();  // NEW
+
+      // NEW: Load big announcements from special box
+      final annSnap = await FirebaseFirestore.instance
+          .collection('announcements')
+          .orderBy('timestamp', descending: true)
+          .get();
+
+      for (var annDoc in annSnap.docs) {
+        var item = annDoc.data();
+        final id = item['id'] ?? annDoc.id; // Use doc id if no id
+        item['id'] = id;
+        item['type'] = 'announcement';
+        item['isRead'] = false; // New ones are unread
+
+        if (!inboxNotifier.value.any((m) => m['id'] == id)) {
+          inboxNotifier.value.add(item);
+        }
+      }
+
+      // Sort all messages by time
+      inboxNotifier.value.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+      _updateUnreadStatus();
     } catch (e) {
       print('Error loading messages: $e');
       inboxNotifier.value = [];
-      _updateUnreadStatus();  // NEW
+      _updateUnreadStatus();
     }
   }
 
-  // NEW: Update unread status
+  // Update unread status
   void _updateUnreadStatus() {
     hasUnreadMessages.value = inboxNotifier.value.any((msg) => !(msg['isRead'] ?? true));
   }
 
-  // NEW: Mark messages as read (used in screens)
+  // Mark messages as read
   void markAsRead({String? partner, bool announcements = false}) {
     bool changed = false;
     inboxNotifier.value = inboxNotifier.value.map((item) {
@@ -160,7 +181,7 @@ class SocketService {
     }
   }
 
-  // Delete only from YOUR box
+  // Delete message
   Future<void> deleteMessage(String id) async {
     inboxNotifier.value = inboxNotifier.value
         .where((item) {
@@ -172,10 +193,10 @@ class SocketService {
         })
         .toList();
     await _saveMessagesToFirestore();
-    _updateUnreadStatus();  // NEW
+    _updateUnreadStatus();
   }
 
-  // NEW: Delete entire conversation
+  // Delete conversation
   Future<void> deleteConversation(String partner) async {
     inboxNotifier.value = inboxNotifier.value
         .where((item) {
