@@ -236,8 +236,19 @@ io.on('connection', (socket) => {
         tokens: recipientData.fcmTokens  // List of tokens
       };
 
-      await admin.messaging().sendEachForMulticast(fcmMessage);
-      console.log(`Sent push to ${data.to}`);
+      try {
+        const response = await admin.messaging().sendEachForMulticast(fcmMessage);
+        console.log(`Push sent to ${data.to}. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+        if (response.failureCount > 0) {
+          response.responses.forEach((resp, index) => {
+            if (!resp.success) {
+              console.log('Failure for token ' + recipientData.fcmTokens[index] + ': ' + resp.error.message);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error sending push to ' + data.to + ': ' + error);
+      }
     }
 
     // Echo to sender
