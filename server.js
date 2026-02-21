@@ -215,9 +215,8 @@ io.on('connection', (socket) => {
     if (targetSocket) {
       targetSocket.emit('private-message', baseMsg);
     } else if (recipientData.fcmTokens && recipientData.fcmTokens.length > 0) {
-      // NEW: Send push if offline
+      // FIXED: Send push if offline (use sendEachForMulticast)
       const fcmMessage = {
-        tokens: recipientData.fcmTokens,
         notification: {
           title: `${from} sent a message`,
           body: data.msg
@@ -233,10 +232,11 @@ io.on('connection', (socket) => {
           from: from,
           msg: data.msg,
           id: msgId
-        }
+        },
+        tokens: recipientData.fcmTokens  // List of tokens
       };
 
-      await admin.messaging().sendMulticast(fcmMessage);
+      await admin.messaging().sendEachForMulticast(fcmMessage);
       console.log(`Sent push to ${data.to}`);
     }
 
