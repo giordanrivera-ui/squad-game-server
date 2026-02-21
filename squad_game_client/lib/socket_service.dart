@@ -250,6 +250,8 @@ class SocketService {
     }
   }
 
+  void heal() => socket?.emit('heal');
+  
   void disconnect() {
     socket?.disconnect();
     isConnected.value = false;

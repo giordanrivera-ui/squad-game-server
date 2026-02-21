@@ -160,6 +160,29 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
+  socket.on('heal', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (p.health >= 100) return; // Already full health
+
+    const cost = 50; // Heal cost
+
+    if (p.balance < cost) return; // Not enough money
+
+    p.balance -= cost;
+    p.health = 100;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
   // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
