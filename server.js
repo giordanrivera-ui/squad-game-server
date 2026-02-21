@@ -222,10 +222,7 @@ io.on('connection', (socket) => {
           body: data.msg
         },
         android: {
-          notification: {
-            group: `messages_from_${from.replace(/\s/g, '_')}`  // Bunch by sender
-          },
-          priority: 'high'
+          priority: 'high'  // Removed invalid "group" field; grouping is client-side
         },
         data: {
           type: 'private',
@@ -242,7 +239,7 @@ io.on('connection', (socket) => {
         if (response.failureCount > 0) {
           response.responses.forEach((resp, index) => {
             if (!resp.success) {
-              console.log('Failure for token ' + recipientData.fcmTokens[index] + ': ' + resp.error.message);
+              console.log('Failure for token ' + recipientData.fcmTokens[index] + ': ' + (resp.error ? resp.error.message : 'Unknown error'));
             }
           });
         }
@@ -276,10 +273,7 @@ io.on('connection', (socket) => {
           body: text
         },
         android: {
-          notification: {
-            group: 'mod_announcements'  // Bunch announcements
-          },
-          priority: 'high'
+          priority: 'high'  // Removed invalid "group" field; grouping is client-side
         },
         data: {
           type: 'announcement',
