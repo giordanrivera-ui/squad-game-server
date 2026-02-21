@@ -236,8 +236,20 @@ io.on('connection', (socket) => {
         }
       };
 
-      await admin.messaging().sendMulticast(fcmMessage);
-      console.log(`Sent push to ${data.to}`);
+      // FIXED: Add try-catch and log response/errors
+      try {
+        const response = await admin.messaging().sendMulticast(fcmMessage);
+        console.log(`Push sent to ${data.to}. Success: ${response.successCount}, Failures: ${response.failureCount}`);
+        if (response.failureCount > 0) {
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success) {
+              console.error(`Token ${fcmMessage.tokens[idx]} failed: ${resp.error?.message || 'Unknown error'}`);
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`Error sending push to ${data.to}: ${error.message}`);
+      }
     }
 
     // Echo to sender
@@ -277,8 +289,16 @@ io.on('connection', (socket) => {
         }
       };
 
-      await admin.messaging().send(fcmMessage);
-      console.log('Sent announcement push');
+      // FIXED: Add try-catch and log response/errors
+      try {
+        const response = await admin.messaging().send(fcmMessage);
+        console.log(`Announcement push sent. Success: ${response.successCount}, Failures: ${response.failureCount}`);
+        if (response.failureCount > 0) {
+          console.error(`Announcement push failures: ${response.failureCount}`);
+        }
+      } catch (error) {
+        console.error(`Error sending announcement push: ${error.message}`);
+      }
     }
   });
 
@@ -292,6 +312,3 @@ io.on('connection', (socket) => {
     }
   });
 });
-
-const port = process.env.PORT || 3000;
-server.listen(port, () => console.log(`Server running on ${port}`));
