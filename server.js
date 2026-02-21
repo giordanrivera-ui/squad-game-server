@@ -226,7 +226,7 @@ io.on('connection', (socket) => {
         },
         data: {
           type: 'private',
-          from: from,
+          sender: from,  // FIXED: Renamed 'from' to 'sender' to avoid reserved key error
           msg: data.msg,
           id: msgId
         },
