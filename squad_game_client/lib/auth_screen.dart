@@ -15,39 +15,42 @@ class _AuthScreenState extends State<AuthScreen> {
   bool isLoading = false;
   String message = '';
 
-  Future<void> handleAuth() async {
-    setState(() { isLoading = true; message = ''; });
+Future<void> handleAuth() async {
+  setState(() { isLoading = true; message = ''; });
 
-    try {
-      if (isLogin) {
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-      } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-        setState(() => message = '✅ Account created! Check your email and click the verification link.');
-        return;
-      }
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.emailVerified) {
-        if (user.displayName == null || user.displayName!.isEmpty) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
-        } else {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
-        }
-      } else {
-        setState(() => message = 'Please verify your email first.');
-      }
-    } catch (e) {
-      setState(() => message = e.toString());
+  try {
+    UserCredential userCredential;
+    if (isLogin) {
+      userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+    } else {
+      userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      // NEW: Send verification email
+      await userCredential.user?.sendEmailVerification();
+      setState(() => message = '✅ Account created! Check your email (including spam) and click the verification link to activate.');
+      return;  // Stop here so they can verify before proceeding
     }
-    setState(() => isLoading = false);
+
+    final user = userCredential.user;
+    if (user != null && user.emailVerified) {
+      if (user.displayName == null || user.displayName!.isEmpty) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SetDisplayNameScreen()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
+      }
+    } else {
+      setState(() => message = 'Please verify your email first.');
+    }
+  } catch (e) {
+    setState(() => message = e.toString());
   }
+  setState(() => isLoading = false);
+}
 
   @override
   Widget build(BuildContext context) {
