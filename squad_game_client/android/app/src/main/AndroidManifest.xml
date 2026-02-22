@@ -6,7 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />  <!-- For Android 13+ -->
     <uses-permission android:name="android.permission.VIBRATE" />  <!-- For vibration -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />  <!-- For scheduled notifications -->
-
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
     <application
         android:label="squad_game_client"
         android:name="${applicationName}"
