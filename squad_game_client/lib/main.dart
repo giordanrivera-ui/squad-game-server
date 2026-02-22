@@ -15,6 +15,7 @@ import 'status_app_bar.dart';
 import 'hospital_screen.dart';  // NEW: Import the new screen
 import 'operations_screen.dart'; // NEW: Import for Operations
 import 'profile_screen.dart'; // NEW: Import for Profile
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -26,6 +27,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('Got a background note: ${message.messageId}'); // For testing
 }
 
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -33,6 +36,13 @@ void main() async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();  // No options - uses google-services.json on Android
   }
+
+  // NEW: Activate App Check with the updated syntax
+  await FirebaseAppCheck.instance.activate(
+    providerAndroid: const AndroidDebugProvider(),  // For testing/debug
+    // providerWeb: ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY'),  // If you have web support, add your key here
+    // providerApple: AppleDebugProvider(),  // If you have iOS, add this
+  );
 
   // FIXED: Initialize local notifications plugin
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon'); // Use your drawable icon
