@@ -36,8 +36,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final storageRef = FirebaseStorage.instance.ref().child('profile_pics/${user.uid}.jpg');
 
       try {
-        await storageRef.putFile(file);
-        final downloadUrl = await storageRef.getDownloadURL();
+        final uploadTask = storageRef.putFile(file);
+        final snapshot = await uploadTask.whenComplete(() {});
+
+        // Add a short delay to handle potential propagation issues in Firebase Storage
+        await Future.delayed(const Duration(seconds: 2));
+
+        final downloadUrl = await snapshot.ref.getDownloadURL();
 
         await user.updatePhotoURL(downloadUrl);
         await user.reload();
