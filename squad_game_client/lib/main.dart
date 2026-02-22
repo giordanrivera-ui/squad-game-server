@@ -13,6 +13,7 @@ import 'messages_screen.dart';
 import 'auth_screen.dart';
 import 'status_app_bar.dart';
 import 'hospital_screen.dart';  // NEW: Import the new screen
+import 'operations_screen.dart'; // NEW: Import for Operations
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -288,6 +289,35 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  void _showProfile(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
+            const SizedBox(height: 8),
+            Text('Experience: ${stats['experience'] ?? 0}'),
+            Text('Intelligence: ${stats['intelligence'] ?? 0}'),
+            Text('Skill: ${stats['skill'] ?? 0}'),
+            Text('Marksmanship: ${stats['marksmanship'] ?? 0}'),
+            Text('Stealth: ${stats['stealth'] ?? 0}'),
+            Text('Defense: ${stats['defense'] ?? 0}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -355,7 +385,9 @@ class _GameScreenState extends State<GameScreen> {
                       ? 'Messages' 
                       : _currentScreen == 3 
                           ? '✈️ Airport' 
-                          : '🏥 Hospital',
+                          : _currentScreen == 4 
+                              ? '🏥 Hospital'
+                              : 'Operations',  // NEW: Title for Operations
               stats: stats,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -367,18 +399,32 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             DrawerHeader(
               decoration: const BoxDecoration(color: Colors.blue),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
-                  Text(
-                    FirebaseAuth.instance.currentUser?.displayName ?? "Player",
-                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  GestureDetector(
+                    onTap: () => _showProfile(context),
+                    child: CircleAvatar(
+                      radius: 30,
+                      backgroundImage: NetworkImage(
+                        FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    stats['location'] ?? "Unknown",
-                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        FirebaseAuth.instance.currentUser?.displayName ?? "Player",
+                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        stats['location'] ?? "Unknown",
+                        style: const TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -445,6 +491,14 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
+            ListTile(  // NEW: Operations tile
+              leading: const Icon(Icons.flash_on),
+              title: const Text('Operations'),
+              onTap: () {
+                setState(() => _currentScreen = 5);
+                Navigator.pop(context);
+              },
+            ),
           ],
         ),
       ),
@@ -462,12 +516,19 @@ class _GameScreenState extends State<GameScreen> {
                           currentHealth: stats['health'] ?? 100,
                           currentTime: time,
                         )
-                      : HospitalScreen(  // NEW: Show HospitalScreen
-                          currentLocation: stats['location'] ?? 'Unknown',
-                          currentBalance: stats['balance'] ?? 0,
-                          currentHealth: stats['health'] ?? 100,
-                          currentTime: time,
-                        ),
+                      : _currentScreen == 4 
+                          ? HospitalScreen(
+                              currentLocation: stats['location'] ?? 'Unknown',
+                              currentBalance: stats['balance'] ?? 0,
+                              currentHealth: stats['health'] ?? 100,
+                              currentTime: time,
+                            )
+                          : OperationsScreen(  // NEW: Show OperationsScreen
+                              currentLocation: stats['location'] ?? 'Unknown',
+                              currentBalance: stats['balance'] ?? 0,
+                              currentHealth: stats['health'] ?? 100,
+                              currentTime: time,
+                            ),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
@@ -516,17 +577,6 @@ class _GameScreenState extends State<GameScreen> {
                 child: const Text('Send'),
               ),
             ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: cooldown ? null : robBank,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
-              child: Text(cooldown ? 'Cooldown 60s' : '💰 ROB A BANK 💰', style: const TextStyle(fontSize: 18)),
-            ),
           ),
         ),
       ],

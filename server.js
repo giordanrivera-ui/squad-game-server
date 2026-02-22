@@ -70,6 +70,14 @@ io.on('connection', (socket) => {
 
     if (doc.exists) {
       playerData = doc.data();
+      // Set defaults for new attributes if missing
+      if (playerData.experience === undefined) playerData.experience = 0;
+      if (playerData.intelligence === undefined) playerData.intelligence = 0;
+      if (playerData.skill === undefined) playerData.skill = 0;
+      if (playerData.marksmanship === undefined) playerData.marksmanship = 0;
+      if (playerData.stealth === undefined) playerData.stealth = 0;
+      if (playerData.defense === undefined) playerData.defense = 0;
+      await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -81,7 +89,13 @@ io.on('connection', (socket) => {
         displayName: displayName,
         location: randomLocation,
         messages: [],   // empty message box
-        fcmTokens: []   // NEW: For push note keys
+        fcmTokens: [],   // NEW: For push note keys
+        experience: 0,
+        intelligence: 0,
+        skill: 0,
+        marksmanship: 0,
+        stealth: 0,
+        defense: 0
       };
 
       await docRef.set(playerData);
