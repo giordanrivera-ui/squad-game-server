@@ -1,0 +1,89 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'socket_service.dart';
+
+class ProfileScreen extends StatefulWidget {
+  final Map<String, dynamic> stats;
+
+  const ProfileScreen({super.key, required this.stats});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String? _photoURL;
+
+  @override
+  void initState() {
+    super.initState();
+    _photoURL = FirebaseAuth.instance.currentUser?.photoURL;
+  }
+
+  Future<void> _uploadPhoto() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      final storageRef = FirebaseStorage.instance.ref().child('profile_pics/${user.uid}.jpg');
+
+      try {
+        await storageRef.putFile(file);
+        final downloadUrl = await storageRef.getDownloadURL();
+
+        await user.updatePhotoURL(downloadUrl);
+        await user.reload();
+
+        await FirebaseFirestore.instance.collection('players').doc(user.email).update({'photoURL': downloadUrl});
+
+        SocketService().updatePhotoURL(downloadUrl);
+
+        setState(() {
+          _photoURL = downloadUrl;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated!')));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error uploading photo: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: _uploadPhoto,
+            child: CircleAvatar(
+              radius: 60,
+              backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          Text('Experience: ${widget.stats['experience'] ?? 0}'),
+          Text('Intelligence: ${widget.stats['intelligence'] ?? 0}'),
+          Text('Skill: ${widget.stats['skill'] ?? 0}'),
+          Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}'),
+          Text('Stealth: ${widget.stats['stealth'] ?? 0}'),
+          Text('Defense: ${widget.stats['defense'] ?? 0}'),
+        ],
+      ),
+    );
+  }
+}

@@ -251,6 +251,8 @@ class SocketService {
   }
 
   void heal() => socket?.emit('heal');
+
+  void updatePhotoURL(String url) => socket?.emit('update-profile', {'photoURL': url});
   
   void disconnect() {
     socket?.disconnect();

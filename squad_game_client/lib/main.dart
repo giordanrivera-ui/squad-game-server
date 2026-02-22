@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // NEW: For push notes
-import 'package:cloud_firestore/cloud_firestore.dart'; // FIXED: Added this import for FirebaseFirestore and FieldValue
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'socket_service.dart';
 import 'constants.dart';
@@ -14,6 +14,7 @@ import 'auth_screen.dart';
 import 'status_app_bar.dart';
 import 'hospital_screen.dart';  // NEW: Import the new screen
 import 'operations_screen.dart'; // NEW: Import for Operations
+import 'profile_screen.dart'; // NEW: Import for Profile
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -289,35 +290,6 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _showProfile(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
-            const SizedBox(height: 8),
-            Text('Experience: ${stats['experience'] ?? 0}'),
-            Text('Intelligence: ${stats['intelligence'] ?? 0}'),
-            Text('Skill: ${stats['skill'] ?? 0}'),
-            Text('Marksmanship: ${stats['marksmanship'] ?? 0}'),
-            Text('Stealth: ${stats['stealth'] ?? 0}'),
-            Text('Defense: ${stats['defense'] ?? 0}'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -387,7 +359,9 @@ class _GameScreenState extends State<GameScreen> {
                           ? '✈️ Airport' 
                           : _currentScreen == 4 
                               ? '🏥 Hospital'
-                              : 'Operations',  // NEW: Title for Operations
+                              : _currentScreen == 5 
+                                  ? 'Operations'
+                                  : 'Profile',  // NEW: Title for Profile
               stats: stats,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -402,7 +376,10 @@ class _GameScreenState extends State<GameScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => _showProfile(context),
+                    onTap: () {
+                      setState(() => _currentScreen = 6);
+                      Navigator.pop(context);
+                    },
                     child: CircleAvatar(
                       radius: 30,
                       backgroundImage: NetworkImage(
@@ -523,12 +500,14 @@ class _GameScreenState extends State<GameScreen> {
                               currentHealth: stats['health'] ?? 100,
                               currentTime: time,
                             )
-                          : OperationsScreen(  // NEW: Show OperationsScreen
-                              currentLocation: stats['location'] ?? 'Unknown',
-                              currentBalance: stats['balance'] ?? 0,
-                              currentHealth: stats['health'] ?? 100,
-                              currentTime: time,
-                            ),
+                          : _currentScreen == 5 
+                              ? OperationsScreen(
+                                  currentLocation: stats['location'] ?? 'Unknown',
+                                  currentBalance: stats['balance'] ?? 0,
+                                  currentHealth: stats['health'] ?? 100,
+                                  currentTime: time,
+                                )
+                              : ProfileScreen(stats: stats),  // NEW: Show ProfileScreen
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

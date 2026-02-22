@@ -77,6 +77,7 @@ io.on('connection', (socket) => {
       if (playerData.marksmanship === undefined) playerData.marksmanship = 0;
       if (playerData.stealth === undefined) playerData.stealth = 0;
       if (playerData.defense === undefined) playerData.defense = 0;
+      if (playerData.photoURL === undefined) playerData.photoURL = '';
       await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
@@ -95,7 +96,8 @@ io.on('connection', (socket) => {
         skill: 0,
         marksmanship: 0,
         stealth: 0,
-        defense: 0
+        defense: 0,
+        photoURL: ''
       };
 
       await docRef.set(playerData);
@@ -192,6 +194,22 @@ io.on('connection', (socket) => {
 
     p.balance -= cost;
     p.health = 100;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // NEW: Update profile (e.g., photoURL)
+  socket.on('update-profile', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.photoURL !== 'string') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    p.photoURL = data.photoURL;
 
     await docRef.set(p);
     socket.emit('update-stats', p);
