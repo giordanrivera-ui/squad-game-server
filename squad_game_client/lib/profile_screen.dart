@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'socket_service.dart';
+import 'inventory_page.dart'; // NEW: Import for Inventory
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> stats;
@@ -87,6 +88,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}'),
           Text('Stealth: ${widget.stats['stealth'] ?? 0}'),
           Text('Defense: ${widget.stats['defense'] ?? 0}'),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => InventoryPage(inventory: widget.stats['inventory'] ?? []),
+                ),
+              );
+            },
+            child: const Text('View Inventory'),
+          ),
         ],
       ),
     );

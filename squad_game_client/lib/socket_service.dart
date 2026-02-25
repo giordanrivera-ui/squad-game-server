@@ -253,6 +253,13 @@ class SocketService {
   void heal() => socket?.emit('heal');
 
   void updatePhotoURL(String url) => socket?.emit('update-profile', {'photoURL': url});
+
+  void purchaseArmor(List<Map<String, dynamic>> items, int totalCost) {
+    socket?.emit('purchase-armor', {
+      'items': items,
+      'totalCost': totalCost,
+    });
+  }
   
   void disconnect() {
     socket?.disconnect();

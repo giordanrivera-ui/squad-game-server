@@ -16,6 +16,8 @@ import 'hospital_screen.dart';  // NEW: Import the new screen
 import 'operations_screen.dart'; // NEW: Import for Operations
 import 'profile_screen.dart'; // NEW: Import for Profile
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'store_screen.dart';
+import 'properties_screen.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -371,7 +373,11 @@ class _GameScreenState extends State<GameScreen> {
                               ? '🏥 Hospital'
                               : _currentScreen == 5 
                                   ? 'Operations'
-                                  : 'Profile',  // NEW: Title for Profile
+                                  : _currentScreen == 6 
+                                      ? 'Profile'
+                                      : _currentScreen == 7 
+                                          ? 'Store'
+                                          : 'Properties',
               stats: stats,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -486,6 +492,22 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.pop(context);
               },
             ),
+            ListTile(  // NEW: Store tile
+              leading: const Icon(Icons.store),
+              title: const Text('Store'),
+              onTap: () {
+                setState(() => _currentScreen = 7);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(  // NEW: Properties tile
+              leading: const Icon(Icons.apartment),
+              title: const Text('Properties'),
+              onTap: () {
+                setState(() => _currentScreen = 8);
+                Navigator.pop(context);
+              },
+            ),
           ],
         ),
       ),
@@ -517,7 +539,11 @@ class _GameScreenState extends State<GameScreen> {
                                   currentHealth: stats['health'] ?? 100,
                                   currentTime: time,
                                 )
-                              : ProfileScreen(stats: stats),  // NEW: Show ProfileScreen
+                              : _currentScreen == 6 
+                                  ? ProfileScreen(stats: stats)
+                                  : _currentScreen == 7 
+                                      ? StoreScreen(currentBalance: stats['balance'] ?? 0)
+                                      : PropertiesScreen(), 
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

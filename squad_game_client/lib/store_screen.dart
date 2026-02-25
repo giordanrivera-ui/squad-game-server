@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'armor_page.dart';
+
+class StoreScreen extends StatelessWidget {
+  final int currentBalance;
+
+  const StoreScreen({super.key, required this.currentBalance});
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = [
+      {'title': 'Weapons', 'onTap': () { /* TODO */ }},
+      {'title': 'Armor', 'onTap': () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ArmorPage(currentBalance: currentBalance),
+          ),
+        );
+      }},
+      {'title': 'Vehicles, aircrafts and artillery', 'onTap': () { /* TODO */ }},
+      {'title': 'Courses', 'onTap': () { /* TODO */ }},
+    ];
+
+    return Scaffold(
+      body: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 3 / 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          return GestureDetector(
+            onTap: categories[index]['onTap'] as VoidCallback,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.blueGrey,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  categories[index]['title'] as String,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

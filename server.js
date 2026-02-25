@@ -78,6 +78,7 @@ io.on('connection', (socket) => {
       if (playerData.stealth === undefined) playerData.stealth = 0;
       if (playerData.defense === undefined) playerData.defense = 0;
       if (playerData.photoURL === undefined) playerData.photoURL = '';
+      if (playerData.inventory === undefined) playerData.inventory = [];
       await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
@@ -97,7 +98,8 @@ io.on('connection', (socket) => {
         marksmanship: 0,
         stealth: 0,
         defense: 0,
-        photoURL: ''
+        photoURL: '',
+        inventory: []  // NEW: Empty inventory list
       };
 
       await docRef.set(playerData);
@@ -210,6 +212,36 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.photoURL = data.photoURL;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // NEW: Purchase armor
+  socket.on('purchase-armor', async (data) => {
+    const email = socket.data.email;
+    if (!email || !Array.isArray(data.items) || typeof data.totalCost !== 'number') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (p.balance < data.totalCost) return; // Not enough balance
+
+    // Validate total cost on server to prevent cheating
+    let calculatedCost = 0;
+    for (const item of data.items) {
+      if (typeof item.cost === 'number') {
+        calculatedCost += item.cost;
+      }
+    }
+    if (calculatedCost !== data.totalCost) return; // Mismatch, possible cheat
+
+    // Add items to inventory (append full objects)
+    p.inventory = p.inventory.concat(data.items);
+    p.balance -= data.totalCost;
 
     await docRef.set(p);
     socket.emit('update-stats', p);
