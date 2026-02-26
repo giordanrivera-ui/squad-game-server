@@ -60,7 +60,7 @@ class _ArmorPageState extends State<ArmorPage> {
       type: 'footwear',
     ),
     Armor(
-      name: 'Barmont T8 Bifida',
+      name: 'Barmont T8 Velocity',
       cost: 500,
       defense: 8,
       description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.',
