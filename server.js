@@ -82,6 +82,7 @@ io.on('connection', (socket) => {
       if (playerData.headwear === undefined) playerData.headwear = null;
       if (playerData.armor === undefined) playerData.armor = null;
       if (playerData.footwear === undefined) playerData.footwear = null;
+      if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
       await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
@@ -105,7 +106,8 @@ io.on('connection', (socket) => {
         inventory: [],  // NEW: Empty inventory list
         headwear: null,
         armor: null,
-        footwear: null
+        footwear: null,
+        lastLowLevelOp: 0  // NEW: Low-level op cooldown
       };
 
       await docRef.set(playerData);
@@ -145,7 +147,7 @@ io.on('connection', (socket) => {
 
     p.balance += money;
     p.health = Math.max(0, p.health - loss);
-    p.experience += 15;  // NEW: Gain 15 experience
+    p.experience += 15;
     p.lastRob = Date.now();
 
     await docRef.set(p);
@@ -310,6 +312,55 @@ io.on('connection', (socket) => {
 
     await docRef.set(p);
     socket.emit('update-stats', p);
+  });
+
+  // NEW: Execute operation
+  socket.on('execute-operation', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.operation !== 'string') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    const operation = data.operation;
+
+    // Low-level operations
+    const lowLevelOps = [
+      "Mug a passerby",
+      "Loot a grocery store",
+      "Rob a bank",
+      "Loot weapons store"
+    ];
+
+    if (lowLevelOps.includes(operation)) {
+      // Check low-level cooldown
+      if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
+
+      if (operation === "Rob a bank") {
+        // Rob bank logic
+        const money = Math.floor(Math.random() * 91) + 10;
+        const loss = Math.floor(Math.random() * 11) + 10;
+
+        p.balance += money;
+        p.health = Math.max(0, p.health - loss);
+        p.experience += 15;
+        p.lastLowLevelOp = Date.now();  // Set low-level cooldown
+      }
+      // TODO: Add logic for other low-level ops
+
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+
+      if (p.health <= 0) {
+        await docRef.delete();
+        console.log(`Player ${email} died and data was reset`);
+      }
+    } else {
+      // Medium/High level ops (no cooldown yet)
+      // TODO: Implement logic
+    }
   });
 
   // ==================== PRIVATE MESSAGES ====================

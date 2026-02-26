@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // NEW: For push notes
-import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'socket_service.dart';
 import 'constants.dart';
@@ -39,7 +39,7 @@ void main() async {
     await Firebase.initializeApp();  // No options - uses google-services.json on Android
   }
 
-  // NEW: Activate App Check with the updated syntax
+    // NEW: Activate App Check with the updated syntax
   await FirebaseAppCheck.instance.activate(
     providerAndroid: const AndroidDebugProvider(),  // For testing/debug
     // providerWeb: ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY'),  // If you have web support, add your key here
@@ -538,12 +538,13 @@ class _GameScreenState extends State<GameScreen> {
                                   currentBalance: stats['balance'] ?? 0,
                                   currentHealth: stats['health'] ?? 100,
                                   currentTime: time,
+                                  lastLowLevelOp: stats['lastLowLevelOp'] ?? 0,  // NEW: Pass lastLowLevelOp
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: stats)
                                   : _currentScreen == 7 
                                       ? StoreScreen(currentBalance: stats['balance'] ?? 0)
-                                      : PropertiesScreen(), 
+                                      : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

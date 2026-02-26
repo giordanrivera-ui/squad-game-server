@@ -273,6 +273,12 @@ class SocketService {
       'slot': slot,
     });
   }
+
+  void executeOperation(String operation) {
+    socket?.emit('execute-operation', {
+      'operation': operation,
+    });
+  }
   
   void disconnect() {
     socket?.disconnect();

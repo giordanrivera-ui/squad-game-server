@@ -6,6 +6,7 @@ class OperationsScreen extends StatefulWidget {
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
+  final int lastLowLevelOp;
 
   const OperationsScreen({
     super.key,
@@ -13,6 +14,7 @@ class OperationsScreen extends StatefulWidget {
     required this.currentBalance,
     required this.currentHealth,
     required this.currentTime,
+    required this.lastLowLevelOp,
   });
 
   @override
@@ -51,16 +53,18 @@ class _OperationsScreenState extends State<OperationsScreen> {
     },
   ];
 
+  bool get _isLowLevelCooldown {
+    return DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp < 60000;
+  }
+
   void _executeOperation() {
     if (_selectedOperation == null) return;
 
-    if (_selectedOperation == "Rob a bank") {
-      SocketService().robBank();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Executing: Rob a bank...')),
-      );
-    }
-    // Other operations do nothing for now
+    SocketService().executeOperation(_selectedOperation!);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Executing: $_selectedOperation...')),
+    );
   }
 
   @override
@@ -132,11 +136,18 @@ class _OperationsScreenState extends State<OperationsScreen> {
           ),
         ),
       );
+      final isLowLevel = group['header'] == 'Low Level';
       for (var op in group['operations'] as List<String>) {
         items.add(
           DropdownMenuItem<String>(
-            value: op,
-            child: Text(op),
+            value: isLowLevel && _isLowLevelCooldown ? null : op,
+            enabled: !(isLowLevel && _isLowLevelCooldown),
+            child: Text(
+              op,
+              style: TextStyle(
+                color: isLowLevel && _isLowLevelCooldown ? Colors.grey : Colors.black,
+              ),
+            ),
           ),
         );
       }
