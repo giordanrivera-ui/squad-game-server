@@ -145,6 +145,7 @@ io.on('connection', (socket) => {
 
     p.balance += money;
     p.health = Math.max(0, p.health - loss);
+    p.experience += 15;  // NEW: Gain 15 experience
     p.lastRob = Date.now();
 
     await docRef.set(p);
