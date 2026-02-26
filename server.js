@@ -269,13 +269,16 @@ io.on('connection', (socket) => {
     // Validate type matches slot
     if (item.type !== slot) return; // Invalid type
 
-    // If slot not empty, move current to inventory
+    // If slot not empty, move current to inventory and subtract defense
     if (p[slot] !== null) {
-      p.inventory.push(p[slot]);
+      const oldItem = p[slot];
+      p.inventory.push(oldItem);
+      p.defense -= oldItem.defense || 0;
     }
 
-    // Equip new item and remove one instance from inventory
+    // Equip new item, add defense, and remove one instance from inventory
     p[slot] = item;
+    p.defense += item.defense || 0;
     const index = p.inventory.findIndex(i => i.name === item.name && i.type === item.type);
     if (index !== -1) {
       p.inventory.splice(index, 1);
@@ -298,7 +301,9 @@ io.on('connection', (socket) => {
     const slot = data.slot;
 
     if (p[slot] !== null) {
-      p.inventory.push(p[slot]);
+      const equipped = p[slot];
+      p.inventory.push(equipped);
+      p.defense -= equipped.defense || 0;
       p[slot] = null;
     }
 
