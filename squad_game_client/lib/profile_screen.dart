@@ -111,12 +111,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String _getWealthTitle(int balance) {
+    if (balance <= 800) return 'Destitute';
+    if (balance <= 1600) return 'Skint';
+    if (balance <= 4500) return 'Poor';
+    if (balance <= 12000) return 'Modest';
+    if (balance <= 25000) return 'Middle Class';
+    if (balance <= 50000) return 'Upper Class';
+    if (balance <= 120000) return 'Affluent';
+    if (balance <= 250000) return 'Wealthy';
+    if (balance <= 500000) return 'Rich';
+    if (balance <= 999999) return 'Elite';
+    if (balance <= 1999999) return 'Millionaire';
+    if (balance <= 999999999) return 'Multi-Millionaire';
+    if (balance <= 1999999999) return 'Billionaire';
+    if (balance <= 10000000000) return 'Multi-Billionaire';
+    return 'Lord';
+  }
+
   @override
   Widget build(BuildContext context) {
     final footwearEquipped = widget.stats['footwear'] ?? null;
     final footwearImage = footwearEquipped != null 
         ? 'assets/${footwearEquipped['name']}.jpg' 
         : 'assets/boots-empty.jpg';
+
+    final balance = widget.stats['balance'] ?? 0;
+    final wealthTitle = _getWealthTitle(balance);
 
     return Container(
       color: Colors.grey[800], // Dark grey background
@@ -182,6 +203,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(
               'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFEEEEEE)),
+            ),
+            Text(
+              wealthTitle,
+              style: const TextStyle(fontSize: 18, color: Color(0xFFEEEEEE)),
             ),
             const SizedBox(height: 20),
             Text('Experience: ${widget.stats['experience'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
