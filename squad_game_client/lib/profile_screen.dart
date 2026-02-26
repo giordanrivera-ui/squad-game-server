@@ -113,6 +113,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final footwearEquipped = widget.stats['footwear'] ?? null;
+    final footwearImage = footwearEquipped != null 
+        ? 'assets/${footwearEquipped['name']}.jpg' 
+        : 'assets/boots-empty.jpg';
+
     return Container(
       color: Colors.grey[800], // Dark grey background
       child: Center(
@@ -167,7 +172,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.asset('assets/boots-empty.jpg', width: 100, height: 100),
+                      child: Image.asset(footwearImage, width: 100, height: 100),
                     ),
                   ),
                 ),
