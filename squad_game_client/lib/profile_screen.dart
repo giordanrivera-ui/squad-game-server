@@ -113,71 +113,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: _uploadPhoto,
-            child: CircleAvatar(
-              radius: 60,
-              backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+    return Container(
+      color: Colors.grey[800], // Dark grey background
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GestureDetector(
+              onTap: _uploadPhoto,
+              child: CircleAvatar(
+                radius: 60,
+                backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: () => _showInventoryMenu('headwear'),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
-                  child: Image.asset('assets/helmet-empty.jpg', width: 100, height: 100),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => _showInventoryMenu('headwear'),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset('assets/helmet-empty.jpg', width: 100, height: 100),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _showInventoryMenu('armor'),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
-                  child: Image.asset('assets/armor-empty.jpg', width: 100, height: 100),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _showInventoryMenu('armor'),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset('assets/armor-empty.jpg', width: 100, height: 100),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => _showInventoryMenu('footwear'),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
-                  child: Image.asset('assets/boots-empty.jpg', width: 100, height: 100),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _showInventoryMenu('footwear'),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset('assets/boots-empty.jpg', width: 100, height: 100),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          Text('Experience: ${widget.stats['experience'] ?? 0}'),
-          Text('Intelligence: ${widget.stats['intelligence'] ?? 0}'),
-          Text('Skill: ${widget.stats['skill'] ?? 0}'),
-          Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}'),
-          Text('Stealth: ${widget.stats['stealth'] ?? 0}'),
-          Text('Defense: ${widget.stats['defense'] ?? 0}'),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => InventoryPage(inventory: widget.stats['inventory'] ?? []),
-                ),
-              );
-            },
-            child: const Text('View Inventory'),
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFEEEEEE)),
+            ),
+            const SizedBox(height: 20),
+            Text('Experience: ${widget.stats['experience'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Intelligence: ${widget.stats['intelligence'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Skill: ${widget.stats['skill'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => InventoryPage(inventory: widget.stats['inventory'] ?? []),
+                  ),
+                );
+              },
+              child: const Text('View Inventory'),
+            ),
+          ],
+        ),
       ),
     );
   }

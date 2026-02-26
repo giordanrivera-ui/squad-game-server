@@ -71,6 +71,10 @@ flutter:
     - assets/armor-empty.jpg
     - assets/boots-empty.jpg
     - assets/helmet-empty.jpg
+    - assets/Generic Aramid Boots.jpg
+    - assets/Kevlar Assault boots.jpg
+    - assets/Barmont T8 Velocity.jpg
+    - assets/Solomon Mission 4D.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

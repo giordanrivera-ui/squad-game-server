@@ -60,14 +60,14 @@ class _ArmorPageState extends State<ArmorPage> {
       type: 'footwear',
     ),
     Armor(
-      name: 'Garmont T8 Bifida',
+      name: 'Barmont T8 Bifida',
       cost: 500,
       defense: 8,
       description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.',
       type: 'footwear',
     ),
     Armor(
-      name: 'Salomon Quest 4D',
+      name: 'Solomon Mission 4D',
       cost: 1200,
       defense: 10,
       description: 'Premium all-terrain military boots with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.',
@@ -205,6 +205,10 @@ class _ArmorPageState extends State<ArmorPage> {
           final key = item.name;
           final checked = _checked[key] ?? false;
           final quantity = _quantities[key] ?? 1;
+          String? imagePath;
+          if (title == 'Foot wear') {
+            imagePath = 'assets/${item.name}.jpg';
+          }
 
           return Card(
             child: Padding(
@@ -212,6 +216,16 @@ class _ArmorPageState extends State<ArmorPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (imagePath != null)
+                    ClipOval(
+                      child: Image.asset(
+                        imagePath,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
                   Checkbox(
                     value: checked,
                     onChanged: (v) {
