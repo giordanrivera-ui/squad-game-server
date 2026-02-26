@@ -57,6 +57,17 @@ class _OperationsScreenState extends State<OperationsScreen> {
     return DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp < 60000;
   }
 
+  @override
+  void didUpdateWidget(covariant OperationsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lastLowLevelOp != widget.lastLowLevelOp && _isLowLevelCooldown) {
+      final lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
+      if (lowLevelOps.contains(_selectedOperation)) {
+        setState(() => _selectedOperation = null);
+      }
+    }
+  }
+
   void _executeOperation() {
     if (_selectedOperation == null) return;
 
