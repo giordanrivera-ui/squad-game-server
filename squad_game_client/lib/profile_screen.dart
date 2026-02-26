@@ -63,6 +63,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showInventoryMenu(String type) {
+    final inventory = widget.stats['inventory'] ?? [];
+    final filtered = inventory.where((item) => (item['type'] as String?) == type).toList();
+
+    final currentEquipped = widget.stats[type] ?? null;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$type Items'),
+        content: filtered.isEmpty
+            ? const Text('No items of this type.')
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final item = filtered[index];
+                    return ListTile(
+                      title: Text(item['name'] as String),
+                      subtitle: Text('Durability: ${item['durability']}'),
+                      onTap: () {
+                        SocketService().equipArmor(type, item);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+        actions: [
+          if (currentEquipped != null)
+            TextButton(
+              onPressed: () {
+                SocketService().unequipArmor(type);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Unequip Current'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -75,6 +123,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               radius: 60,
               backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
             ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => _showInventoryMenu('headwear'),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
+                  child: Image.asset('assets/helmet-empty.jpg', width: 100, height: 100),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showInventoryMenu('armor'),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
+                  child: Image.asset('assets/armor-empty.jpg', width: 100, height: 100),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showInventoryMenu('footwear'),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10), // Adjust radius as needed
+                  child: Image.asset('assets/boots-empty.jpg', width: 100, height: 100),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           Text(

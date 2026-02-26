@@ -79,6 +79,9 @@ io.on('connection', (socket) => {
       if (playerData.defense === undefined) playerData.defense = 0;
       if (playerData.photoURL === undefined) playerData.photoURL = '';
       if (playerData.inventory === undefined) playerData.inventory = [];
+      if (playerData.headwear === undefined) playerData.headwear = null;
+      if (playerData.armor === undefined) playerData.armor = null;
+      if (playerData.footwear === undefined) playerData.footwear = null;
       await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
@@ -99,7 +102,10 @@ io.on('connection', (socket) => {
         stealth: 0,
         defense: 0,
         photoURL: '',
-        inventory: []  // NEW: Empty inventory list
+        inventory: [],  // NEW: Empty inventory list
+        headwear: null,
+        armor: null,
+        footwear: null
       };
 
       await docRef.set(playerData);
@@ -242,6 +248,59 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // NEW: Equip armor
+  socket.on('equip-armor', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.slot !== 'string' || typeof data.item !== 'object') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    const slot = data.slot;
+    const item = data.item;
+
+    // Validate type matches slot
+    if (item.type !== slot) return; // Invalid type
+
+    // If slot not empty, move current to inventory
+    if (p[slot] !== null) {
+      p.inventory.push(p[slot]);
+    }
+
+    // Equip new item and remove one instance from inventory
+    p[slot] = item;
+    const index = p.inventory.findIndex(i => i.name === item.name && i.type === item.type);
+    if (index !== -1) {
+      p.inventory.splice(index, 1);
+    }
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // NEW: Unequip armor
+  socket.on('unequip-armor', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.slot !== 'string') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    const slot = data.slot;
+
+    if (p[slot] !== null) {
+      p.inventory.push(p[slot]);
+      p[slot] = null;
+    }
 
     await docRef.set(p);
     socket.emit('update-stats', p);

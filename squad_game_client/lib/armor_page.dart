@@ -7,12 +7,14 @@ class Armor {
   final int defense;
   final String description;
   final int durability;
+  final String type;
 
   Armor({
     required this.name,
     required this.cost,
     required this.defense,
     required this.description,
+    required this.type,
     this.durability = 100,
   });
 
@@ -23,6 +25,7 @@ class Armor {
       'defense': defense,
       'description': description,
       'durability': durability,
+      'type': type,
     };
   }
 }
@@ -46,25 +49,29 @@ class _ArmorPageState extends State<ArmorPage> {
       name: 'Generic Aramid Boots',
       cost: 120,
       defense: 2,
-      description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use. They provide essential foot protection against cuts, scrapes, and minor impacts but lack advanced durability for prolonged heavy-duty operations.'
+      description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use. They provide essential foot protection against cuts, scrapes, and minor impacts but lack advanced durability for prolonged heavy-duty operations.',
+      type: 'footwear',
     ),
     Armor(
       name: 'Kevlar Assault boots',
       cost: 240,
       defense: 4,
-      description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength, suitable for mine-infested areas or assault operations. They offer better protection than basic aramids, with flame resistance and enhanced durability for military personnel.'
+      description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength, suitable for mine-infested areas or assault operations. They offer better protection than basic aramids, with flame resistance and enhanced durability for military personnel.',
+      type: 'footwear',
     ),
     Armor(
       name: 'Garmont T8 Bifida',
       cost: 500,
       defense: 8,
-      description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.'
+      description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.',
+      type: 'footwear',
     ),
     Armor(
       name: 'Salomon Quest 4D',
       cost: 1200,
       defense: 10,
-      description: 'Premium all-terrain military boots with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.'
+      description: 'Premium all-terrain military boots with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.',
+      type: 'footwear',
     ),
   ];
 
@@ -73,43 +80,50 @@ class _ArmorPageState extends State<ArmorPage> {
       name: 'Flak Jacket',
       cost: 120,
       defense: 2,
-      description: 'Entry-level protective vest designed primarily to shield against shrapnel and fragments from explosions, using layered nylon or ballistic nylon. It offers limited ballistic resistance and is not intended for direct bullet impacts, making it suitable for basic fragmentation defense.'
+      description: 'Entry-level protective vest designed primarily to shield against shrapnel and fragments from explosions, using layered nylon or ballistic nylon. It offers limited ballistic resistance and is not intended for direct bullet impacts, making it suitable for basic fragmentation defense.',
+      type: 'armor',
     ),
     Armor(
       name: 'Generic Aramid Armor',
       cost: 300,
       defense: 4,
-      description: 'Fundamental heat-resistant body armor made from aramid fibers, providing moderate strength and protection against cuts, abrasions, and flames. It serves as a lightweight alternative to heavier materials but offers limited ballistic resistance compared to specialized variants.'
+      description: 'Fundamental heat-resistant body armor made from aramid fibers, providing moderate strength and protection against cuts, abrasions, and flames. It serves as a lightweight alternative to heavier materials but offers limited ballistic resistance compared to specialized variants.',
+      type: 'armor',
     ),
     Armor(
       name: 'Full Kevlar Armor',
       cost: 750,
       defense: 6,
-      description: 'Sturdy ballistic-resistant vest using multiple layers of Kevlar fabric, offering high tensile strength (up to five times that of steel by weight) and protection against bullets and fragments. It absorbs impact energy effectively but may require additional plates for higher threats.'
+      description: 'Sturdy ballistic-resistant vest using multiple layers of Kevlar fabric, offering high tensile strength (up to five times that of steel by weight) and protection against bullets and fragments. It absorbs impact energy effectively but may require additional plates for higher threats.',
+      type: 'armor',
     ),
     Armor(
       name: 'SAPI Armor',
       cost: 2200,
       defense: 8,
-      description: 'Ceramic composite plates inserted into vests for enhanced small arms protection, capable of stopping up to 7.62mm rounds. They provide multi-hit capability when backed by soft armor, focusing on vital organ defense with a balance of weight and durability.'
+      description: 'Ceramic composite plates inserted into vests for enhanced small arms protection, capable of stopping up to 7.62mm rounds. They provide multi-hit capability when backed by soft armor, focusing on vital organ defense with a balance of weight and durability.',
+      type: 'armor',
     ),
     Armor(
       name: 'ESAPI Armor',
       cost: 5000,
       defense: 12,
-      description: 'Upgraded ceramic plates offering superior defense against armor-piercing rounds (e.g., .30-06 AP), meeting NIJ Level IV standards. Lighter than traditional materials, they provide multi-hit resistance for high-threat environments, ideal for military operations.'
+      description: 'Upgraded ceramic plates offering superior defense against armor-piercing rounds (e.g., .30-06 AP), meeting NIJ Level IV standards. Lighter than traditional materials, they provide multi-hit resistance for high-threat environments, ideal for military operations.',
+      type: 'armor',
     ),
     Armor(
       name: 'XSAPI Armor',
       cost: 12000,
       defense: 15,
-      description: 'Experimental advanced plates with added layers like Spectra for superior tungsten-core AP protection, capable of withstanding multiple high-velocity hits. Designed for extreme threats, they incorporate silicon-enhanced boron carbide for maximum strength and reduced weight.'
+      description: 'Experimental advanced plates with added layers like Spectra for superior tungsten-core AP protection, capable of withstanding multiple high-velocity hits. Designed for extreme threats, they incorporate silicon-enhanced boron carbide for maximum strength and reduced weight.',
+      type: 'armor',
     ),
     Armor(
       name: 'Hybrid Plate RF-3 Armor',
       cost: 0, // Assuming 0 as not specified
       defense: 20,
-      description: 'Cutting-edge composite plates combining silicon carbide, polyethylene, and advanced ceramics for RF3/Level IV protection against extreme ballistic threats. Lightweight with full edge-to-edge coverage, they offer unmatched multi-hit resistance and environmental durability.'
+      description: 'Cutting-edge composite plates combining silicon carbide, polyethylene, and advanced ceramics for RF3/Level IV protection against extreme ballistic threats. Lightweight with full edge-to-edge coverage, they offer unmatched multi-hit resistance and environmental durability.',
+      type: 'armor',
     ),
   ];
 
@@ -118,19 +132,22 @@ class _ArmorPageState extends State<ArmorPage> {
       name: 'Ballistic goggles',
       cost: 150,
       defense: 4,
-      description: 'Basic protective eyewear designed to shield against fragments, shrapnel, and small projectiles. They meet military standards for impact resistance and integrate with helmets for essential eye safety in combat environments.'
+      description: 'Basic protective eyewear designed to shield against fragments, shrapnel, and small projectiles. They meet military standards for impact resistance and integrate with helmets for essential eye safety in combat environments.',
+      type: 'headwear',
     ),
     Armor(
       name: 'Tactical Helmet',
       cost: 400,
       defense: 8,
-      description: 'Mid-level headgear providing ballistic protection against fragments and low-velocity impacts, with features like anti-fog lenses and modular accessories. It offers full coverage for improved defense in military and law enforcement operations.'
+      description: 'Mid-level headgear providing ballistic protection against fragments and low-velocity impacts, with features like anti-fog lenses and modular accessories. It offers full coverage for improved defense in military and law enforcement operations.',
+      type: 'headwear',
     ),
     Armor(
       name: 'Ops-Core RF1 Helmet',
       cost: 1000,
       defense: 12,
-      description: 'Advanced high-cut ballistic helmet with hybrid composite shell for protection against 7.62mm rifle rounds and fragments. Lightweight (around 3.5 lbs) with EPP liner for comfort, it\'s designed for extreme conditions and accessory integration.'
+      description: 'Advanced high-cut ballistic helmet with hybrid composite shell for protection against 7.62mm rifle rounds and fragments. Lightweight (around 3.5 lbs) with EPP liner for comfort, it\'s designed for extreme conditions and accessory integration.',
+      type: 'headwear',
     ),
   ];
 

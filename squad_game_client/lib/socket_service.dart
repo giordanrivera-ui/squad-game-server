@@ -260,6 +260,19 @@ class SocketService {
       'totalCost': totalCost,
     });
   }
+
+  void equipArmor(String slot, Map<String, dynamic> item) {
+    socket?.emit('equip-armor', {
+      'slot': slot,
+      'item': item,
+    });
+  }
+
+  void unequipArmor(String slot) {
+    socket?.emit('unequip-armor', {
+      'slot': slot,
+    });
+  }
   
   void disconnect() {
     socket?.disconnect();
