@@ -22,17 +22,33 @@ class OperationsScreen extends StatefulWidget {
 class _OperationsScreenState extends State<OperationsScreen> {
   String? _selectedOperation;
 
-  final List<String> _operations = [
-    "Mug a passerby",
-    "Loot a grocery store",
-    "Rob a bank",
-    "Loot weapons store",
-    "Attack military barracks",
-    "Storm a laboratory",
-    "Strike an armory",
-    "Raid a vehicle depot",
-    "Assault an aircraft hangar",
-    "Invade country",
+  final List<Map<String, dynamic>> _operationGroups = [
+    {
+      'header': 'Low Level',
+      'operations': [
+        "Mug a passerby",
+        "Loot a grocery store",
+        "Rob a bank",
+        "Loot weapons store",
+      ]
+    },
+    {
+      'header': 'Medium Level',
+      'operations': [
+        "Attack military barracks",
+        "Storm a laboratory",
+        "Attack central issue facility",
+      ]
+    },
+    {
+      'header': 'High Level',
+      'operations': [
+        "Strike an armory",
+        "Raid a vehicle depot",
+        "Assault an aircraft hangar",
+        "Invade country",
+      ]
+    },
   ];
 
   void _executeOperation() {
@@ -58,10 +74,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
           child: Column(
             children: [
               const Text('Operations in', style: TextStyle(fontSize: 18)),
-              Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              Text(widget.currentLocation,
+                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
+
         Expanded(
           child: Center(
             child: Column(
@@ -73,12 +91,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                   onChanged: (value) {
                     setState(() => _selectedOperation = value);
                   },
-                  items: _operations.map((op) {
-                    return DropdownMenuItem<String>(
-                      value: op,
-                      child: Text(op),
-                    );
-                  }).toList(),
+                  items: _buildDropdownItems(),
                 ),
                 const SizedBox(height: 30),
                 SizedBox(
@@ -104,5 +117,37 @@ class _OperationsScreenState extends State<OperationsScreen> {
         ),
       ],
     );
+  }
+
+  List<DropdownMenuItem<String>> _buildDropdownItems() {
+    List<DropdownMenuItem<String>> items = [];
+    for (var group in _operationGroups) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            group['header'] as String,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
+        ),
+      );
+      for (var op in group['operations'] as List<String>) {
+        items.add(
+          DropdownMenuItem<String>(
+            value: op,
+            child: Text(op),
+          ),
+        );
+      }
+      items.add(
+        const DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Divider(),
+        ),
+      );
+    }
+    return items;
   }
 }
