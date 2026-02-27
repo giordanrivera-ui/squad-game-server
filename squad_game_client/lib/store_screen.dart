@@ -3,8 +3,17 @@ import 'armor_page.dart';
 
 class StoreScreen extends StatelessWidget {
   final int currentBalance;
+  final int currentHealth;
+  final String currentTime;
+  final String currentLocation;
 
-  const StoreScreen({super.key, required this.currentBalance});
+  const StoreScreen({
+    super.key,
+    required this.currentBalance,
+    required this.currentHealth,
+    required this.currentTime,
+    required this.currentLocation,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +23,12 @@ class StoreScreen extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ArmorPage(currentBalance: currentBalance),
+            builder: (_) => ArmorPage(
+              currentBalance: currentBalance,
+              currentHealth: currentHealth,
+              currentTime: currentTime,
+              currentLocation: currentLocation,
+            ),
           ),
         );
       }},

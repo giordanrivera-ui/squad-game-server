@@ -302,6 +302,25 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  String _getRankTitle(int exp) {
+    if (exp <= 499) return 'Thug';
+    if (exp <= 1249) return 'Recruit';
+    if (exp <= 2299) return 'Private';
+    if (exp <= 3499) return 'Private First Class';
+    if (exp <= 4999) return 'Corporal';
+    if (exp <= 6849) return 'Sergeant';
+    if (exp <= 8849) return 'Sergeant First Class';
+    if (exp <= 10199) return 'Warrant Officer';
+    if (exp <= 11449) return 'First Lieutenant';
+    if (exp <= 14199) return 'Captain';
+    if (exp <= 17399) return 'Major';
+    if (exp <= 21349) return 'Lieutenant Colonel';
+    if (exp <= 25849) return 'Colonel';
+    if (exp <= 31499) return 'General';
+    if (exp <= 38199) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -397,7 +416,7 @@ class _GameScreenState extends State<GameScreen> {
                       Navigator.pop(context);
                     },
                     child: CircleAvatar(
-                      radius: 30,
+                      radius: 40,
                       backgroundImage: NetworkImage(
                         FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
                       ),
@@ -412,7 +431,14 @@ class _GameScreenState extends State<GameScreen> {
                         FirebaseAuth.instance.currentUser?.displayName ?? "Player",
                         style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 4),
+                      Text(
+                        _getRankTitle(stats['experience'] ?? 0),
+                        style: const TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       Text(
                         stats['location'] ?? "Unknown",
                         style: const TextStyle(color: Colors.white70, fontSize: 16),
@@ -543,7 +569,12 @@ class _GameScreenState extends State<GameScreen> {
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: stats)
                                   : _currentScreen == 7 
-                                      ? StoreScreen(currentBalance: stats['balance'] ?? 0)
+                                      ? StoreScreen(
+                                        currentBalance: stats['balance'] ?? 0,
+                                        currentHealth: stats['health'] ?? 100,
+                                        currentTime: time,
+                                        currentLocation: stats['location'] ?? 'Unknown',
+                                      )
                                       : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2

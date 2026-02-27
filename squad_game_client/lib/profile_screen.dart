@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'socket_service.dart';
-import 'inventory_page.dart'; // NEW: Import for Inventory
+import 'inventory_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> stats;
@@ -40,7 +40,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final uploadTask = storageRef.putFile(file);
         final snapshot = await uploadTask.whenComplete(() {});
 
-        // Add a short delay to handle potential propagation issues in Firebase Storage
         await Future.delayed(const Duration(seconds: 2));
 
         final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -52,9 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         SocketService().updatePhotoURL(downloadUrl);
 
-        setState(() {
-          _photoURL = downloadUrl;
-        });
+        setState(() => _photoURL = downloadUrl);
 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated!')));
       } catch (e) {
@@ -129,6 +126,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'Lord';
   }
 
+  String _getRankTitle(int exp) {
+    if (exp <= 499) return 'Thug';
+    if (exp <= 1249) return 'Recruit';
+    if (exp <= 2299) return 'Private';
+    if (exp <= 3499) return 'Private First Class';
+    if (exp <= 4999) return 'Corporal';
+    if (exp <= 6849) return 'Sergeant';
+    if (exp <= 8849) return 'Sergeant First Class';
+    if (exp <= 10199) return 'Warrant Officer';
+    if (exp <= 11449) return 'First Lieutenant';
+    if (exp <= 14199) return 'Captain';
+    if (exp <= 17399) return 'Major';
+    if (exp <= 21349) return 'Lieutenant Colonel';
+    if (exp <= 25849) return 'Colonel';
+    if (exp <= 31499) return 'General';
+    if (exp <= 38199) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
   @override
   Widget build(BuildContext context) {
     final footwearEquipped = widget.stats['footwear'] ?? null;
@@ -137,10 +153,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : 'assets/boots-empty.jpg';
 
     final balance = widget.stats['balance'] ?? 0;
+    final exp = widget.stats['experience'] ?? 0;
     final wealthTitle = _getWealthTitle(balance);
+    final rankTitle = _getRankTitle(exp);
 
     return Container(
-      color: Colors.grey[800], // Dark grey background
+      color: Colors.grey[800],
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -204,12 +222,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFEEEEEE)),
             ),
+            const SizedBox(height: 4),
+            Text(
+              rankTitle,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
+            ),
+            const SizedBox(height: 4),
             Text(
               wealthTitle,
               style: const TextStyle(fontSize: 18, color: Color(0xFFEEEEEE)),
             ),
             const SizedBox(height: 20),
-            Text('Experience: ${widget.stats['experience'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
+            Text('Experience: $exp', style: const TextStyle(color: Color(0xFFEEEEEE))),
             Text('Intelligence: ${widget.stats['intelligence'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
             Text('Skill: ${widget.stats['skill'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
             Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),

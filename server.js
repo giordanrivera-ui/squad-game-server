@@ -103,7 +103,7 @@ io.on('connection', (socket) => {
         stealth: 0,
         defense: 0,
         photoURL: '',
-        inventory: [],  // NEW: Empty inventory list
+        inventory: [],
         headwear: null,
         armor: null,
         footwear: null,
@@ -128,6 +128,8 @@ io.on('connection', (socket) => {
       locations: normalLocations,
       travelCosts: travelCosts
     });
+
+    socket.emit('time', timeFormatter.format(new Date()));
   });
 
   socket.on('rob-bank', async () => {
