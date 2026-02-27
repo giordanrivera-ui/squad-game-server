@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'dart:async'; // NEW: Import for Timer
+import 'dart:async';
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -24,72 +24,22 @@ class OperationsScreen extends StatefulWidget {
 
 class _OperationsScreenState extends State<OperationsScreen> {
   String? _selectedOperation;
-  Timer? _cooldownTimer;
 
-  final List<Map<String, dynamic>> _operationGroups = [
-    {
-      'header': 'Low Level',
-      'operations': [
-        "Mug a passerby",
-        "Loot a grocery store",
-        "Rob a bank",
-        "Loot weapons store",
-      ]
-    },
-    {
-      'header': 'Medium Level',
-      'operations': [
-        "Attack military barracks",
-        "Storm a laboratory",
-        "Attack central issue facility",
-      ]
-    },
-    {
-      'header': 'High Level',
-      'operations': [
-        "Strike an armory",
-        "Raid a vehicle depot",
-        "Assault an aircraft hangar",
-        "Invade country",
-      ]
-    },
-  ];
-
-  bool get _isLowLevelCooldown {
-    return DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp < 60000;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _startCooldownTimer();
-  }
-
-  void _startCooldownTimer() {
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isLowLevelCooldown) {
-        timer.cancel();
-      }
-      setState(() {}); // Rebuild to update UI live
-    });
-  }
-
-  @override
-  void dispose() {
-    _cooldownTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant OperationsScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.lastLowLevelOp != widget.lastLowLevelOp && _isLowLevelCooldown) {
-      final lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
-      if (lowLevelOps.contains(_selectedOperation)) {
-        setState(() => _selectedOperation = null);
-      }
-      _startCooldownTimer();
-    }
+  void _showOperationBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _BottomSheetContent(
+        lastLowLevelOp: widget.lastLowLevelOp,
+        onSelected: (operation) {
+          setState(() => _selectedOperation = operation);
+          Navigator.pop(context);
+        },
+      ),
+    );
   }
 
   void _executeOperation() {
@@ -100,6 +50,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Executing: $_selectedOperation...')),
     );
+
+    setState(() => _selectedOperation = null);
   }
 
   @override
@@ -113,8 +65,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
           child: Column(
             children: [
               const Text('Operations in', style: TextStyle(fontSize: 18)),
-              Text(widget.currentLocation,
-                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -124,15 +75,30 @@ class _OperationsScreenState extends State<OperationsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                DropdownButton<String>(
-                  hint: const Text('Select an operation'),
-                  value: _selectedOperation,
-                  onChanged: (value) {
-                    setState(() => _selectedOperation = value);
-                  },
-                  items: _buildDropdownItems(),
+                GestureDetector(
+                  onTap: _showOperationBottomSheet,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _selectedOperation ?? 'Select an operation',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
+                  ),
                 ),
+
                 const SizedBox(height: 30),
+
                 SizedBox(
                   width: double.infinity,
                   child: Padding(
@@ -157,43 +123,101 @@ class _OperationsScreenState extends State<OperationsScreen> {
       ],
     );
   }
+}
 
-  List<DropdownMenuItem<String>> _buildDropdownItems() {
-    List<DropdownMenuItem<String>> items = [];
-    for (var group in _operationGroups) {
-      items.add(
-        DropdownMenuItem<String>(
-          value: null,
-          enabled: false,
-          child: Text(
-            group['header'] as String,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-          ),
-        ),
-      );
-      final isLowLevel = group['header'] == 'Low Level';
-      for (var op in group['operations'] as List<String>) {
-        items.add(
-          DropdownMenuItem<String>(
-            value: isLowLevel && _isLowLevelCooldown ? null : op,
-            enabled: !(isLowLevel && _isLowLevelCooldown),
-            child: Text(
-              op,
-              style: TextStyle(
-                color: isLowLevel && _isLowLevelCooldown ? Colors.grey : Colors.black,
-              ),
-            ),
-          ),
-        );
+// ──────────────────────────────────────────────────────────────
+// Bottom Sheet with LIVE countdown
+// ──────────────────────────────────────────────────────────────
+class _BottomSheetContent extends StatefulWidget {
+  final int lastLowLevelOp;
+  final Function(String) onSelected;
+
+  const _BottomSheetContent({
+    required this.lastLowLevelOp,
+    required this.onSelected,
+  });
+
+  @override
+  State<_BottomSheetContent> createState() => _BottomSheetContentState();
+}
+
+class _BottomSheetContentState extends State<_BottomSheetContent> {
+  Timer? _timer;
+  int _remaining = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startLiveCountdown();
+  }
+
+  void _startLiveCountdown() {
+    final elapsed = DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp;
+    _remaining = ((60000 - elapsed) / 1000).ceil().clamp(0, 60);
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
-      items.add(
-        const DropdownMenuItem<String>(
-          value: null,
-          enabled: false,
-          child: Divider(),
+      setState(() {
+        _remaining = (_remaining - 1).clamp(0, 60);
+        if (_remaining <= 0) timer.cancel();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
+    final isCooldown = _remaining > 0;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+
+          // Low Level
+          _buildGroup('Low Level', lowLevelOps, isCooldown),
+
+          // Medium Level
+          _buildGroup('Medium Level', ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"], false),
+
+          // High Level
+          _buildGroup('High Level', ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"], false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroup(String title, List<String> ops, bool isCooldown) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
-      );
-    }
-    return items;
+        ...ops.map((op) {
+          final displayText = isCooldown ? '$op ($_remaining s)' : op;
+
+          return ListTile(
+            title: Text(displayText),
+            enabled: !isCooldown,
+            onTap: isCooldown ? null : () => widget.onSelected(op),
+          );
+        }),
+        const Divider(),
+      ],
+    );
   }
 }
