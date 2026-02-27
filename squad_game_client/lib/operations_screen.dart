@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
+import 'dart:async'; // NEW: Import for Timer
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -23,6 +24,7 @@ class OperationsScreen extends StatefulWidget {
 
 class _OperationsScreenState extends State<OperationsScreen> {
   String? _selectedOperation;
+  Timer? _cooldownTimer;
 
   final List<Map<String, dynamic>> _operationGroups = [
     {
@@ -58,6 +60,27 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _startCooldownTimer();
+  }
+
+  void _startCooldownTimer() {
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_isLowLevelCooldown) {
+        timer.cancel();
+      }
+      setState(() {}); // Rebuild to update UI live
+    });
+  }
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.lastLowLevelOp != widget.lastLowLevelOp && _isLowLevelCooldown) {
@@ -65,6 +88,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
       if (lowLevelOps.contains(_selectedOperation)) {
         setState(() => _selectedOperation = null);
       }
+      _startCooldownTimer();
     }
   }
 
