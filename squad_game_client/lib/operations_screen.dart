@@ -47,8 +47,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     SocketService().executeOperation(_selectedOperation!);
   }
-
-  // Listen for custom success messages from server
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -64,6 +62,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        
+        setState(() => _selectedOperation = null);
       }
     });
   }
