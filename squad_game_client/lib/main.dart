@@ -321,6 +321,27 @@ class _GameScreenState extends State<GameScreen> {
     return 'Supreme Commander';
   }
 
+  String _getRankBannerPath(int exp) {
+  String rank = _getRankTitle(exp).toLowerCase().replaceAll(' ', '-');
+
+  // Map to your exact file names
+  switch (rank) {
+    case 'thug':
+      return 'assets/Thug-banner.jpg';
+    case 'recruit':
+      return 'assets/Recruit-banner.jpg';
+    case 'private':
+      return 'assets/Private-banner.jpg';
+    case 'private-first-class':
+      return 'assets/Private First Class-banner.jpg';
+    case 'corporal':
+      return 'assets/Corporal-banner.jpg';
+    // Add more as you add more banner images
+    default:
+      return 'assets/Thug-banner.jpg'; // fallback
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -407,7 +428,12 @@ class _GameScreenState extends State<GameScreen> {
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: const BoxDecoration(color: Colors.blue),
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(_getRankBannerPath(stats['experience'] ?? 0)),
+                  fit: BoxFit.cover,
+                ),
+              ),
               child: Row(
                 children: [
                   GestureDetector(
