@@ -46,11 +46,25 @@ class _OperationsScreenState extends State<OperationsScreen> {
     if (_selectedOperation == null) return;
 
     SocketService().executeOperation(_selectedOperation!);
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Executing: $_selectedOperation...')),
-    );
+  @override
+  void initState() {
+    super.initState();
 
+    // Listen for nice success messages from server
+    SocketService().socket?.on('operation-result', (data) {
+      if (data != null && data['message'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message']),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.green.shade700,
+          ),
+        );
+      }
+    });
+    
     setState(() => _selectedOperation = null);
   }
 
@@ -125,7 +139,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// Bottom Sheet with live countdown
+// Bottom Sheet with LIVE countdown
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
@@ -153,9 +167,15 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final elapsed = DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp;
     _remaining = ((60000 - elapsed) / 1000).ceil().clamp(0, 60);
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _remaining = (_remaining - 1).clamp(0, 60));
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _remaining = (_remaining - 1).clamp(0, 60);
+        if (_remaining <= 0) timer.cancel();
+      });
     });
   }
 
