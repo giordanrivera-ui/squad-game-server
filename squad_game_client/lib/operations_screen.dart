@@ -125,9 +125,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// Bottom Sheet with LIVE countdown
-// ──────────────────────────────────────────────────────────────
+// Bottom Sheet with live countdown
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
@@ -155,15 +153,9 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final elapsed = DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp;
     _remaining = ((60000 - elapsed) / 1000).ceil().clamp(0, 60);
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        _remaining = (_remaining - 1).clamp(0, 60);
-        if (_remaining <= 0) timer.cancel();
-      });
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _remaining = (_remaining - 1).clamp(0, 60));
     });
   }
 
@@ -175,7 +167,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
 
   @override
   Widget build(BuildContext context) {
-    final lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
     final isCooldown = _remaining > 0;
 
     return Padding(
@@ -185,14 +176,8 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         children: [
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-
-          // Low Level
-          _buildGroup('Low Level', lowLevelOps, isCooldown),
-
-          // Medium Level
+          _buildGroup('Low Level', ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"], isCooldown),
           _buildGroup('Medium Level', ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"], false),
-
-          // High Level
           _buildGroup('High Level', ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"], false),
         ],
       ),
@@ -209,7 +194,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         ),
         ...ops.map((op) {
           final displayText = isCooldown ? '$op ($_remaining s)' : op;
-
           return ListTile(
             title: Text(displayText),
             enabled: !isCooldown,

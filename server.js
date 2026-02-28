@@ -133,80 +133,103 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-  // ==================== EXECUTE OPERATION (All Low Level Ops) ====================
-  socket.on('execute-operation', async (data) => {
-    const email = socket.data.email;
-    if (!email || typeof data.operation !== 'string') return;
+// ==================== EXECUTE OPERATION (With nice messages) ====================
+socket.on('execute-operation', async (data) => {
+  const email = socket.data.email;
+  if (!email || typeof data.operation !== 'string') return;
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
 
-    let p = doc.data();
-    const operation = data.operation;
+  let p = doc.data();
+  const operation = data.operation;
 
-    const lowLevelOps = [
-      "Mug a passerby",
-      "Loot a grocery store",
-      "Rob a bank",
-      "Loot weapons store"
-    ];
+  const lowLevelOps = [
+    "Mug a passerby",
+    "Loot a grocery store",
+    "Rob a bank",
+    "Loot weapons store"
+  ];
 
-    if (!lowLevelOps.includes(operation)) return;
+  if (!lowLevelOps.includes(operation)) return;
 
-    // Shared cooldown check
-    if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
+  // Shared cooldown check
+  if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
 
-    let money = 0;
-    let healthLoss = 0;
-    let expGain = 0;
+  let money = 0;
+  let healthLoss = 0;
+  let expGain = 0;
 
-    if (operation === "Mug a passerby") {
-      money = Math.floor(Math.random() * 91) + 10;      // 10-100
-      healthLoss = Math.floor(Math.random() * 26) + 5;  // 5-30
-      expGain = 10;
-    } 
-    else if (operation === "Loot a grocery store") {
-      money = Math.floor(Math.random() * 71) + 30;      // 30-100
-      healthLoss = Math.floor(Math.random() * 21) + 15; // 15-35
-      expGain = 15;
-    } 
-    else if (operation === "Rob a bank") {
-      healthLoss = Math.floor(Math.random() * 41) + 15; // 15-55
-      expGain = 25;
+  if (operation === "Mug a passerby") {
+    money = Math.floor(Math.random() * 91) + 10;      // 10-100
+    healthLoss = Math.floor(Math.random() * 26) + 5;  // 5-30
+    expGain = 10;
+  } 
+  else if (operation === "Loot a grocery store") {
+    money = Math.floor(Math.random() * 71) + 30;      // 30-100
+    healthLoss = Math.floor(Math.random() * 21) + 15; // 15-35
+    expGain = 15;
+  } 
+  else if (operation === "Rob a bank") {
+    healthLoss = Math.floor(Math.random() * 41) + 15; // 15-55
+    expGain = 25;
 
-      const exp = p.experience || 0;
-      if (exp <= 499)          money = Math.floor(Math.random() * 71) + 30;   // 30-100   Thug
-      else if (exp <= 1249)    money = Math.floor(Math.random() * 81) + 40;   // 40-120   Recruit
-      else if (exp <= 2299)    money = Math.floor(Math.random() * 91) + 60;   // 60-150   Private
-      else if (exp <= 3499)    money = Math.floor(Math.random() * 101) + 80;  // 80-180   PFC
-      else if (exp <= 4999)    money = Math.floor(Math.random() * 111) + 90;  // 90-200   Corporal
-      else if (exp <= 6849)    money = Math.floor(Math.random() * 121) + 120; // 120-240  Sergeant
-      else if (exp <= 8849)    money = Math.floor(Math.random() * 111) + 150; // 150-260  SFC
-      else if (exp <= 10199)   money = Math.floor(Math.random() * 121) + 180; // 180-300  WO
-      else if (exp <= 11449)   money = Math.floor(Math.random() * 141) + 200; // 200-340  1LT
-      else if (exp <= 14199)   money = Math.floor(Math.random() * 121) + 240; // 240-360  Captain
-      else if (exp <= 17399)   money = Math.floor(Math.random() * 126) + 275; // 275-400  Major
-      else if (exp <= 21349)   money = Math.floor(Math.random() * 156) + 320; // 320-475  LTC
-      else if (exp <= 25849)   money = Math.floor(Math.random() * 241) + 360; // 360-600  Colonel
-      else if (exp <= 31499)   money = Math.floor(Math.random() * 251) + 450; // 450-700  General
-      else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500; // 500-780  Gen of Army
-      else                     money = Math.floor(Math.random() * 401) + 600; // 600-1000 Supreme Commander
-    }
+    const exp = p.experience || 0;
+    if (exp <= 499)          money = Math.floor(Math.random() * 71) + 30;
+    else if (exp <= 1249)    money = Math.floor(Math.random() * 81) + 40;
+    else if (exp <= 2299)    money = Math.floor(Math.random() * 91) + 60;
+    else if (exp <= 3499)    money = Math.floor(Math.random() * 101) + 80;
+    else if (exp <= 4999)    money = Math.floor(Math.random() * 111) + 90;
+    else if (exp <= 6849)    money = Math.floor(Math.random() * 121) + 120;
+    else if (exp <= 8849)    money = Math.floor(Math.random() * 111) + 150;
+    else if (exp <= 10199)   money = Math.floor(Math.random() * 121) + 180;
+    else if (exp <= 11449)   money = Math.floor(Math.random() * 141) + 200;
+    else if (exp <= 14199)   money = Math.floor(Math.random() * 121) + 240;
+    else if (exp <= 17399)   money = Math.floor(Math.random() * 126) + 275;
+    else if (exp <= 21349)   money = Math.floor(Math.random() * 156) + 320;
+    else if (exp <= 25849)   money = Math.floor(Math.random() * 241) + 360;
+    else if (exp <= 31499)   money = Math.floor(Math.random() * 251) + 450;
+    else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500;
+    else                     money = Math.floor(Math.random() * 401) + 600;
+  }
 
-    p.balance += money;
-    p.health = Math.max(0, p.health - healthLoss);
-    p.experience += expGain;
-    p.lastLowLevelOp = Date.now();
+  p.balance += money;
+  p.health = Math.max(0, p.health - healthLoss);
+  p.experience += expGain;
+  p.lastLowLevelOp = Date.now();
 
-    await docRef.set(p);
-    socket.emit('update-stats', p);
+  await docRef.set(p);
 
-    if (p.health <= 0) {
-      await docRef.delete();
-      console.log(`Player ${email} died and data was reset`);
-    }
+  // Send nice message to client
+  const message = getOperationSuccessMessage(operation, money, healthLoss, expGain);
+  
+  socket.emit('operation-result', { 
+    operation: operation,
+    message: message 
   });
+
+  socket.emit('update-stats', p);
+
+  if (p.health <= 0) {
+    await docRef.delete();
+    console.log(`Player ${email} died and data was reset`);
+  }
+});
+
+// Helper function for nice messages
+function getOperationSuccessMessage(operation, money, healthLoss, expGain) {
+  if (operation === "Mug a passerby") {
+    return `You mugged a passerby and got $${money}! (-${healthLoss} health, +${expGain} XP)`;
+  }
+  if (operation === "Loot a grocery store") {
+    return `You looted the grocery store and stole $${money}! (-${healthLoss} health, +${expGain} XP)`;
+  }
+  if (operation === "Rob a bank") {
+    return `You robbed the bank and escaped with $${money}! (-${healthLoss} health, +${expGain} XP)`;
+  }
+  return `Operation completed: ${operation}`;
+}
 
   // ==================== OTHER EXISTING HANDLERS ====================
   socket.on('message', (msg) => {
