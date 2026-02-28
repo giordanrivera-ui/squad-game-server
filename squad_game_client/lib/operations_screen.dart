@@ -46,12 +46,26 @@ class _OperationsScreenState extends State<OperationsScreen> {
     if (_selectedOperation == null) return;
 
     SocketService().executeOperation(_selectedOperation!);
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Executing: $_selectedOperation...')),
-    );
+  // Listen for custom success messages from server
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
 
-    setState(() => _selectedOperation = null);
+    final socket = SocketService().socket;
+    socket?.on('operation-result', (data) {
+      if (data != null && data['message'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message']),
+            backgroundColor: Colors.green[700],
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -125,9 +139,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-// Bottom Sheet with LIVE countdown
-// ──────────────────────────────────────────────────────────────
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
@@ -186,13 +197,8 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
 
-          // Low Level
           _buildGroup('Low Level', lowLevelOps, isCooldown),
-
-          // Medium Level
           _buildGroup('Medium Level', ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"], false),
-
-          // High Level
           _buildGroup('High Level', ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"], false),
         ],
       ),
