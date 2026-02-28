@@ -75,6 +75,13 @@ flutter:
     - assets/Kevlar Assault boots.jpg
     - assets/Barmont T8 Velocity.jpg
     - assets/Solomon Mission 4D.jpg
+    - assets/Thug-banner.jpg
+    - assets/Recruit-banner.jpg
+    - assets/Private-banner.jpg
+    - assets/Private First Class-banner.jpg
+    - assets/Corporal-banner.jpg
+    - assets/Sergeant-banner.jpg
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
