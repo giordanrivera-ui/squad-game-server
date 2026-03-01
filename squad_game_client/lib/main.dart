@@ -637,6 +637,39 @@ class _GameScreenState extends State<GameScreen> {
             itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
           ),
         ),
+        Container(
+        padding: const EdgeInsets.all(16),
+        color: Colors.grey[850],
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestExp();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +70 Experience')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                child: const Text('EXP +70'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$200')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$200'),
+              ),
+            ),
+          ],
+        ),
+      ),
         Padding(
           padding: const EdgeInsets.all(8),
           child: Row(

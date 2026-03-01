@@ -130,7 +130,40 @@ io.on('connection', (socket) => {
       travelCosts: travelCosts
     });
 
+
+
     socket.emit('time', timeFormatter.format(new Date()));
+  });
+
+  // ==================== TEST BUTTONS ====================
+  socket.on('add-test-exp', async (amount) => {
+    const email = socket.data.email;
+    if (!email || typeof amount !== 'number') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    p.experience = (p.experience || 0) + amount;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  socket.on('add-test-money', async (amount) => {
+    const email = socket.data.email;
+    if (!email || typeof amount !== 'number') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    p.balance = (p.balance || 0) + amount;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
   });
 
 // ==================== EXECUTE OPERATION WITH DEFENSE MITIGATION ====================
