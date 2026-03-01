@@ -133,7 +133,7 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-// ==================== EXECUTE OPERATION WITH CUSTOM MESSAGES ====================
+// ==================== EXECUTE OPERATION WITH DEFENSE MITIGATION ====================
 socket.on('execute-operation', async (data) => {
   const email = socket.data.email;
   if (!email || typeof data.operation !== 'string') return;
@@ -158,7 +158,7 @@ socket.on('execute-operation', async (data) => {
   if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
 
   let money = 0;
-  let healthLoss = 0;
+  let healthLoss = 0;        // This is the RAW damage before defense
   let expGain = 0;
   let message = "";
 
@@ -199,18 +199,29 @@ socket.on('execute-operation', async (data) => {
     message = `You robbed the bank and escaped with $${money}!`;
   }
 
+  // ==================== NEW: DEFENSE MITIGATION ====================
+  const totalDefense = 
+    (p.headwear?.defense || 0) + 
+    (p.armor?.defense || 0) + 
+    (p.footwear?.defense || 0);
+
+  const actualDamage = Math.max(0, healthLoss - totalDefense);
+
+  // Apply the mitigated damage
   p.balance += money;
-  p.health = Math.max(0, p.health - healthLoss);
+  p.health = Math.max(0, p.health - actualDamage);
   p.experience += expGain;
   p.lastLowLevelOp = Date.now();
 
   await docRef.set(p);
 
-  // Send rich result with custom message to client
+  // Send rich result with actual damage taken
   socket.emit('operation-result', {
     operation: operation,
     money: money,
-    healthLoss: healthLoss,
+    rawDamage: healthLoss,        // Original damage
+    actualDamage: actualDamage,   // Damage after defense
+    totalDefense: totalDefense,
     expGain: expGain,
     message: message
   });
