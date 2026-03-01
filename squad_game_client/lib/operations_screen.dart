@@ -61,7 +61,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
       final int rawDamage = data['rawDamage'] ?? 0;
       final int actualDamage = data['actualDamage'] ?? 0;
       final int totalDefense = data['totalDefense'] ?? 0;
-      final int money = data['money'] ?? 0;
 
       String finalMessage = message;
 

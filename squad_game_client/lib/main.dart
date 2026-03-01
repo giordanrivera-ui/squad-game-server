@@ -18,6 +18,7 @@ import 'profile_screen.dart'; // NEW: Import for Profile
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'store_screen.dart';
 import 'properties_screen.dart';
+import 'sidebar.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -302,46 +303,6 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  String _getRankTitle(int exp) {
-    if (exp <= 499) return 'Thug';
-    if (exp <= 1249) return 'Recruit';
-    if (exp <= 2299) return 'Private';
-    if (exp <= 3499) return 'Private First Class';
-    if (exp <= 4999) return 'Corporal';
-    if (exp <= 6849) return 'Sergeant';
-    if (exp <= 8849) return 'Sergeant First Class';
-    if (exp <= 10199) return 'Warrant Officer';
-    if (exp <= 11449) return 'First Lieutenant';
-    if (exp <= 14199) return 'Captain';
-    if (exp <= 17399) return 'Major';
-    if (exp <= 21349) return 'Lieutenant Colonel';
-    if (exp <= 25849) return 'Colonel';
-    if (exp <= 31499) return 'General';
-    if (exp <= 38199) return 'General of the Army';
-    return 'Supreme Commander';
-  }
-
-  String _getRankBannerPath(int exp) {
-  String rank = _getRankTitle(exp).toLowerCase().replaceAll(' ', '-');
-
-  // Map to your exact file names
-  switch (rank) {
-    case 'thug':
-      return 'assets/Thug-banner.jpg';
-    case 'recruit':
-      return 'assets/Recruit-banner.jpg';
-    case 'private':
-      return 'assets/Private-banner.jpg';
-    case 'private-first-class':
-      return 'assets/Private First Class-banner.jpg';
-    case 'corporal':
-      return 'assets/Corporal-banner.jpg';
-    // Add more as you add more banner images
-    default:
-      return 'assets/Thug-banner.jpg'; // fallback
-  }
-}
-
   @override
   Widget build(BuildContext context) {
     if (isDead) {
@@ -423,145 +384,13 @@ class _GameScreenState extends State<GameScreen> {
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
             ),
 
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(_getRankBannerPath(stats['experience'] ?? 0)),
-                  fit: BoxFit.cover,
-                ),
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() => _currentScreen = 6);
-                      Navigator.pop(context);
-                    },
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundImage: NetworkImage(
-                        FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        FirebaseAuth.instance.currentUser?.displayName ?? "Player",
-                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        _getRankTitle(stats['experience'] ?? 0),
-                        style: const TextStyle(
-                          color: Colors.orangeAccent,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        stats['location'] ?? "Unknown",
-                        style: const TextStyle(color: Colors.white70, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Dashboard'),
-              onTap: () {
-                setState(() => _currentScreen = 0);
-                Navigator.pop(context);
-              },
-            ),
-            ValueListenableBuilder<bool>(
-              valueListenable: _socketService.hasUnreadMessages,
-              builder: (context, hasUnread, child) {
-                return ListTile(
-                  leading: Stack(
-                    children: [
-                      const Icon(Icons.mail),
-                      if (hasUnread)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: const Text('Messages'),
-                  onTap: () {
-                    setState(() => _currentScreen = 2);
-                    Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text('Players Online'),
-              onTap: () {
-                setState(() => _currentScreen = 1);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.airplanemode_active),
-              title: const Text('Airport'),
-              onTap: () {
-                setState(() => _currentScreen = 3);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(  // NEW: Hospital tile
-              leading: const Icon(Icons.local_hospital),
-              title: const Text('Hospital'),
-              onTap: () {
-                setState(() => _currentScreen = 4);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(  // NEW: Operations tile
-              leading: const Icon(Icons.flash_on),
-              title: const Text('Operations'),
-              onTap: () {
-                setState(() => _currentScreen = 5);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(  // NEW: Store tile
-              leading: const Icon(Icons.store),
-              title: const Text('Store'),
-              onTap: () {
-                setState(() => _currentScreen = 7);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(  // NEW: Properties tile
-              leading: const Icon(Icons.apartment),
-              title: const Text('Properties'),
-              onTap: () {
-                setState(() => _currentScreen = 8);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
+      drawer: Sidebar(
+        currentScreen: _currentScreen,
+        onScreenChanged: (screen) {
+          setState(() => _currentScreen = screen);
+        },
+        stats: stats,
+        hasUnreadMessages: _socketService.hasUnreadMessages,
       ),
 
       body: _currentScreen == 0 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'status_app_bar.dart';   // ← Important import
+import 'status_app_bar.dart';
 
 class Armor {
   final String name;
@@ -32,17 +32,17 @@ class Armor {
 }
 
 class ArmorPage extends StatefulWidget {
-  final String currentLocation;
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
+  final String currentLocation;
 
   const ArmorPage({
     super.key,
-    required this.currentLocation,
     required this.currentBalance,
     required this.currentHealth,
     required this.currentTime,
+    required this.currentLocation,
   });
 
   @override
@@ -50,15 +50,47 @@ class ArmorPage extends StatefulWidget {
 }
 
 class _ArmorPageState extends State<ArmorPage> {
+  late int _currentBalance;
+  late int _currentHealth;
+
   final Map<String, bool> _checked = {};
   final Map<String, int> _quantities = {};
   int _totalCost = 0;
 
   final List<Armor> _footWear = [
-    Armor(name: 'Generic Aramid Boots', cost: 120, defense: 2, description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use. They provide essential foot protection against cuts, scrapes, and minor impacts but lack advanced durability for prolonged heavy-duty operations.', type: 'footwear'),
-    Armor(name: 'Kevlar Assault boots', cost: 240, defense: 4, description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength, suitable for mine-infested areas or assault operations. They offer better protection than basic aramids, with flame resistance and enhanced durability for military personnel.', type: 'footwear'),
-    Armor(name: 'Barmont T8 Velocity', cost: 500, defense: 8, description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.', type: 'footwear'),
-    Armor(name: 'Solomon Mission 4D', cost: 1200, defense: 10, description: 'Premium all-terrain military boots with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.', type: 'footwear'),
+    Armor(
+      name: 'Generic Aramid Boots',
+      cost: 150,
+      defense: 2,
+      description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use.',
+      type: 'footwear',
+    ),
+    Armor(
+      name: 'Kevlar Assault boots',
+      cost: 310,
+      defense: 4,
+      description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength.',
+      type: 'footwear',
+    ),
+    Armor(
+      name: 'Barmont T8 Velocity',
+      cost: 640,
+      defense: 8,
+      description: 'Reliable multi-terrain tactical boots with excellent breathability and stability.',
+      type: 'footwear',
+    ),
+    Armor(
+      name: 'Powa Zephyt GTX', 
+      cost: 1520, defense: 11, 
+      description: '', 
+      type: 'footwear'),
+    Armor(
+      name: 'Solomon Mission 4D',
+      cost: 0,
+      defense: 10,
+      description: 'Premium all-terrain military boots with advanced stability and waterproofing.',
+      type: 'footwear',
+    ),
   ];
 
   final List<Armor> _bodyArmor = [
@@ -76,6 +108,23 @@ class _ArmorPageState extends State<ArmorPage> {
     Armor(name: 'Tactical Helmet', cost: 400, defense: 8, description: 'Mid-level headgear providing ballistic protection against fragments and low-velocity impacts, with features like anti-fog lenses and modular accessories. It offers full coverage for improved defense in military and law enforcement operations.', type: 'headwear'),
     Armor(name: 'Ops-Core RF1 Helmet', cost: 1000, defense: 12, description: 'Advanced high-cut ballistic helmet with hybrid composite shell for protection against 7.62mm rifle rounds and fragments. Lightweight (around 3.5 lbs) with EPP liner for comfort, it\'s designed for extreme conditions and accessory integration.', type: 'headwear'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentBalance = widget.currentBalance;
+    _currentHealth = widget.currentHealth;
+
+    // Listen for live updates from the server
+    SocketService().socket?.on('update-stats', (data) {
+      if (data is Map<String, dynamic>) {
+        setState(() {
+          _currentBalance = data['balance'] ?? _currentBalance;
+          _currentHealth = data['health'] ?? _currentHealth;
+        });
+      }
+    });
+  }
 
   void _updateTotal() {
     int total = 0;
@@ -174,9 +223,9 @@ class _ArmorPageState extends State<ArmorPage> {
                         IconButton(
                           icon: const Icon(Icons.remove),
                           onPressed: quantity > 1 ? () {
-                            setState(() => _quantities[key] = quantity - 1);
-                            _updateTotal();
-                          } : null,
+                                  setState(() => _quantities[key] = quantity - 1);
+                                  _updateTotal();
+                                } : null,
                         ),
                         Text('$quantity'),
                         IconButton(
@@ -199,14 +248,14 @@ class _ArmorPageState extends State<ArmorPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canPurchase = _totalCost > 0 && widget.currentBalance >= _totalCost;
+    final canPurchase = _totalCost > 0 && _currentBalance >= _totalCost;
 
     return Scaffold(
       appBar: StatusAppBar(
         title: 'Armor',
         stats: {
-          'balance': widget.currentBalance,
-          'health': widget.currentHealth,
+          'balance': _currentBalance,
+          'health': _currentHealth,
         },
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
