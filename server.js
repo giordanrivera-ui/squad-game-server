@@ -129,9 +129,6 @@ io.on('connection', (socket) => {
       locations: normalLocations,
       travelCosts: travelCosts
     });
-
-
-
     socket.emit('time', timeFormatter.format(new Date()));
   });
 

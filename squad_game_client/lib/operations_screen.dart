@@ -47,24 +47,43 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     SocketService().executeOperation(_selectedOperation!);
   }
+
+  // ==================== IMPROVED RESULT LISTENER ====================
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
     final socket = SocketService().socket;
     socket?.on('operation-result', (data) {
-      if (data != null && data['message'] != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message']),
-            backgroundColor: Colors.green[700],
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        
-        setState(() => _selectedOperation = null);
+      if (data == null) return;
+
+      final String message = data['message'] ?? 'Operation completed.';
+      final int rawDamage = data['rawDamage'] ?? 0;
+      final int actualDamage = data['actualDamage'] ?? 0;
+      final int totalDefense = data['totalDefense'] ?? 0;
+      final int money = data['money'] ?? 0;
+
+      String finalMessage = message;
+
+      // Add defense absorption info when relevant
+      if (totalDefense > 0 && rawDamage > 0) {
+        finalMessage += '\nYour armor absorbed $totalDefense damage!';
+        if (actualDamage > 0) {
+          finalMessage += '\nYou only lost $actualDamage health.';
+        } else {
+          finalMessage += '\nYou took no damage!';
+        }
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(finalMessage),
+          backgroundColor: Colors.green[700],
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      setState(() => _selectedOperation = null);
     });
   }
 
@@ -139,6 +158,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
+// Keep your existing _BottomSheetContent class unchanged below...
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
