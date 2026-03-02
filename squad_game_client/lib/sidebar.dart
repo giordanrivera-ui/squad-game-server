@@ -166,7 +166,15 @@ class Sidebar extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
-
+          ListTile(
+            leading: const Icon(Icons.gavel),
+            title: const Text('Prison'),
+            selected: currentScreen == 9,
+            onTap: () {
+              onScreenChanged(9);
+              Navigator.pop(context);
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.apartment),
             title: const Text('Properties'),

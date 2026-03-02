@@ -19,6 +19,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'store_screen.dart';
 import 'properties_screen.dart';
 import 'sidebar.dart';
+import 'prison_screen.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -430,7 +431,11 @@ class _GameScreenState extends State<GameScreen> {
                                         currentTime: time,
                                         currentLocation: stats['location'] ?? 'Unknown',
                                       )
-                                      : PropertiesScreen(),
+                                      : _currentScreen == 8 
+                                        ? PropertiesScreen()
+                                        : _currentScreen == 9 
+                                            ? const PrisonScreen()   // ← NEW
+                                            : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
