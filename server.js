@@ -15,28 +15,31 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+// ==================== GLOBAL PRISON LIST ====================
+const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
+
 // ==================== LOCATIONS ====================
 const normalLocations = [
-  "Riverstone",
-  "Thornbury",
-  "Vostokgrad",
-  "Eichenwald",
+  "Riverstone", 
+  "Thornbury", 
+  "Vostokgrad", 
+  "Eichenwald", 
   "Montclair",
-  "Valleora",
-  "Lónghǎi",
-  "Sakuragawa",
+  "Valleora", 
+  "Lónghǎi", 
+  "Sakuragawa", 
   "Cawayan Heights"
 ];
 
 // ==================== TRAVEL COSTS ====================
 const travelCosts = {
-  "Riverstone": 40,
-  "Thornbury": 45,
-  "Vostokgrad": 110,
+  "Riverstone": 40, 
+  "Thornbury": 45, 
+  "Vostokgrad": 110, 
   "Eichenwald": 60,
-  "Montclair": 85,
-  "Valleora": 70,
-  "Lónghǎi": 140,
+  "Montclair": 85, 
+  "Valleora": 70, 
+  "Lónghǎi": 140, 
   "Sakuragawa": 95,
   "Cawayan Heights": 55
 };
@@ -84,6 +87,7 @@ io.on('connection', (socket) => {
       if (playerData.armor === undefined) playerData.armor = null;
       if (playerData.footwear === undefined) playerData.footwear = null;
       if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
+      if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       await docRef.set(playerData);
     } else {
       // NEW PLAYER → now also starts with empty messages box
@@ -108,7 +112,8 @@ io.on('connection', (socket) => {
         headwear: null,
         armor: null,
         footwear: null,
-        lastLowLevelOp: 0  // NEW: Low-level op cooldown
+        lastLowLevelOp: 0,  // NEW: Low-level op cooldown
+        prisonEndTime: 0
       };
 
       await docRef.set(playerData);
@@ -163,107 +168,145 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-// ==================== EXECUTE OPERATION WITH DEFENSE MITIGATION ====================
-socket.on('execute-operation', async (data) => {
-  const email = socket.data.email;
-  if (!email || typeof data.operation !== 'string') return;
+  // ==================== EXECUTE OPERATION (Prison + Defense + Death Log) ====================
+  socket.on('execute-operation', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.operation !== 'string') return;
 
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
 
-  let p = doc.data();
-  const operation = data.operation;
+    let p = doc.data();
+    const operation = data.operation;
 
-  const lowLevelOps = [
-    "Mug a passerby",
-    "Loot a grocery store",
-    "Rob a bank",
-    "Loot weapons store"
-  ];
+    const lowLevelOps = [
+      "Mug a passerby",
+      "Loot a grocery store",
+      "Rob a bank",
+      "Loot weapons store"
+    ];
 
-  if (!lowLevelOps.includes(operation)) return;
+    if (!lowLevelOps.includes(operation)) return;
 
-  // Shared cooldown check
-  if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
+    // Shared cooldown check
+    if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
 
-  let money = 0;
-  let healthLoss = 0;        // This is the RAW damage before defense
-  let expGain = 0;
-  let message = "";
+    let money = 0;
+    let rawDamage = 0;
+    let expGain = 0;
+    let message = "";
+    let isCaught = false;
 
-  if (operation === "Mug a passerby") {
-    money = Math.floor(Math.random() * 91) + 10;      // 10-100
-    healthLoss = Math.floor(Math.random() * 26) + 5;  // 5-30
-    expGain = 10;
-    message = `You mugged a passerby and got $${money}!`;
-  } 
-  else if (operation === "Loot a grocery store") {
-    money = Math.floor(Math.random() * 71) + 30;      // 30-100
-    healthLoss = Math.floor(Math.random() * 21) + 15; // 15-35
-    expGain = 15;
-    message = `You looted the grocery store and stole $${money}!`;
-  } 
-  else if (operation === "Rob a bank") {
-    healthLoss = Math.floor(Math.random() * 41) + 15; // 15-55
-    expGain = 25;
+    // Calculate base rewards
+    if (operation === "Mug a passerby") {
+      money = Math.floor(Math.random() * 91) + 10;      // 10-100
+      rawDamage = Math.floor(Math.random() * 26) + 5;
+      expGain = 10;
+      message = `You mugged a passerby and got $${money}!`;
+    } 
+    else if (operation === "Loot a grocery store") {
+      money = Math.floor(Math.random() * 71) + 30;
+      rawDamage = Math.floor(Math.random() * 21) + 15;
+      expGain = 15;
+      message = `You looted the grocery store and stole $${money}!`;
+    } 
+    else if (operation === "Rob a bank") {
+      rawDamage = Math.floor(Math.random() * 41) + 15;
+      expGain = 25;
 
+      const exp = p.experience || 0;
+      if (exp <= 499)          money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1249)    money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2299)    money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3499)    money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 4999)    money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6849)    money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8849)    money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10199)   money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11449)   money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14199)   money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17399)   money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21349)   money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25849)   money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31499)   money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500;
+      else                     money = Math.floor(Math.random() * 401) + 600;
+
+      message = `You robbed the bank and escaped with $${money}!`;
+    }
+
+    // === Prison Chance ===
+    let prisonChance = 0.22; // Thug
     const exp = p.experience || 0;
-    if (exp <= 499)          money = Math.floor(Math.random() * 71) + 30;
-    else if (exp <= 1249)    money = Math.floor(Math.random() * 81) + 40;
-    else if (exp <= 2299)    money = Math.floor(Math.random() * 91) + 60;
-    else if (exp <= 3499)    money = Math.floor(Math.random() * 101) + 80;
-    else if (exp <= 4999)    money = Math.floor(Math.random() * 111) + 90;
-    else if (exp <= 6849)    money = Math.floor(Math.random() * 121) + 120;
-    else if (exp <= 8849)    money = Math.floor(Math.random() * 111) + 150;
-    else if (exp <= 10199)   money = Math.floor(Math.random() * 121) + 180;
-    else if (exp <= 11449)   money = Math.floor(Math.random() * 141) + 200;
-    else if (exp <= 14199)   money = Math.floor(Math.random() * 121) + 240;
-    else if (exp <= 17399)   money = Math.floor(Math.random() * 126) + 275;
-    else if (exp <= 21349)   money = Math.floor(Math.random() * 156) + 320;
-    else if (exp <= 25849)   money = Math.floor(Math.random() * 241) + 360;
-    else if (exp <= 31499)   money = Math.floor(Math.random() * 251) + 450;
-    else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500;
-    else                     money = Math.floor(Math.random() * 401) + 600;
+    if (exp > 499) prisonChance = 0.21;
+    if (exp > 1249) prisonChance = 0.20;
+    if (exp > 2299) prisonChance = 0.19;
+    if (exp > 3499) prisonChance = 0.18;
+    if (exp > 4999) prisonChance = 0.17;
+    if (exp > 6849) prisonChance = 0.16;
+    if (exp > 8849) prisonChance = 0.15;
+    if (exp > 10199) prisonChance = 0.14;
+    if (exp > 11449) prisonChance = 0.13;
+    if (exp > 14199) prisonChance = 0.12;
+    if (exp > 17399) prisonChance = 0.11;
+    if (exp > 21349) prisonChance = 0.10;
+    if (exp > 25849) prisonChance = 0.08;
+    if (exp > 31499) prisonChance = 0.07;
+    if (exp > 38199) prisonChance = 0.06;
 
-    message = `You robbed the bank and escaped with $${money}!`;
-  }
+    isCaught = Math.random() < prisonChance;
 
-  // ==================== NEW: DEFENSE MITIGATION ====================
-  const totalDefense = 
-    (p.headwear?.defense || 0) + 
-    (p.armor?.defense || 0) + 
-    (p.footwear?.defense || 0);
+    if (isCaught) {
+      p.prisonEndTime = Date.now() + 60000;
+      message = `You were caught! You have been sent to prison for 60 seconds.`;
+    } else {
+      // === Defense Mitigation ===
+      const totalDefense = 
+        (p.headwear?.defense || 0) + 
+        (p.armor?.defense || 0) + 
+        (p.footwear?.defense || 0);
 
-  const actualDamage = Math.max(0, healthLoss - totalDefense);
+      const actualDamage = Math.max(0, rawDamage - totalDefense);
 
-  // Apply the mitigated damage
-  p.balance += money;
-  p.health = Math.max(0, p.health - actualDamage);
-  p.experience += expGain;
-  p.lastLowLevelOp = Date.now();
+      // Apply the mitigated damage
+      p.balance += money;
+      p.health = Math.max(0, p.health - actualDamage);
+      p.experience += expGain;
 
-  await docRef.set(p);
+      if (totalDefense > 0) {
+      message += `\nYour armor absorbed ${totalDefense} damage!`;
+    }
+    }
 
-  // Send rich result with actual damage taken
-  socket.emit('operation-result', {
-    operation: operation,
-    money: money,
-    rawDamage: healthLoss,        // Original damage
-    actualDamage: actualDamage,   // Damage after defense
-    totalDefense: totalDefense,
-    expGain: expGain,
-    message: message
+    p.lastLowLevelOp = Date.now();
+
+    await docRef.set(p);
+
+    // Send result to client
+    socket.emit('operation-result', {
+      operation: operation,
+      money: money,
+      rawDamage: rawDamage,
+      actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - 
+        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
+      totalDefense: isCaught ? 0 : 
+        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
+      message: message,
+      isCaught: isCaught,
+      prisonEndTime: p.prisonEndTime || 0
+    });
+
+    socket.emit('update-stats', p);
+
+    // DEATH LOG - Only trigger if NOT caught and health hits 0
+    if (p.health <= 0 && !isCaught) {
+      await docRef.delete();
+      console.log(`Player ${email} died and data was reset`);   // ← Restored
+    }
   });
 
-  socket.emit('update-stats', p);
-
-  if (p.health <= 0) {
-    await docRef.delete();
-    console.log(`Player ${email} died and data was reset`);
-  }
-});
-
+  // ==================== OTHER HANDLERS (unchanged) ====================
   socket.on('message', (msg) => {
     const name = socket.data.displayName || 'Anonymous';
     io.emit('message', `${name}: ${msg}`);
@@ -313,6 +356,14 @@ socket.on('execute-operation', async (data) => {
 
     await docRef.set(p);
     socket.emit('update-stats', p);
+  });
+
+  socket.on('request-prison-list', () => {
+    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+      displayName,
+      prisonEndTime
+    }));
+    socket.emit('prison-list-update', prisonList);
   });
 
   // NEW: Update profile (e.g., photoURL)
@@ -415,7 +466,7 @@ socket.on('execute-operation', async (data) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== PRIVATE MESSAGES ====================
+    // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 

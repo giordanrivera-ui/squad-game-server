@@ -8,6 +8,7 @@ class OperationsScreen extends StatefulWidget {
   final int currentHealth;
   final String currentTime;
   final int lastLowLevelOp;
+  final int prisonEndTime;           // ← NEW: Added for prison system
 
   const OperationsScreen({
     super.key,
@@ -16,6 +17,7 @@ class OperationsScreen extends StatefulWidget {
     required this.currentHealth,
     required this.currentTime,
     required this.lastLowLevelOp,
+    required this.prisonEndTime,     // ← NEW
   });
 
   @override
@@ -25,7 +27,12 @@ class OperationsScreen extends StatefulWidget {
 class _OperationsScreenState extends State<OperationsScreen> {
   String? _selectedOperation;
 
+  // Check if player is currently in prison
+  bool get _isInPrison => widget.prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+
   void _showOperationBottomSheet() {
+    if (_isInPrison) return; // Prevent opening menu while in prison
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -88,6 +95,40 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // If player is in prison, show prison screen instead of normal UI
+    if (_isInPrison) {
+      final remainingSeconds = ((widget.prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+
+      return Scaffold(
+        backgroundColor: Colors.grey[900],
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
+              const SizedBox(height: 30),
+              const Text(
+                'YOU ARE IN PRISON',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Time left: $remainingSeconds seconds',
+                style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
+              ),
+              const SizedBox(height: 40),
+              const Text(
+                'You cannot perform operations\nor travel while in prison.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Normal operations screen
     return Column(
       children: [
         Container(
@@ -157,7 +198,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// Keep your existing _BottomSheetContent class unchanged below...
+// Bottom Sheet with LIVE countdown (unchanged)
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;

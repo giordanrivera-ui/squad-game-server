@@ -6,6 +6,7 @@ class AirportScreen extends StatefulWidget {
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
+  final int prisonEndTime;           // ← NEW: Added for prison system
 
   const AirportScreen({
     super.key,
@@ -13,6 +14,7 @@ class AirportScreen extends StatefulWidget {
     required this.currentBalance,
     required this.currentHealth,
     required this.currentTime,
+    required this.prisonEndTime,     // ← NEW
   });
 
   @override
@@ -22,9 +24,12 @@ class AirportScreen extends StatefulWidget {
 class _AirportScreenState extends State<AirportScreen> {
   String? _selectedDestination;
 
+  // Check if player is currently in prison
+  bool get _isInPrison => widget.prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+
   int? get _cost => _selectedDestination != null
-    ? SocketService().travelCosts[_selectedDestination!]
-    : null;
+      ? SocketService().travelCosts[_selectedDestination!]
+      : null;
 
   bool get _canTravel => _selectedDestination != null &&
                          _cost != null &&
@@ -38,16 +43,48 @@ class _AirportScreenState extends State<AirportScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('✈️ Flying to new city... Enjoy the flight!')),
     );
-
-    // No Navigator.pop needed anymore
   }
 
   @override
   Widget build(BuildContext context) {
+    // If player is in prison, show prison screen instead of airport
+    if (_isInPrison) {
+      final remainingSeconds = ((widget.prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
+
+      return Scaffold(
+        backgroundColor: Colors.grey[900],
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
+              const SizedBox(height: 30),
+              const Text(
+                'YOU ARE IN PRISON',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Time left: $remainingSeconds seconds',
+                style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
+              ),
+              const SizedBox(height: 40),
+              const Text(
+                'You cannot travel while in prison.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Normal Airport Screen (only shown when NOT in prison)
     final socketService = SocketService();
     final available = socketService.normalLocations
-      .where((city) => city != widget.currentLocation)
-      .toList();
+        .where((city) => city != widget.currentLocation)
+        .toList();
 
     return Column(
       children: [

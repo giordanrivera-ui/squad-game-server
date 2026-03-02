@@ -406,6 +406,7 @@ class _GameScreenState extends State<GameScreen> {
                           currentBalance: stats['balance'] ?? 0,
                           currentHealth: stats['health'] ?? 100,
                           currentTime: time,
+                          prisonEndTime: stats['prisonEndTime'] ?? 0,
                         )
                       : _currentScreen == 4 
                           ? HospitalScreen(
@@ -420,7 +421,8 @@ class _GameScreenState extends State<GameScreen> {
                                   currentBalance: stats['balance'] ?? 0,
                                   currentHealth: stats['health'] ?? 100,
                                   currentTime: time,
-                                  lastLowLevelOp: stats['lastLowLevelOp'] ?? 0,  // NEW: Pass lastLowLevelOp
+                                  lastLowLevelOp: stats['lastLowLevelOp'] ?? 0,
+                                  prisonEndTime: stats['prisonEndTime'] ?? 0,
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: stats)
@@ -434,7 +436,7 @@ class _GameScreenState extends State<GameScreen> {
                                       : _currentScreen == 8 
                                         ? PropertiesScreen()
                                         : _currentScreen == 9 
-                                            ? const PrisonScreen()   // ← NEW
+                                            ? PrisonScreen() 
                                             : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2
