@@ -292,6 +292,10 @@ class SocketService {
     });
   }
 
+  void attemptRescue(String targetDisplayName) {
+    socket?.emit('attempt-rescue', targetDisplayName);
+  }
+
   void requestPrisonList() {
     socket?.emit('request-prison-list');
   }

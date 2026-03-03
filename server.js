@@ -322,6 +322,94 @@ io.on('connection', (socket) => {
     socket.emit('prison-list-update', prisonList);
   });
 
+  // ==================== RESCUE / SAVE PLAYER ====================
+  socket.on('attempt-rescue', async (targetDisplayName) => {
+    const saverName = socket.data.displayName;
+    const saverEmail = socket.data.email;
+    if (!saverName || !saverEmail || saverName === targetDisplayName) return;
+
+    // Get saver data
+    const saverDocRef = db.collection('players').doc(saverEmail);
+    const saverDoc = await saverDocRef.get();
+    if (!saverDoc.exists) return;
+    let saver = saverDoc.data();
+
+    // Cannot rescue while in prison
+    if (Date.now() < (saver.prisonEndTime || 0)) {
+      socket.emit('rescue-result', { success: false, message: 'You are in prison and cannot rescue others.' });
+      return;
+    }
+
+    // Target must actually be imprisoned
+    if (!imprisonedPlayers.has(targetDisplayName)) {
+      socket.emit('rescue-result', { success: false, message: 'That player is not in prison.' });
+      return;
+    }
+
+    const isSuccess = Math.random() < 0.5;   // 50% chance (change later if needed)
+
+    if (isSuccess) {
+      // SUCCESS: Free the target
+      imprisonedPlayers.delete(targetDisplayName);
+
+      // Reset target's prisonEndTime in Firestore
+      const targetQuery = await db.collection('players')
+        .where('displayName', '==', targetDisplayName)
+        .limit(1)
+        .get();
+
+      if (!targetQuery.empty) {
+        await targetQuery.docs[0].ref.update({ prisonEndTime: 0 });
+      }
+
+      // Give saver +15 EXP
+      saver.experience = (saver.experience || 0) + 15;
+      await saverDocRef.set(saver);
+
+      // Broadcast clean prison list to everyone
+      const prisonList = Array.from(imprisonedPlayers, ([dn, et]) => ({
+        displayName: dn,
+        prisonEndTime: et
+      }));
+      io.emit('prison-list-update', prisonList);
+
+      // Notify saver
+      socket.emit('rescue-result', {
+        success: true,
+        message: `You successfully rescued ${targetDisplayName}! +15 EXP`
+      });
+
+      // Notify rescued player if online
+      const rescuedSocket = onlineSockets.get(targetDisplayName);
+      if (rescuedSocket) {
+        rescuedSocket.emit('update-stats', { prisonEndTime: 0 });
+        rescuedSocket.emit('rescue-result', {   // optional nice message
+          success: true,
+          message: 'You have been rescued from prison!'
+        });
+      }
+
+    } else {
+      // FAILURE: Imprison the saver
+      const prisonEnd = Date.now() + 60000;
+      saver.prisonEndTime = prisonEnd;
+      imprisonedPlayers.set(saverName, prisonEnd);
+
+      await saverDocRef.set(saver);
+
+      const prisonList = Array.from(imprisonedPlayers, ([dn, et]) => ({
+        displayName: dn,
+        prisonEndTime: et
+      }));
+      io.emit('prison-list-update', prisonList);
+
+      socket.emit('rescue-result', {
+        success: false,
+        message: `Rescue failed! You have been sent to prison for 60 seconds.`
+      });
+    }
+  });
+
   // ==================== OTHER HANDLERS (unchanged) ====================
   socket.on('message', (msg) => {
     const name = socket.data.displayName || 'Anonymous';
@@ -371,7 +459,6 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Update profile (e.g., photoURL)
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.photoURL !== 'string') return;
