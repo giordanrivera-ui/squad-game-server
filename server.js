@@ -347,14 +347,6 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-    socket.on('request-prison-list', () => {
-    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
-      displayName,
-      prisonEndTime
-    }));
-    socket.emit('prison-list-update', prisonList);
-  });
-
   // NEW: Update profile (e.g., photoURL)
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;

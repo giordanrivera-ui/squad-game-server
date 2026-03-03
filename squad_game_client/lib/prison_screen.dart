@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'socket_service.dart';
 
 class PrisonScreen extends StatefulWidget {
   final List<Map<String, dynamic>> imprisonedPlayers;
@@ -19,6 +20,9 @@ class _PrisonScreenState extends State<PrisonScreen> {
   @override
   void initState() {
     super.initState();
+
+    SocketService().requestPrisonList();
+
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() {}); // Update countdowns
     });

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'socket_service.dart';
+
 
 class Sidebar extends StatelessWidget {
   final int currentScreen;
@@ -171,6 +173,7 @@ class Sidebar extends StatelessWidget {
             title: const Text('Prison'),
             selected: currentScreen == 9,
             onTap: () {
+              SocketService().requestPrisonList();
               onScreenChanged(9);
               Navigator.pop(context);
             },

@@ -290,6 +290,10 @@ class SocketService {
     });
   }
 
+  void requestPrisonList() {
+    socket?.emit('request-prison-list');
+  }
+
     // Test buttons
   void addTestExp() => socket?.emit('add-test-exp', 70);
   void addTestMoney() => socket?.emit('add-test-money', 200);

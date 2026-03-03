@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'socket_service.dart';  // NEW: Import to access the singleton
+import 'socket_service.dart';
 
 class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
