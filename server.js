@@ -219,7 +219,7 @@ io.on('connection', (socket) => {
     }
 
     // Prison Chance
-    let prisonChance = 0.22;
+    let prisonChance = 0.30;
     const exp = p.experience || 0;
     if (exp > 499) prisonChance = 0.21;
     if (exp > 1249) prisonChance = 0.20;
