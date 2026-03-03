@@ -440,7 +440,7 @@ class _GameScreenState extends State<GameScreen> {
                                       : _currentScreen == 8 
                                         ? PropertiesScreen()
                                         : _currentScreen == 9 
-                                            ? PrisonScreen(imprisonedPlayers: stats['imprisonedPlayers'] ?? [],) 
+                                            ? PrisonScreen() 
                                             : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2

@@ -17,6 +17,9 @@ class SocketService {
   // Track unread messages
   final ValueNotifier<bool> hasUnreadMessages = ValueNotifier(false);
 
+  // Global live prison list (used by PrisonScreen)
+  final ValueNotifier<List<Map<String, dynamic>>> imprisonedPlayersNotifier = ValueNotifier([]);
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -94,13 +97,12 @@ class SocketService {
       }
     });
 
-    // NEW: Prison list updates
+    // Prison list updates — now works correctly
     socket?.on('prison-list-update', (data) {
       if (data is List) {
-        // Merge into global stats so main.dart and PrisonScreen stay in sync
-        socket?.emit('update-stats', { 
-          'imprisonedPlayers': data 
-        });
+        imprisonedPlayersNotifier.value = List<Map<String, dynamic>>.from(
+          data.map((e) => Map<String, dynamic>.from(e as Map))
+        );
       }
     });
 

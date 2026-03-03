@@ -3,12 +3,7 @@ import 'dart:async';
 import 'socket_service.dart';
 
 class PrisonScreen extends StatefulWidget {
-  final List<Map<String, dynamic>> imprisonedPlayers;
-
-  const PrisonScreen({
-    super.key,
-    required this.imprisonedPlayers,
-  });
+  const PrisonScreen({super.key});   // ← no longer needs parameter
 
   @override
   State<PrisonScreen> createState() => _PrisonScreenState();
@@ -21,15 +16,23 @@ class _PrisonScreenState extends State<PrisonScreen> {
   void initState() {
     super.initState();
 
-    SocketService().requestPrisonList();
+    SocketService().requestPrisonList();   // force fresh data on open
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {}); // Update countdowns
+      if (mounted) setState(() {});
     });
+
+    // Live updates while screen is open
+    SocketService().imprisonedPlayersNotifier.addListener(_updateUI);
+  }
+
+  void _updateUI() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    SocketService().imprisonedPlayersNotifier.removeListener(_updateUI);
     _countdownTimer?.cancel();
     super.dispose();
   }
@@ -41,12 +44,13 @@ class _PrisonScreenState extends State<PrisonScreen> {
     final seconds = (remaining / 1000).ceil();
     final minutes = seconds ~/ 60;
     final secs = seconds % 60;
-
     return minutes > 0 ? "${minutes}m ${secs}s" : "${secs}s";
   }
 
   @override
   Widget build(BuildContext context) {
+    final imprisonedPlayers = SocketService().imprisonedPlayersNotifier.value;
+
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
@@ -54,7 +58,7 @@ class _PrisonScreenState extends State<PrisonScreen> {
         backgroundColor: Colors.red[900],
         centerTitle: true,
       ),
-      body: widget.imprisonedPlayers.isEmpty
+      body: imprisonedPlayers.isEmpty
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -68,9 +72,9 @@ class _PrisonScreenState extends State<PrisonScreen> {
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: widget.imprisonedPlayers.length,
+              itemCount: imprisonedPlayers.length,
               itemBuilder: (context, index) {
-                final player = widget.imprisonedPlayers[index];
+                final player = imprisonedPlayers[index];
                 final name = player['displayName'] ?? 'Unknown';
                 final endTime = player['prisonEndTime'] ?? 0;
 
