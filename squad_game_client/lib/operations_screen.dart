@@ -99,7 +99,8 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[900],
+      // ← Conditional background: dark only when in prison, otherwise normal app background
+      backgroundColor: _isInPrison ? Colors.grey[900] : null,
       body: _isInPrison
           ? Center(
               child: Column(
@@ -125,10 +126,10 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 ],
               ),
             )
-          : Column(   
+          : Column(
             
             
-            // ← normal operations UI
+            // Normal operations UI (now on light/normal background again)
               children: [
                 Container(
                   width: double.infinity,
@@ -219,7 +220,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// _BottomSheetContent remains 100% unchanged
+// ==================== _BottomSheetContent (unchanged) ====================
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
