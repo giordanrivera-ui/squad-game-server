@@ -3,7 +3,7 @@ import 'dart:async';
 import 'socket_service.dart';
 
 class PrisonScreen extends StatefulWidget {
-  const PrisonScreen({super.key});   // ← no longer needs parameter
+  const PrisonScreen({super.key});
 
   @override
   State<PrisonScreen> createState() => _PrisonScreenState();
@@ -22,7 +22,7 @@ class _PrisonScreenState extends State<PrisonScreen> {
       if (mounted) setState(() {});
     });
 
-    // Live updates while screen is open
+    // Live updates
     SocketService().imprisonedPlayersNotifier.addListener(_updateUI);
   }
 
@@ -39,7 +39,7 @@ class _PrisonScreenState extends State<PrisonScreen> {
 
   String _getTimeLeft(int prisonEndTime) {
     final remaining = prisonEndTime - DateTime.now().millisecondsSinceEpoch;
-    if (remaining <= 0) return "Released";
+    if (remaining <= 0) return "0s"; // Should never happen because server removes them
 
     final seconds = (remaining / 1000).ceil();
     final minutes = seconds ~/ 60;
@@ -65,7 +65,7 @@ class _PrisonScreenState extends State<PrisonScreen> {
                 children: [
                   Icon(Icons.gavel, size: 80, color: Colors.grey),
                   SizedBox(height: 20),
-                  Text('The prison is currently empty.', 
+                  Text('The prison is currently empty.',
                        style: TextStyle(fontSize: 20, color: Colors.grey)),
                 ],
               ),

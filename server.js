@@ -18,6 +18,30 @@ const db = admin.firestore();
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
+// ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
+// Runs every 5 seconds and removes anyone whose time is up.
+// This keeps the global list clean and enables future rescue mechanics.
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+
+  for (const [displayName, prisonEndTime] of imprisonedPlayers.entries()) {
+    if (prisonEndTime <= now) {
+      imprisonedPlayers.delete(displayName);
+      changed = true;
+      console.log(`[SERVER] ${displayName} has been released from prison (auto-cleanup)`);
+    }
+  }
+
+  if (changed) {
+    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+      displayName,
+      prisonEndTime
+    }));
+    io.emit('prison-list-update', prisonList);
+  }
+}, 5000);
+
 // ==================== LOCATIONS ====================
 const normalLocations = [
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
