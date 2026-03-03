@@ -47,13 +47,37 @@ class _OperationsScreenState extends State<OperationsScreen> {
       if (mounted) setState(() {});
     });
 
-    SocketService().socket?.on('update-stats', _handleStatsUpdate);
+    // ←←← FIXED: Attach listener ONLY ONCE here (stable context)
+    SocketService().socket?.on('operation-result', _onOperationResult);
   }
 
-  void _handleStatsUpdate(dynamic data) {
-    if (data is Map && data.containsKey('prisonEndTime')) {
-      setState(() => _prisonEndTime = data['prisonEndTime'] ?? 0);
+  void _onOperationResult(dynamic data) {
+    if (data == null || !mounted) return;
+
+    final String message = data['message'] ?? 'Operation completed.';
+    final int rawDamage = data['rawDamage'] ?? 0;
+    final int actualDamage = data['actualDamage'] ?? 0;
+    final int totalDefense = data['totalDefense'] ?? 0;
+
+    String finalMessage = message;
+    if (totalDefense > 0 && rawDamage > 0) {
+      finalMessage += '\nYour armor absorbed $totalDefense damage!';
+      if (actualDamage > 0) {
+        finalMessage += '\nYou only lost $actualDamage health.';
+      } else {
+        finalMessage += '\nYou took no damage!';
+      }
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(finalMessage),
+        backgroundColor: Colors.green[700],
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    setState(() => _selectedOperation = null);
   }
 
   @override
@@ -67,14 +91,114 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    SocketService().socket?.off('update-stats', _handleStatsUpdate);
+    SocketService().socket?.off('operation-result', _onOperationResult);
     super.dispose();
   }
 
-  // ==================== REST OF YOUR ORIGINAL CODE (unchanged except prison block) ====================
+  // ==================== PRISON OVERLAY + NORMAL UI (always inside Scaffold) ====================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[900],
+      body: _isInPrison
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
+                  const SizedBox(height: 30),
+                  const Text(
+                    'YOU ARE IN PRISON',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Time left: $_remainingSeconds seconds',
+                    style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
+                  ),
+                  const SizedBox(height: 40),
+                  const Text(
+                    'You cannot perform operations\nor travel while in prison.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ],
+              ),
+            )
+          : Column(   
+            
+            
+            // ← normal operations UI
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  color: Colors.orange[50],
+                  child: Column(
+                    children: [
+                      const Text('Operations in', style: TextStyle(fontSize: 18)),
+                      Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: _showOperationBottomSheet,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _selectedOperation ?? 'Select an operation',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.arrow_drop_down),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 30),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: ElevatedButton(
+                              onPressed: _selectedOperation != null ? _executeOperation : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _selectedOperation != null ? Colors.orange : Colors.grey,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                              ),
+                              child: const Text(
+                                'Execute Operation',
+                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
   void _showOperationBottomSheet() {
     if (_isInPrison) return;
-
+    // ... your existing _BottomSheetContent code (unchanged)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -93,143 +217,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
     if (_selectedOperation == null) return;
     SocketService().executeOperation(_selectedOperation!);
   }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final socket = SocketService().socket;
-    socket?.on('operation-result', (data) {
-      if (data == null) return;
-      // ... your existing operation-result handler (unchanged)
-      final String message = data['message'] ?? 'Operation completed.';
-      final int rawDamage = data['rawDamage'] ?? 0;
-      final int actualDamage = data['actualDamage'] ?? 0;
-      final int totalDefense = data['totalDefense'] ?? 0;
-
-      String finalMessage = message;
-      if (totalDefense > 0 && rawDamage > 0) {
-        finalMessage += '\nYour armor absorbed $totalDefense damage!';
-        if (actualDamage > 0) {
-          finalMessage += '\nYou only lost $actualDamage health.';
-        } else {
-          finalMessage += '\nYou took no damage!';
-        }
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(finalMessage),
-          backgroundColor: Colors.green[700],
-          duration: const Duration(seconds: 5),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      setState(() => _selectedOperation = null);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isInPrison) {
-      return Scaffold(
-        backgroundColor: Colors.grey[900],
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
-              const SizedBox(height: 30),
-              const Text(
-                'YOU ARE IN PRISON',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Time left: $_remainingSeconds seconds',
-                style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
-              ),
-              const SizedBox(height: 40),
-              const Text(
-                'You cannot perform operations\nor travel while in prison.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Normal operations screen (unchanged)
-    return Column(
-      children: [
-        // ... your original Column with location header, selection, button, etc.
-        // (exactly as you had it before)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          color: Colors.orange[50],
-          child: Column(
-            children: [
-              const Text('Operations in', style: TextStyle(fontSize: 18)),
-              Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: _showOperationBottomSheet,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _selectedOperation ?? 'Select an operation',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: ElevatedButton(
-                      onPressed: _selectedOperation != null ? _executeOperation : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedOperation != null ? Colors.orange : Colors.grey,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                      ),
-                      child: const Text(
-                        'Execute Operation',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 // _BottomSheetContent remains 100% unchanged
@@ -240,7 +227,7 @@ class _BottomSheetContent extends StatefulWidget {
   const _BottomSheetContent({
     required this.lastLowLevelOp,
     required this.onSelected,
-  });
+    });
 
   @override
   State<_BottomSheetContent> createState() => _BottomSheetContentState();
