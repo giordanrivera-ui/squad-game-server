@@ -94,6 +94,16 @@ class SocketService {
       }
     });
 
+    // NEW: Prison list updates
+    socket?.on('prison-list-update', (data) {
+      if (data is List) {
+        // Merge into global stats so main.dart and PrisonScreen stay in sync
+        socket?.emit('update-stats', { 
+          'imprisonedPlayers': data 
+        });
+      }
+    });
+
     socket?.onDisconnect((_) {
       isConnected.value = false;
       print('❌ Disconnected from server');

@@ -278,7 +278,11 @@ class _GameScreenState extends State<GameScreen> {
     });
     _socketService.socket?.on(SocketEvents.updateStats, (data) {
       setState(() {
-        stats = Map.from(data);
+        if (data is Map) {
+          stats = {...stats, ...data};   // Properly merge new data
+        } else {
+          stats = Map.from(data ?? {});
+        }
         if (stats['health'] <= 0) isDead = true;
       });
     });
@@ -436,7 +440,7 @@ class _GameScreenState extends State<GameScreen> {
                                       : _currentScreen == 8 
                                         ? PropertiesScreen()
                                         : _currentScreen == 9 
-                                            ? PrisonScreen() 
+                                            ? PrisonScreen(imprisonedPlayers: stats['imprisonedPlayers'] ?? [],) 
                                             : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2
