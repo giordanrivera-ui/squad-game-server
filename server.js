@@ -273,29 +273,24 @@ io.on('connection', (socket) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
+      p.lastLowLevelOp = Date.now();
 
-      if (totalDefense > 0) {
-      message += `\nYour armor absorbed ${totalDefense} damage!`;
+      await docRef.set(p);
+
+      // Send result to client
+      socket.emit('operation-result', {
+        operation: operation,
+        money: money,
+        rawDamage: rawDamage,
+        actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - 
+          ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
+        totalDefense: isCaught ? 0 : 
+          ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
+        message: message,
+        isCaught: isCaught,
+        prisonEndTime: p.prisonEndTime || 0
+      });
     }
-    }
-
-    p.lastLowLevelOp = Date.now();
-
-    await docRef.set(p);
-
-    // Send result to client
-    socket.emit('operation-result', {
-      operation: operation,
-      money: money,
-      rawDamage: rawDamage,
-      actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - 
-        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
-      totalDefense: isCaught ? 0 : 
-        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
-      message: message,
-      isCaught: isCaught,
-      prisonEndTime: p.prisonEndTime || 0
-    });
 
     socket.emit('update-stats', p);
 
