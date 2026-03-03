@@ -20,27 +20,14 @@ const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
 // ==================== LOCATIONS ====================
 const normalLocations = [
-  "Riverstone", 
-  "Thornbury", 
-  "Vostokgrad", 
-  "Eichenwald", 
-  "Montclair",
-  "Valleora", 
-  "Lónghǎi", 
-  "Sakuragawa", 
-  "Cawayan Heights"
+  "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
+  "Valleora", "Lónghǎi", "Sakuragawa", "Cawayan Heights"
 ];
 
 // ==================== TRAVEL COSTS ====================
 const travelCosts = {
-  "Riverstone": 40, 
-  "Thornbury": 45, 
-  "Vostokgrad": 110, 
-  "Eichenwald": 60,
-  "Montclair": 85, 
-  "Valleora": 70, 
-  "Lónghǎi": 140, 
-  "Sakuragawa": 95,
+  "Riverstone": 40, "Thornbury": 45, "Vostokgrad": 110, "Eichenwald": 60,
+  "Montclair": 85, "Valleora": 70, "Lónghǎi": 140, "Sakuragawa": 95,
   "Cawayan Heights": 55
 };
 
@@ -55,7 +42,6 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
   hour12: false 
 });
 
-// Send time every 30 seconds
 setInterval(() => {
   io.emit('time', timeFormatter.format(new Date()));
 }, 30000);
@@ -74,7 +60,6 @@ io.on('connection', (socket) => {
 
     if (doc.exists) {
       playerData = doc.data();
-      // Set defaults for new attributes if missing
       if (playerData.experience === undefined) playerData.experience = 0;
       if (playerData.intelligence === undefined) playerData.intelligence = 0;
       if (playerData.skill === undefined) playerData.skill = 0;
@@ -90,7 +75,6 @@ io.on('connection', (socket) => {
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       await docRef.set(playerData);
     } else {
-      // NEW PLAYER → now also starts with empty messages box
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
 
       playerData = {
@@ -99,8 +83,8 @@ io.on('connection', (socket) => {
         lastRob: 0,
         displayName: displayName,
         location: randomLocation,
-        messages: [],   // empty message box
-        fcmTokens: [],   // NEW: For push note keys
+        messages: [],
+        fcmTokens: [],
         experience: 0,
         intelligence: 0,
         skill: 0,
@@ -112,7 +96,7 @@ io.on('connection', (socket) => {
         headwear: null,
         armor: null,
         footwear: null,
-        lastLowLevelOp: 0,  // NEW: Low-level op cooldown
+        lastLowLevelOp: 0,
         prisonEndTime: 0
       };
 
@@ -168,7 +152,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== EXECUTE OPERATION (Prison + Defense + Death Log) ====================
+  // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.operation !== 'string') return;
@@ -189,7 +173,6 @@ io.on('connection', (socket) => {
 
     if (!lowLevelOps.includes(operation)) return;
 
-    // Shared cooldown check
     if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
 
     let money = 0;
@@ -198,9 +181,8 @@ io.on('connection', (socket) => {
     let message = "";
     let isCaught = false;
 
-    // Calculate base rewards
     if (operation === "Mug a passerby") {
-      money = Math.floor(Math.random() * 91) + 10;      // 10-100
+      money = Math.floor(Math.random() * 91) + 10;
       rawDamage = Math.floor(Math.random() * 26) + 5;
       expGain = 10;
       message = `You mugged a passerby and got $${money}!`;
@@ -236,8 +218,8 @@ io.on('connection', (socket) => {
       message = `You robbed the bank and escaped with $${money}!`;
     }
 
-    // === Prison Chance ===
-    let prisonChance = 0.22; // Thug
+    // Prison Chance
+    let prisonChance = 0.22;
     const exp = p.experience || 0;
     if (exp > 499) prisonChance = 0.21;
     if (exp > 1249) prisonChance = 0.20;
@@ -259,9 +241,9 @@ io.on('connection', (socket) => {
 
     if (isCaught) {
       p.prisonEndTime = Date.now() + 60000;
+      imprisonedPlayers.set(p.displayName, p.prisonEndTime);
       message = `You were caught! You have been sent to prison for 60 seconds.`;
     } else {
-      // === Defense Mitigation ===
       const totalDefense = 
         (p.headwear?.defense || 0) + 
         (p.armor?.defense || 0) + 
@@ -269,36 +251,51 @@ io.on('connection', (socket) => {
 
       const actualDamage = Math.max(0, rawDamage - totalDefense);
 
-      // Apply the mitigated damage
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
-      p.lastLowLevelOp = Date.now();
-
-      await docRef.set(p);
-
-      // Send result to client
-      socket.emit('operation-result', {
-        operation: operation,
-        money: money,
-        rawDamage: rawDamage,
-        actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - 
-          ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
-        totalDefense: isCaught ? 0 : 
-          ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
-        message: message,
-        isCaught: isCaught,
-        prisonEndTime: p.prisonEndTime || 0
-      });
     }
+
+    p.lastLowLevelOp = Date.now();
+
+    await docRef.set(p);
+
+    // Broadcast updated prison list to ALL players
+    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+      displayName,
+      prisonEndTime
+    }));
+    io.emit('prison-list-update', prisonList);
+
+    // Send result to the player who did the operation
+    socket.emit('operation-result', {
+      operation: operation,
+      money: money,
+      rawDamage: rawDamage,
+      actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - 
+        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
+      totalDefense: isCaught ? 0 : 
+        ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
+      message: message,
+      isCaught: isCaught,
+      prisonEndTime: p.prisonEndTime || 0
+    });
 
     socket.emit('update-stats', p);
 
-    // DEATH LOG - Only trigger if NOT caught and health hits 0
     if (p.health <= 0 && !isCaught) {
       await docRef.delete();
-      console.log(`Player ${email} died and data was reset`);   // ← Restored
+      console.log(`Player ${email} died and data was reset`);
     }
+  });
+
+  // ==================== REQUEST PRISON LIST (This was missing) ====================
+  socket.on('request-prison-list', () => {
+    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+      displayName,
+      prisonEndTime
+    }));
+    socket.emit('prison-list-update', prisonList);
   });
 
   // ==================== OTHER HANDLERS (unchanged) ====================
@@ -320,7 +317,6 @@ io.on('connection', (socket) => {
     if (p.location === destination || travelCosts[destination] === undefined) return;
 
     const cost = travelCosts[destination];
-
     if (p.balance < cost) return;
 
     p.balance -= cost;
@@ -339,12 +335,10 @@ io.on('connection', (socket) => {
     if (!doc.exists) return;
 
     let p = doc.data();
+    if (p.health >= 100) return;
 
-    if (p.health >= 100) return; // Already full health
-
-    const cost = 50; // Heal cost
-
-    if (p.balance < cost) return; // Not enough money
+    const cost = 50;
+    if (p.balance < cost) return;
 
     p.balance -= cost;
     p.health = 100;
@@ -353,7 +347,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  socket.on('request-prison-list', () => {
+    socket.on('request-prison-list', () => {
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
       prisonEndTime
