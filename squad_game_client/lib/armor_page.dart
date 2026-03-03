@@ -62,33 +62,33 @@ class _ArmorPageState extends State<ArmorPage> {
       name: 'Generic Aramid Boots',
       cost: 150,
       defense: 2,
-      description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use.',
+      description: 'Basic protective footwear made from aramid fibers, offering moderate abrasion resistance and flame retardancy for entry-level tactical use. They provide essential foot protection against cuts, scrapes, and minor impacts but lack advanced durability for prolonged heavy-duty operations.',
       type: 'footwear',
     ),
     Armor(
       name: 'Kevlar Assault boots',
       cost: 310,
       defense: 4,
-      description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength.',
+      description: 'Mid-range combat boots reinforced with Kevlar for improved puncture resistance and strength, suitable for mine-infested areas or assault operations. They offer better protection than basic aramids, with flame resistance and enhanced durability for military personnel.',
       type: 'footwear',
     ),
     Armor(
       name: 'Barmont T8 Velocity',
       cost: 640,
       defense: 8,
-      description: 'Reliable multi-terrain tactical boots with excellent breathability and stability.',
+      description: 'Reliable multi-terrain tactical boots with a suede leather and nylon upper for breathability, comfort, and stability. Designed for heavy loads and demanding field conditions, they feature EVA midsoles for cushioning and Vibram outsoles for superior grip on varied surfaces.',
       type: 'footwear',
     ),
     Armor(
       name: 'Powa Zephyt GTX', 
       cost: 1520, defense: 11, 
-      description: '', 
+      description: 'High-performance, lightweight mission boots engineered for agility and weather protection. They offer a "second-skin" fit that provides maximum lateral stability without the bulk of traditional combat boots. They are the premier choice for special operations requiring high-speed movement across wet or unpredictable environments.', 
       type: 'footwear'),
     Armor(
       name: 'Solomon Mission 4D',
       cost: 0,
       defense: 10,
-      description: 'Premium all-terrain military boots with advanced stability and waterproofing.',
+      description: 'The pinnacle of military footwear with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.',
       type: 'footwear',
     ),
   ];
@@ -104,9 +104,10 @@ class _ArmorPageState extends State<ArmorPage> {
   ];
 
   final List<Armor> _headWear = [
-    Armor(name: 'Ballistic goggles', cost: 150, defense: 4, description: 'Basic protective eyewear designed to shield against fragments, shrapnel, and small projectiles. They meet military standards for impact resistance and integrate with helmets for essential eye safety in combat environments.', type: 'headwear'),
-    Armor(name: 'Tactical Helmet', cost: 400, defense: 8, description: 'Mid-level headgear providing ballistic protection against fragments and low-velocity impacts, with features like anti-fog lenses and modular accessories. It offers full coverage for improved defense in military and law enforcement operations.', type: 'headwear'),
-    Armor(name: 'Ops-Core RF1 Helmet', cost: 1000, defense: 12, description: 'Advanced high-cut ballistic helmet with hybrid composite shell for protection against 7.62mm rifle rounds and fragments. Lightweight (around 3.5 lbs) with EPP liner for comfort, it\'s designed for extreme conditions and accessory integration.', type: 'headwear'),
+    Armor(name: 'Ballistic goggles', cost: 170, defense: 4, description: 'Basic protective eyewear designed to shield against fragments, shrapnel, and small projectiles. They meet military standards for impact resistance and integrate with helmets for essential eye safety in combat environments.', type: 'headwear'),
+    Armor(name: 'Tactical Mask', cost: 430, defense: 8, description: 'Mid-level headgear providing ballistic protection against fragments and low-velocity impacts, with features like anti-fog lenses and modular accessories. It offers full coverage for improved defense in military and law enforcement operations.', type: 'headwear'),
+    Armor(name: 'GTEK FLEX Ballistic Helmet', cost: 1150, defense: 12, description: 'A versatile combat helmet that balances weight with reliable protection. The FLEX is designed to stop handgun rounds and shrapnel while providing "flex" mounting points for night vision goggles (NVG) and communication headsets. It represents a significant step up in survivability for frontline infantry.', type: 'headwear'),
+    Armor(name: 'Ops-Core RF1 Helmet', cost: 1000, defense: 15, description: 'Advanced high-cut ballistic helmet with hybrid composite shell for protection against 7.62mm rifle rounds and fragments. Lightweight (around 3.5 lbs) with EPP liner for comfort, it\'s designed for extreme conditions and accessory integration.', type: 'headwear'),
   ];
 
   @override
