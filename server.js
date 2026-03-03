@@ -40,7 +40,7 @@ setInterval(() => {
     }));
     io.emit('prison-list-update', prisonList);
   }
-}, 5000);
+}, 1000);
 
 // ==================== LOCATIONS ====================
 const normalLocations = [
