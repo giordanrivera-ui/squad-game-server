@@ -8,7 +8,7 @@ class OperationsScreen extends StatefulWidget {
   final int currentHealth;
   final String currentTime;
   final int lastLowLevelOp;
-  final int prisonEndTime;           // ← NEW: Added for prison system
+  final int prisonEndTime;
 
   const OperationsScreen({
     super.key,
@@ -17,7 +17,7 @@ class OperationsScreen extends StatefulWidget {
     required this.currentHealth,
     required this.currentTime,
     required this.lastLowLevelOp,
-    required this.prisonEndTime,     // ← NEW
+    required this.prisonEndTime,
   });
 
   @override
@@ -25,20 +25,60 @@ class OperationsScreen extends StatefulWidget {
 }
 
 class _OperationsScreenState extends State<OperationsScreen> {
+  int _prisonEndTime = 0;
+  Timer? _countdownTimer;
   String? _selectedOperation;
 
-  // Check if player is currently in prison
-  bool get _isInPrison => widget.prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+  bool get _isInPrison => _prisonEndTime > DateTime.now().millisecondsSinceEpoch;
 
+  int get _remainingSeconds {
+    if (!_isInPrison) return 0;
+    return ((_prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000)
+        .ceil()
+        .clamp(0, 60);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _prisonEndTime = widget.prisonEndTime;
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+
+    SocketService().socket?.on('update-stats', _handleStatsUpdate);
+  }
+
+  void _handleStatsUpdate(dynamic data) {
+    if (data is Map && data.containsKey('prisonEndTime')) {
+      setState(() => _prisonEndTime = data['prisonEndTime'] ?? 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant OperationsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.prisonEndTime != oldWidget.prisonEndTime) {
+      setState(() => _prisonEndTime = widget.prisonEndTime);
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    SocketService().socket?.off('update-stats', _handleStatsUpdate);
+    super.dispose();
+  }
+
+  // ==================== REST OF YOUR ORIGINAL CODE (unchanged except prison block) ====================
   void _showOperationBottomSheet() {
-    if (_isInPrison) return; // Prevent opening menu while in prison
+    if (_isInPrison) return;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => _BottomSheetContent(
         lastLowLevelOp: widget.lastLowLevelOp,
         onSelected: (operation) {
@@ -51,27 +91,22 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   void _executeOperation() {
     if (_selectedOperation == null) return;
-
     SocketService().executeOperation(_selectedOperation!);
   }
 
-  // ==================== IMPROVED RESULT LISTENER ====================
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
     final socket = SocketService().socket;
     socket?.on('operation-result', (data) {
       if (data == null) return;
-
+      // ... your existing operation-result handler (unchanged)
       final String message = data['message'] ?? 'Operation completed.';
       final int rawDamage = data['rawDamage'] ?? 0;
       final int actualDamage = data['actualDamage'] ?? 0;
       final int totalDefense = data['totalDefense'] ?? 0;
 
       String finalMessage = message;
-
-      // Add defense absorption info when relevant
       if (totalDefense > 0 && rawDamage > 0) {
         finalMessage += '\nYour armor absorbed $totalDefense damage!';
         if (actualDamage > 0) {
@@ -95,10 +130,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // If player is in prison, show prison screen instead of normal UI
     if (_isInPrison) {
-      final remainingSeconds = ((widget.prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
-
       return Scaffold(
         backgroundColor: Colors.grey[900],
         body: Center(
@@ -113,7 +145,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Time left: $remainingSeconds seconds',
+                'Time left: $_remainingSeconds seconds',
                 style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
               ),
               const SizedBox(height: 40),
@@ -128,9 +160,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
       );
     }
 
-    // Normal operations screen
+    // Normal operations screen (unchanged)
     return Column(
       children: [
+        // ... your original Column with location header, selection, button, etc.
+        // (exactly as you had it before)
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -198,7 +232,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
-// Bottom Sheet with LIVE countdown (unchanged)
+// _BottomSheetContent remains 100% unchanged
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final Function(String) onSelected;
@@ -256,7 +290,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         children: [
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-
           _buildGroup('Low Level', lowLevelOps, isCooldown),
           _buildGroup('Medium Level', ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"], false),
           _buildGroup('High Level', ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"], false),
@@ -275,7 +308,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         ),
         ...ops.map((op) {
           final displayText = isCooldown ? '$op ($_remaining s)' : op;
-
           return ListTile(
             title: Text(displayText),
             enabled: !isCooldown,

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
+import 'dart:async';
 
 class AirportScreen extends StatefulWidget {
   final String currentLocation;
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
-  final int prisonEndTime;           // ← NEW: Added for prison system
+  final int prisonEndTime;
 
   const AirportScreen({
     super.key,
@@ -14,7 +15,7 @@ class AirportScreen extends StatefulWidget {
     required this.currentBalance,
     required this.currentHealth,
     required this.currentTime,
-    required this.prisonEndTime,     // ← NEW
+    required this.prisonEndTime,
   });
 
   @override
@@ -22,35 +23,57 @@ class AirportScreen extends StatefulWidget {
 }
 
 class _AirportScreenState extends State<AirportScreen> {
-  String? _selectedDestination;
+  int _prisonEndTime = 0;
+  Timer? _countdownTimer;
 
-  // Check if player is currently in prison
-  bool get _isInPrison => widget.prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+  // Live check
+  bool get _isInPrison => _prisonEndTime > DateTime.now().millisecondsSinceEpoch;
 
-  int? get _cost => _selectedDestination != null
-      ? SocketService().travelCosts[_selectedDestination!]
-      : null;
+  int get _remainingSeconds {
+    if (!_isInPrison) return 0;
+    return ((_prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000)
+        .ceil()
+        .clamp(0, 60);
+  }
 
-  bool get _canTravel => _selectedDestination != null &&
-                         _cost != null &&
-                         widget.currentBalance >= _cost!;
+  @override
+  void initState() {
+    super.initState();
+    _prisonEndTime = widget.prisonEndTime;
 
-  void _travel() {
-    if (!_canTravel) return;
+    // Live countdown while screen is open
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
 
-    SocketService().travel(_selectedDestination!);
+    // Listen for stats updates (in case you get re-imprisoned)
+    SocketService().socket?.on('update-stats', _handleStatsUpdate);
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✈️ Flying to new city... Enjoy the flight!')),
-    );
+  void _handleStatsUpdate(dynamic data) {
+    if (data is Map && data.containsKey('prisonEndTime')) {
+      setState(() => _prisonEndTime = data['prisonEndTime'] ?? 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AirportScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.prisonEndTime != oldWidget.prisonEndTime) {
+      setState(() => _prisonEndTime = widget.prisonEndTime);
+    }
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    SocketService().socket?.off('update-stats', _handleStatsUpdate);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // If player is in prison, show prison screen instead of airport
     if (_isInPrison) {
-      final remainingSeconds = ((widget.prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000).ceil();
-
       return Scaffold(
         backgroundColor: Colors.grey[900],
         body: Center(
@@ -65,7 +88,7 @@ class _AirportScreenState extends State<AirportScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Time left: $remainingSeconds seconds',
+                'Time left: $_remainingSeconds seconds',
                 style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
               ),
               const SizedBox(height: 40),
@@ -96,7 +119,7 @@ class _AirportScreenState extends State<AirportScreen> {
             children: [
               const Text('You are in', style: TextStyle(fontSize: 18)),
               Text(widget.currentLocation,
-                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -121,6 +144,8 @@ class _AirportScreenState extends State<AirportScreen> {
           ),
         ),
 
+        // ... rest of your original airport UI (selection, button, etc.) unchanged
+        // (I kept everything below exactly as you had it)
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -162,6 +187,27 @@ class _AirportScreenState extends State<AirportScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // Your existing fields and methods (kept exactly as before)
+  String? _selectedDestination;
+
+  int? get _cost => _selectedDestination != null
+      ? SocketService().travelCosts[_selectedDestination!]
+      : null;
+
+  bool get _canTravel => _selectedDestination != null &&
+                         _cost != null &&
+                         widget.currentBalance >= _cost!;
+
+  void _travel() {
+    if (!_canTravel) return;
+
+    SocketService().travel(_selectedDestination!);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✈️ Flying to new city... Enjoy the flight!')),
     );
   }
 }
