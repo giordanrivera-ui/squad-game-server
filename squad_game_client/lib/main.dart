@@ -286,29 +286,34 @@ class _GameScreenState extends State<GameScreen> {
       _socketService.loadMessages();
       if ((stats['health'] ?? 100) <= 0) isDead = true;
     });
-    _socketService.socket?.on(SocketEvents.updateStats, (data) {
+        _socketService.socket?.on(SocketEvents.updateStats, (data) {
       if (data is Map) {
-        final oldRank = _previousRank ?? _getRankTitle(stats['experience'] ?? 0);
-        final newExp = data['experience'] ?? stats['experience'] ?? 0;
+        // Capture old values BEFORE updating stats
+        final oldExp = stats['experience'] ?? 0;
+        final oldRank = _previousRank ?? _getRankTitle(oldExp);
+
+        final newExp = data['experience'] ?? oldExp;
         final newRank = _getRankTitle(newExp);
 
+        // Now update stats
         stats = {...stats, ...data};
 
-        // Detect if player ranked up
-        if (newRank != oldRank && newExp > (stats['experience'] ?? 0)) {
+        // Detect rank up
+        if (newRank != oldRank && newExp > oldExp) {
           _socketService.rankUpNotifier.value = {
             'oldRank': oldRank,
             'newRank': newRank,
           };
         }
 
-        _previousRank = newRank;   // Remember current rank for next update
+        _previousRank = newRank;   // Remember for next time
 
         if (stats['health'] <= 0) isDead = true;
       } else {
         stats = Map.from(data ?? {});
         if (stats['health'] <= 0) isDead = true;
       }
+
       setState(() {});
     });
 
