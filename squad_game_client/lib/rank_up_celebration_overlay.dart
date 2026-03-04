@@ -40,11 +40,12 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
 
     _controller.forward();
 
-    // Create militaristic particles (chevrons + stars)
+    // Create militaristic particles
     for (int i = 0; i < 50; i++) {
       _particles.add(Particle());
     }
 
+    // Show "Tap anywhere" hint after 1.4 seconds
     Future.delayed(const Duration(milliseconds: 1400), () {
       if (mounted) setState(() => _showTapHint = true);
     });
@@ -59,7 +60,7 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: widget.onDismiss,
+      onTap: widget.onDismiss,        // ← Only way to close it now
       child: Material(
         color: Colors.transparent,
         child: Stack(
@@ -139,7 +140,7 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
                   },
                 )),
 
-            // Tap hint (still useful since there's no auto-dismiss)
+            // Tap hint
             if (_showTapHint)
               Positioned(
                 bottom: 70,
