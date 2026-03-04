@@ -45,12 +45,8 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
       _particles.add(Particle());
     }
 
-    Future.delayed(const Duration(milliseconds: 1300), () {
+    Future.delayed(const Duration(milliseconds: 1400), () {
       if (mounted) setState(() => _showTapHint = true);
-    });
-
-    Future.delayed(const Duration(milliseconds: 4500), () {
-      if (mounted) widget.onDismiss();
     });
   }
 
@@ -79,9 +75,9 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 50),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1C2A22), // Dark olive green
+                      color: const Color(0xFF1C2A22),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: const Color(0xFF8B9E6E), width: 5), // Olive accent
+                      border: Border.all(color: const Color(0xFF8B9E6E), width: 5),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF8B9E6E).withOpacity(0.6),
@@ -93,7 +89,7 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.military_tech, size: 100, color: Color(0xFFD4AF37)), // Gold chevron icon
+                        const Icon(Icons.military_tech, size: 100, color: Color(0xFFD4AF37)),
                         const SizedBox(height: 20),
                         const Text(
                           'RANK UP!',
@@ -143,7 +139,7 @@ class _RankUpCelebrationOverlayState extends State<RankUpCelebrationOverlay>
                   },
                 )),
 
-            // Tap hint
+            // Tap hint (still useful since there's no auto-dismiss)
             if (_showTapHint)
               Positioned(
                 bottom: 70,
