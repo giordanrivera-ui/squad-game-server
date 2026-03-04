@@ -269,49 +269,66 @@ final List<Armor> _footWear = [
   Widget build(BuildContext context) {
     final canPurchase = _totalCost > 0 && _currentBalance >= _totalCost;
 
-    return Scaffold(
+  return Scaffold(
       appBar: StatusAppBar(
         title: 'Armor',
-        stats: {
-          'balance': _currentBalance,
-          'health': _currentHealth,
-        },
+        stats: {'balance': _currentBalance, 'health': _currentHealth},
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16).copyWith(bottom: 100),
+      body: Column(
         children: [
-          _buildSection('Foot wear', _footWear),
-          _buildSection('Body Armor', _bodyArmor),
-          _buildSection('Head wear', _headWear),
-        ],
-      ),
-      bottomSheet: Container(
-        width: double.infinity,
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Total Cost: $_totalCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: canPurchase ? _purchaseItems : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: canPurchase ? Colors.green : Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    minimumSize: const Size(double.infinity, 50),
-                  ),
-                  child: const Text('Purchase items', style: TextStyle(fontSize: 20)),
-                ),
-              ),
-            ],
+          // Scrollable armor list
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildSection('Foot wear', _footWear),
+                _buildSection('Body Armor', _bodyArmor),
+                _buildSection('Head wear', _headWear),
+              ],
+            ),
           ),
-        ),
+
+          // FIXED: Full-width bottom bar on ALL devices
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -3),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Total Cost: $_totalCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canPurchase ? _purchaseItems : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canPurchase ? Colors.green : Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Purchase items', style: TextStyle(fontSize: 20)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
