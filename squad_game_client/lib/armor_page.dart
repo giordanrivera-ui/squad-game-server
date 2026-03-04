@@ -57,7 +57,7 @@ class _ArmorPageState extends State<ArmorPage> {
   final Map<String, int> _quantities = {};
   int _totalCost = 0;
 
-  final List<Armor> _footWear = [
+final List<Armor> _footWear = [
     Armor(
       name: 'Generic Aramid Boots',
       cost: 150,
@@ -116,15 +116,23 @@ class _ArmorPageState extends State<ArmorPage> {
     _currentBalance = widget.currentBalance;
     _currentHealth = widget.currentHealth;
 
-    // Listen for live updates from the server
-    SocketService().socket?.on('update-stats', (data) {
-      if (data is Map<String, dynamic>) {
-        setState(() {
-          _currentBalance = data['balance'] ?? _currentBalance;
-          _currentHealth = data['health'] ?? _currentHealth;
-        });
-      }
-    });
+    // Listen for server updates
+    SocketService().socket?.on('update-stats', _handleStatsUpdate);
+  }
+
+  void _handleStatsUpdate(dynamic data) {
+    if (data is Map<String, dynamic> && mounted) {
+      setState(() {
+        _currentBalance = data['balance'] ?? _currentBalance;
+        _currentHealth = data['health'] ?? _currentHealth;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    SocketService().socket?.off('update-stats', _handleStatsUpdate);
+    super.dispose();
   }
 
   void _updateTotal() {
@@ -160,12 +168,20 @@ class _ArmorPageState extends State<ArmorPage> {
     addPurchased(_bodyArmor);
     addPurchased(_headWear);
 
-    SocketService().socket?.emit('purchase-armor', {
-      'items': purchased,
-      'totalCost': _totalCost,
+    // Optimistic update - instant UI feedback
+    setState(() {
+      _currentBalance -= _totalCost;
     });
 
+    SocketService().purchaseArmor(purchased, _totalCost);
+
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Items purchased!')));
+
+    setState(() {
+      _checked.clear();
+      _quantities.clear();
+      _totalCost = 0;
+    });
   }
 
   Widget _buildSection(String title, List<Armor> items) {
@@ -185,7 +201,7 @@ class _ArmorPageState extends State<ArmorPage> {
             imagePath = 'assets/${item.name}.jpg';
           } else if (title == 'Head wear') {
             imagePath = 'assets/${item.name}.jpg';
-          } 
+          }
 
           return Card(
             child: Padding(
@@ -226,9 +242,9 @@ class _ArmorPageState extends State<ArmorPage> {
                         IconButton(
                           icon: const Icon(Icons.remove),
                           onPressed: quantity > 1 ? () {
-                                  setState(() => _quantities[key] = quantity - 1);
-                                  _updateTotal();
-                                } : null,
+                            setState(() => _quantities[key] = quantity - 1);
+                            _updateTotal();
+                          } : null,
                         ),
                         Text('$quantity'),
                         IconButton(
