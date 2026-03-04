@@ -288,23 +288,29 @@ final List<Armor> _footWear = [
         ],
       ),
       bottomSheet: Container(
+        width: double.infinity,
         color: Colors.white,
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Total Cost: $_totalCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: canPurchase ? _purchaseItems : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canPurchase ? Colors.green : Colors.grey,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                minimumSize: const Size(double.infinity, 50),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Total Cost: $_totalCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canPurchase ? _purchaseItems : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canPurchase ? Colors.green : Colors.grey,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text('Purchase items', style: TextStyle(fontSize: 20)),
+                ),
               ),
-              child: const Text('Purchase items', style: TextStyle(fontSize: 20)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
