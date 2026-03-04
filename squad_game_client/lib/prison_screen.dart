@@ -4,10 +4,12 @@ import 'socket_service.dart';
 
 class PrisonScreen extends StatefulWidget {
   final String currentDisplayName;
+  final int initialViewerPrisonEndTime;
 
   const PrisonScreen({
     super.key,
     required this.currentDisplayName,
+    required this.initialViewerPrisonEndTime,
   });
 
   @override
@@ -16,62 +18,75 @@ class PrisonScreen extends StatefulWidget {
 
 class _PrisonScreenState extends State<PrisonScreen> {
   Timer? _countdownTimer;
-  int _myRemainingSeconds = 0;   // ← Instant self-status
+  int _viewerPrisonEndTime = 0;
 
-  bool get _isViewerInPrison => _myRemainingSeconds > 0;
+  bool get _isViewerInPrison => _viewerPrisonEndTime > SocketService().currentServerTime;
 
   @override
   void initState() {
     super.initState();
+    _viewerPrisonEndTime = widget.initialViewerPrisonEndTime;
 
-    SocketService().requestPrisonList();
+    SocketService().requestPrisonList();   // force fresh data on open
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
 
+    // Live updates
     SocketService().imprisonedPlayersNotifier.addListener(_updateUI);
 
-    // Listen for rescue results
+    // Listen for own prison status changes
+    SocketService().socket?.on('update-stats', _handleViewerStats);
+    // Listen for rescue result
     SocketService().socket?.on('rescue-result', _handleRescueResult);
-
-    // Listen for own prison status changes (instant feedback)
-    SocketService().socket?.on('update-stats', _handleMyStats);
   }
 
-  void _updateUI() => mounted ? setState(() {}) : null;
+  void _updateUI() {
+    if (mounted) setState(() {});
+  }
+
+  void _handleViewerStats(dynamic data) {
+    if (data is Map && data.containsKey('prisonEndTime')) {
+      setState(() => _viewerPrisonEndTime = data['prisonEndTime'] ?? 0);
+    }
+  }
 
   void _handleRescueResult(dynamic data) {
     if (data is Map && mounted) {
       final String msg = data['message'] ?? '';
       final bool success = data['success'] ?? false;
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
           backgroundColor: success ? Colors.green[700] : Colors.red[700],
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
         ),
       );
-    }
-  }
-
-  void _handleMyStats(dynamic data) {
-    if (data is Map) {
-      setState(() {
-        _myRemainingSeconds = data['remainingSeconds'] ?? 0;
-      });
     }
   }
 
   @override
   void dispose() {
     SocketService().imprisonedPlayersNotifier.removeListener(_updateUI);
+    SocketService().socket?.off('update-stats', _handleViewerStats);
     SocketService().socket?.off('rescue-result', _handleRescueResult);
-    SocketService().socket?.off('update-stats', _handleMyStats);
     _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  String _getTimeLeft(int prisonEndTime) {
+    final remaining = prisonEndTime - SocketService().currentServerTime;
+    if (remaining <= 0) return "0s"; // Should never happen because server removes them
+
+    final seconds = (remaining / 1000).ceil();
+    final minutes = seconds ~/ 60;
+    final secs = seconds % 60;
+    return minutes > 0 ? "${minutes}m ${secs}s" : "${secs}s";
+  }
+
+  void _attemptRescue(String targetName) {
+    SocketService().attemptRescue(targetName);
   }
 
   @override
@@ -103,10 +118,10 @@ class _PrisonScreenState extends State<PrisonScreen> {
               itemBuilder: (context, index) {
                 final player = imprisonedPlayers[index];
                 final name = player['displayName'] ?? 'Unknown';
-                final remaining = player['remainingSeconds'] ?? 0;
+                final endTime = player['prisonEndTime'] ?? 0;
 
                 final bool isSelf = name == widget.currentDisplayName;
-                final bool canSave = !_isViewerInPrison && !isSelf && remaining > 0;
+                final bool canSave = !_isViewerInPrison && !isSelf;
 
                 return Card(
                   color: Colors.grey[850],
@@ -115,12 +130,12 @@ class _PrisonScreenState extends State<PrisonScreen> {
                     leading: const Icon(Icons.person_off, color: Colors.redAccent, size: 40),
                     title: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                     subtitle: Text(
-                      '${remaining}s',
+                      _getTimeLeft(endTime),
                       style: const TextStyle(fontSize: 16, color: Colors.orangeAccent),
                     ),
                     trailing: canSave
                         ? TextButton(
-                            onPressed: () => SocketService().attemptRescue(name),
+                            onPressed: () => _attemptRescue(name),
                             style: TextButton.styleFrom(foregroundColor: Colors.green),
                             child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
                           )

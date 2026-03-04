@@ -29,11 +29,11 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Timer? _countdownTimer;
   String? _selectedOperation;
 
-  bool get _isInPrison => _prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+  bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
 
   int get _remainingSeconds {
     if (!_isInPrison) return 0;
-    return ((_prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000)
+    return ((_prisonEndTime - SocketService().currentServerTime) / 1000)
         .ceil()
         .clamp(0, 60);
   }
@@ -245,7 +245,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   }
 
   void _startLiveCountdown() {
-    final elapsed = DateTime.now().millisecondsSinceEpoch - widget.lastLowLevelOp;
+    final elapsed = SocketService().currentServerTime - widget.lastLowLevelOp;
     _remaining = ((60000 - elapsed) / 1000).ceil().clamp(0, 60);
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {

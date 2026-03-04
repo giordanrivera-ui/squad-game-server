@@ -442,6 +442,7 @@ class _GameScreenState extends State<GameScreen> {
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
+                                              initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
                                             : PropertiesScreen(),
 

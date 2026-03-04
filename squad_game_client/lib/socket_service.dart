@@ -25,6 +25,9 @@ class SocketService {
   List<String> normalLocations = [];
   Map<String, int> travelCosts = {};
 
+  int serverTimeOffset = 0;
+  int get currentServerTime => DateTime.now().millisecondsSinceEpoch + serverTimeOffset;
+
   void connect(String email, String displayName) {
     if (socket != null && socket!.connected) return;
 
@@ -98,10 +101,17 @@ class SocketService {
     });
 
     // Prison list updates — now works correctly
-    socket?.on('prison-list-update', (data) {
-      if (data is List) {
+    // Prison list updates with server time sync (fixes clock drift)
+    socket?.on('prison-list-update', (payload) {
+      if (payload is Map<String, dynamic>) {
+        final list = payload['list'] as List<dynamic>? ?? [];
+        final serverTime = payload['serverTime'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+
+        final localNow = DateTime.now().millisecondsSinceEpoch;
+        serverTimeOffset = serverTime - localNow;
+
         imprisonedPlayersNotifier.value = List<Map<String, dynamic>>.from(
-          data.map((e) => Map<String, dynamic>.from(e as Map))
+          list.map((e) => Map<String, dynamic>.from(e as Map))
         );
       }
     });

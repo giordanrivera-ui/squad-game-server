@@ -27,11 +27,11 @@ class _AirportScreenState extends State<AirportScreen> {
   Timer? _countdownTimer;
 
   // Live check
-  bool get _isInPrison => _prisonEndTime > DateTime.now().millisecondsSinceEpoch;
+  bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
 
   int get _remainingSeconds {
     if (!_isInPrison) return 0;
-    return ((_prisonEndTime - DateTime.now().millisecondsSinceEpoch) / 1000)
+    return ((_prisonEndTime - SocketService().currentServerTime) / 1000)
         .ceil()
         .clamp(0, 60);
   }

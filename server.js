@@ -19,7 +19,7 @@ const db = admin.firestore();
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
-// Runs every 5 seconds and removes anyone whose time is up.
+// Runs every second and removes anyone whose time is up.
 // This keeps the global list clean and enables future rescue mechanics.
 setInterval(() => {
   const now = Date.now();
@@ -34,12 +34,14 @@ setInterval(() => {
   }
 
   if (changed) {
-    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
+      prisonEndTime
     }));
-    io.emit('prison-list-update', prisonList);
+    io.emit('prison-list-update', {
+      list: prisonList,
+      serverTime: Date.now()
+    });
   }
 }, 1000);
 
@@ -286,12 +288,14 @@ io.on('connection', (socket) => {
     await docRef.set(p);
 
     // Broadcast updated prison list to ALL players
-    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
+      prisonEndTime
     }));
-    io.emit('prison-list-update', prisonList);
+    io.emit('prison-list-update', {
+      list: prisonList,
+      serverTime: Date.now()
+    });
 
     // Send result to the player who did the operation
     socket.emit('operation-result', {
@@ -317,12 +321,14 @@ io.on('connection', (socket) => {
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {
-    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
+      prisonEndTime
     }));
-    socket.emit('prison-list-update', prisonList);
+    io.emit('prison-list-update', {
+      list: prisonList,
+      serverTime: Date.now()
+    });
   });
 
   // ==================== RESCUE / SAVE PLAYER ====================
@@ -374,7 +380,10 @@ io.on('connection', (socket) => {
         displayName: dn,
         prisonEndTime: et
       }));
-      io.emit('prison-list-update', prisonList);
+      io.emit('prison-list-update', {
+        list: prisonList,
+        serverTime: Date.now()
+      });
 
       // Notify saver
       socket.emit('rescue-result', {
@@ -404,7 +413,10 @@ io.on('connection', (socket) => {
         displayName: dn,
         prisonEndTime: et
       }));
-      io.emit('prison-list-update', prisonList);
+      io.emit('prison-list-update', {
+        list: prisonList,
+        serverTime: Date.now()
+      });
 
       socket.emit('rescue-result', {
         success: false,
