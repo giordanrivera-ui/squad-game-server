@@ -281,9 +281,9 @@ io.on('connection', (socket) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
-    }
 
-    p.lastLowLevelOp = Date.now();
+      p.lastLowLevelOp = Date.now();
+    }
 
     await docRef.set(p);
 
@@ -368,7 +368,10 @@ io.on('connection', (socket) => {
         .get();
 
       if (!targetQuery.empty) {
-        await targetQuery.docs[0].ref.update({ prisonEndTime: 0 });
+        await targetQuery.docs[0].ref.update({
+          prisonEndTime: 0,
+          lastLowLevelOp: 0
+        });
       }
 
       // Give saver +15 EXP
@@ -401,7 +404,7 @@ io.on('connection', (socket) => {
           rescuer: saverName,
           message: `You were rescued by ${saverName}!`
         });
-        
+
         rescuedSocket.emit('rescue-result', {   // optional nice message
           success: true,
           message: 'You have been rescued from prison!'
