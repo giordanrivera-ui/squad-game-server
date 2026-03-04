@@ -418,6 +418,8 @@ io.on('connection', (socket) => {
         serverTime: Date.now()
       });
 
+      socket.emit('update-stats', saver);
+
       socket.emit('rescue-result', {
         success: false,
         message: `Rescue failed! You have been sent to prison for 60 seconds.`
