@@ -20,6 +20,9 @@ class SocketService {
   // Global live prison list (used by PrisonScreen)
   final ValueNotifier<List<Map<String, dynamic>>> imprisonedPlayersNotifier = ValueNotifier([]);
 
+  // NEW: Rescue celebration trigger (for the nice animation)
+  final ValueNotifier<Map<String, String>?> rescueNotifier = ValueNotifier(null);
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -100,7 +103,6 @@ class SocketService {
       }
     });
 
-    // Prison list updates — now works correctly
     // Prison list updates with server time sync (fixes clock drift)
     socket?.on('prison-list-update', (payload) {
       if (payload is Map<String, dynamic>) {
@@ -113,6 +115,16 @@ class SocketService {
         imprisonedPlayersNotifier.value = List<Map<String, dynamic>>.from(
           list.map((e) => Map<String, dynamic>.from(e as Map))
         );
+      }
+    });
+
+    // NEW: Rescue celebration animation trigger
+    socket?.on('player-rescued', (data) {
+      if (data is Map<String, dynamic>) {
+        rescueNotifier.value = {
+          'rescuer': data['rescuer']?.toString() ?? 'Someone',
+          'message': data['message']?.toString() ?? 'You have been rescued!'
+        };
       }
     });
 

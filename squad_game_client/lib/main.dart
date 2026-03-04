@@ -20,6 +20,7 @@ import 'store_screen.dart';
 import 'properties_screen.dart';
 import 'sidebar.dart';
 import 'prison_screen.dart';
+import 'rescue_celebration_overlay.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -179,11 +180,15 @@ class _GameScreenState extends State<GameScreen> {
   int _currentScreen = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  OverlayEntry? _rescueOverlay;
+
   @override
   void initState() {
     super.initState();
     _connectToServer();
     _setupPushNotifications(); // NEW: Set up the bell
+
+    _socketService.rescueNotifier.addListener(_showRescueAnimation);
   }
 
   // NEW: Set up the bell for notes
@@ -576,10 +581,41 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  void _showRescueAnimation() {
+    final data = _socketService.rescueNotifier.value;
+    if (data == null) return;
+
+    _rescueOverlay?.remove();
+
+    _rescueOverlay = OverlayEntry(
+      builder: (context) => RescueCelebrationOverlay(
+        rescuer: data['rescuer']!,
+        onDismiss: () {
+          _rescueOverlay?.remove();
+          _rescueOverlay = null;
+          _socketService.rescueNotifier.value = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_rescueOverlay!);
+
+    // Auto dismiss after 4.8 seconds
+    Future.delayed(const Duration(milliseconds: 4800), () {
+      if (_rescueOverlay != null) {
+        _rescueOverlay!.remove();
+        _rescueOverlay = null;
+        _socketService.rescueNotifier.value = null;
+      }
+    });
+  }
+
   @override
   void dispose() {
     cooldownTimer?.cancel();
     // _socketService.disconnect();
+    _socketService.rescueNotifier.removeListener(_showRescueAnimation);
+    _rescueOverlay?.remove();
     super.dispose();
   }
 }

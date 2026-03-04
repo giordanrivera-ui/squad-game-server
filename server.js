@@ -355,9 +355,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const isSuccess = Math.random() < 0.5;   // 50% chance (change later if needed)
+    const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
 
-    if (isSuccess) {
+  if (isSuccess) {
       // SUCCESS: Free the target
       imprisonedPlayers.delete(targetDisplayName);
 
@@ -395,13 +395,20 @@ io.on('connection', (socket) => {
       const rescuedSocket = onlineSockets.get(targetDisplayName);
       if (rescuedSocket) {
         rescuedSocket.emit('update-stats', { prisonEndTime: 0 });
+
+        // NEW: Trigger beautiful full-screen celebration
+        rescuedSocket.emit('player-rescued', {
+          rescuer: saverName,
+          message: `You were rescued by ${saverName}!`
+        });
+        
         rescuedSocket.emit('rescue-result', {   // optional nice message
           success: true,
           message: 'You have been rescued from prison!'
         });
       }
 
-    } else {
+  } else {
       // FAILURE: Imprison the saver
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;
