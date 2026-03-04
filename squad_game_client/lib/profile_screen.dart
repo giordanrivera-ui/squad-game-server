@@ -25,6 +25,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _photoURL = FirebaseAuth.instance.currentUser?.photoURL;
   }
 
+    // ==================== RANK PROGRESS HELPER ====================
+  Map<String, dynamic> _getRankProgress(int currentExp) {
+    const rankList = [
+      {'exp': 0, 'title': 'Thug'},
+      {'exp': 500, 'title': 'Recruit'},
+      {'exp': 1250, 'title': 'Private'},
+      {'exp': 2300, 'title': 'Private First Class'},
+      {'exp': 3500, 'title': 'Corporal'},
+      {'exp': 5000, 'title': 'Sergeant'},
+      {'exp': 6850, 'title': 'Sergeant First Class'},
+      {'exp': 8850, 'title': 'Warrant Officer'},
+      {'exp': 10200, 'title': 'First Lieutenant'},
+      {'exp': 11450, 'title': 'Captain'},
+      {'exp': 14200, 'title': 'Major'},
+      {'exp': 17400, 'title': 'Lieutenant Colonel'},
+      {'exp': 21350, 'title': 'Colonel'},
+      {'exp': 25850, 'title': 'General'},
+      {'exp': 31500, 'title': 'General of the Army'},
+      {'exp': 38200, 'title': 'Supreme Commander'},
+    ];
+
+    for (int i = 0; i < rankList.length - 1; i++) {
+      final currentRankExp = rankList[i]['exp'] as int;
+      final nextRankExp = rankList[i + 1]['exp'] as int;
+
+      if (currentExp < nextRankExp) {
+        final progress = (currentExp - currentRankExp) / (nextRankExp - currentRankExp);
+
+        return {
+          'currentRank': rankList[i]['title'],
+          'nextRank': rankList[i + 1]['title'],
+          'currentExp': currentExp,
+          'nextExp': nextRankExp,
+          'progress': progress.clamp(0.0, 1.0),
+        };
+      }
+    }
+
+    // Max rank reached
+    return {
+      'currentRank': 'Supreme Commander',
+      'nextRank': 'Max Rank',
+      'currentExp': currentExp,
+      'nextExp': currentExp,
+      'progress': 1.0,
+    };
+  }
+
   Future<void> _uploadPhoto() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -108,6 +156,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String _getEquippedImage(String slot, String emptyAsset) {
+    final equipped = widget.stats[slot];
+    if (equipped == null) return emptyAsset;
+
+    final name = equipped['name'] as String;
+    return 'assets/$name.jpg';
+  }
+
   String _getWealthTitle(int balance) {
     if (balance <= 800) return 'Destitute';
     if (balance <= 1600) return 'Skint';
@@ -126,51 +182,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'Lord';
   }
 
-  String _getRankTitle(int exp) {
-    if (exp <= 499) return 'Thug';
-    if (exp <= 1249) return 'Recruit';
-    if (exp <= 2299) return 'Private';
-    if (exp <= 3499) return 'Private First Class';
-    if (exp <= 4999) return 'Corporal';
-    if (exp <= 6849) return 'Sergeant';
-    if (exp <= 8849) return 'Sergeant First Class';
-    if (exp <= 10199) return 'Warrant Officer';
-    if (exp <= 11449) return 'First Lieutenant';
-    if (exp <= 14199) return 'Captain';
-    if (exp <= 17399) return 'Major';
-    if (exp <= 21349) return 'Lieutenant Colonel';
-    if (exp <= 25849) return 'Colonel';
-    if (exp <= 31499) return 'General';
-    if (exp <= 38199) return 'General of the Army';
-    return 'Supreme Commander';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final footwearEquipped = widget.stats['footwear'] ?? null;
-    final footwearImage = footwearEquipped != null 
-        ? 'assets/${footwearEquipped['name']}.jpg' 
-        : 'assets/boots-empty.jpg';
+    final headwearImage = _getEquippedImage('headwear', 'assets/helmet-empty.jpg');
+    final armorImage = _getEquippedImage('armor', 'assets/armor-empty.jpg');
+    final footwearImage = _getEquippedImage('footwear', 'assets/boots-empty.jpg');
 
     final balance = widget.stats['balance'] ?? 0;
     final exp = widget.stats['experience'] ?? 0;
     final wealthTitle = _getWealthTitle(balance);
-    final rankTitle = _getRankTitle(exp);
 
-    return Container(
-      color: Colors.grey[800],
-      child: Center(
+    final rankProgress = _getRankProgress(exp);
+
+    return Scaffold(
+      backgroundColor: Colors.grey[800],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            GestureDetector(
-              onTap: _uploadPhoto,
-              child: CircleAvatar(
-                radius: 60,
-                backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
-              ),
+            // Profile Picture + Info
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: _uploadPhoto,
+                  child: CircleAvatar(
+                    radius: 60,
+                    backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Text(
+                        FirebaseAuth.instance.currentUser?.displayName ?? "Player",
+                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        rankProgress['currentRank'],
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
+                      ),
+                      const SizedBox(height: 4),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: LinearProgressIndicator(
+                              value: rankProgress['progress'],
+                              minHeight: 16,                    // Slightly taller for nice text fit
+                              backgroundColor: Colors.grey[700],
+                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                            ),
+                          ),
+                          // Text overlaid directly on the bar
+                          Text(
+                            '${rankProgress['currentExp']} / ${rankProgress['nextExp']} → ${rankProgress['nextRank']}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(1, 1),
+                                  blurRadius: 3,
+                                  color: Colors.black54,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        wealthTitle,
+                        style: const TextStyle(fontSize: 18, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 30),
+
+            // Equipped Gear (unchanged)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -179,67 +278,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset('assets/helmet-empty.jpg', width: 100, height: 100),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () => _showInventoryMenu('armor'),
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset('assets/armor-empty.jpg', width: 100, height: 100),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () => _showInventoryMenu('footwear'),
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(footwearImage, width: 100, height: 100),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Name: ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFEEEEEE)),
+
+            const SizedBox(height: 40),
+
+            // Rest of stats (optional: you can keep or remove raw Experience number)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text('Intelligence: ${widget.stats['intelligence'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  Text('Skill: ${widget.stats['skill'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              rankTitle,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              wealthTitle,
-              style: const TextStyle(fontSize: 18, color: Color(0xFFEEEEEE)),
-            ),
-            const SizedBox(height: 20),
-            Text('Experience: $exp', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            Text('Intelligence: ${widget.stats['intelligence'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            Text('Skill: ${widget.stats['skill'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(color: Color(0xFFEEEEEE))),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 30),
+
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
@@ -249,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
               },
-              child: const Text('View Inventory'),
+              child: const Text('View Full Inventory'),
             ),
           ],
         ),

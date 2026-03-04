@@ -23,6 +23,9 @@ class SocketService {
   // NEW: Rescue celebration trigger (for the nice animation)
   final ValueNotifier<Map<String, String>?> rescueNotifier = ValueNotifier(null);
 
+    // NEW: Rank-up celebration trigger
+  final ValueNotifier<Map<String, String>?> rankUpNotifier = ValueNotifier(null);
+  
   String? _currentEmail;
 
   List<String> normalLocations = [];

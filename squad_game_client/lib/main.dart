@@ -21,6 +21,7 @@ import 'properties_screen.dart';
 import 'sidebar.dart';
 import 'prison_screen.dart';
 import 'rescue_celebration_overlay.dart';
+import 'rank_up_celebration_overlay.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -182,13 +183,17 @@ class _GameScreenState extends State<GameScreen> {
 
   OverlayEntry? _rescueOverlay;
 
+  OverlayEntry? _rankUpOverlay;
+  String? _previousRank;
+
   @override
   void initState() {
     super.initState();
     _connectToServer();
-    _setupPushNotifications(); // NEW: Set up the bell
+    _setupPushNotifications();
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
+    _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
   }
 
   // NEW: Set up the bell for notes
@@ -282,15 +287,31 @@ class _GameScreenState extends State<GameScreen> {
       if ((stats['health'] ?? 100) <= 0) isDead = true;
     });
     _socketService.socket?.on(SocketEvents.updateStats, (data) {
-      setState(() {
-        if (data is Map) {
-          stats = {...stats, ...data};   // Properly merge new data
-        } else {
-          stats = Map.from(data ?? {});
+      if (data is Map) {
+        final oldRank = _previousRank ?? _getRankTitle(stats['experience'] ?? 0);
+        final newExp = data['experience'] ?? stats['experience'] ?? 0;
+        final newRank = _getRankTitle(newExp);
+
+        stats = {...stats, ...data};
+
+        // Detect if player ranked up
+        if (newRank != oldRank && newExp > (stats['experience'] ?? 0)) {
+          _socketService.rankUpNotifier.value = {
+            'oldRank': oldRank,
+            'newRank': newRank,
+          };
         }
+
+        _previousRank = newRank;   // Remember current rank for next update
+
         if (stats['health'] <= 0) isDead = true;
-      });
+      } else {
+        stats = Map.from(data ?? {});
+        if (stats['health'] <= 0) isDead = true;
+      }
+      setState(() {});
     });
+
     _socketService.socket?.on(SocketEvents.message, (data) {
       setState(() {
         messages.add(data);
@@ -610,12 +631,64 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+    // ==================== NEW: RANK UP ANIMATION ====================
+  void _showRankUpAnimation() {
+    final data = _socketService.rankUpNotifier.value;
+    if (data == null) return;
+
+    _rankUpOverlay?.remove();
+
+    _rankUpOverlay = OverlayEntry(
+      builder: (context) => RankUpCelebrationOverlay(
+        oldRank: data['oldRank']!,
+        newRank: data['newRank']!,
+        onDismiss: () {
+          _rankUpOverlay?.remove();
+          _rankUpOverlay = null;
+          _socketService.rankUpNotifier.value = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_rankUpOverlay!);
+
+    // Auto dismiss after 4.5 seconds
+    Future.delayed(const Duration(milliseconds: 4500), () {
+      if (_rankUpOverlay != null) {
+        _rankUpOverlay!.remove();
+        _rankUpOverlay = null;
+        _socketService.rankUpNotifier.value = null;
+      }
+    });
+  }
+
+    String _getRankTitle(int exp) {
+    if (exp <= 499) return 'Thug';
+    if (exp <= 1249) return 'Recruit';
+    if (exp <= 2299) return 'Private';
+    if (exp <= 3499) return 'Private First Class';
+    if (exp <= 4999) return 'Corporal';
+    if (exp <= 6849) return 'Sergeant';
+    if (exp <= 8849) return 'Sergeant First Class';
+    if (exp <= 10199) return 'Warrant Officer';
+    if (exp <= 11449) return 'First Lieutenant';
+    if (exp <= 14199) return 'Captain';
+    if (exp <= 17399) return 'Major';
+    if (exp <= 21349) return 'Lieutenant Colonel';
+    if (exp <= 25849) return 'Colonel';
+    if (exp <= 31499) return 'General';
+    if (exp <= 38199) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
   @override
   void dispose() {
     cooldownTimer?.cancel();
     // _socketService.disconnect();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
+    _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
     _rescueOverlay?.remove();
+    _rankUpOverlay?.remove();
     super.dispose();
   }
 }
