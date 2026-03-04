@@ -394,6 +394,8 @@ io.on('connection', (socket) => {
         message: `You successfully rescued ${targetDisplayName}! +15 EXP`
       });
 
+      socket.emit('update-stats', saver);
+
       // Notify rescued player if online
       const rescuedSocket = onlineSockets.get(targetDisplayName);
       if (rescuedSocket) {
