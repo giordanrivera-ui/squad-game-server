@@ -34,9 +34,10 @@ setInterval(() => {
   }
 
   if (changed) {
+    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      prisonEndTime
+      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
     }));
     io.emit('prison-list-update', prisonList);
   }
@@ -285,9 +286,10 @@ io.on('connection', (socket) => {
     await docRef.set(p);
 
     // Broadcast updated prison list to ALL players
+    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      prisonEndTime
+      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
     }));
     io.emit('prison-list-update', prisonList);
 
@@ -315,9 +317,10 @@ io.on('connection', (socket) => {
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {
+    const now = Date.now();
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
-      prisonEndTime
+      remainingSeconds: Math.max(0, Math.ceil((prisonEndTime - now) / 1000))
     }));
     socket.emit('prison-list-update', prisonList);
   });

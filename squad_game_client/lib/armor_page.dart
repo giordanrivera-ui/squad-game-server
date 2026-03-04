@@ -183,7 +183,9 @@ class _ArmorPageState extends State<ArmorPage> {
           String? imagePath;
           if (title == 'Foot wear') {
             imagePath = 'assets/${item.name}.jpg';
-          }
+          } else if (title == 'Head wear') {
+            imagePath = 'assets/${item.name}.jpg';
+          } 
 
           return Card(
             child: Padding(
