@@ -656,15 +656,6 @@ class _GameScreenState extends State<GameScreen> {
     );
 
     Overlay.of(context).insert(_rankUpOverlay!);
-
-    // Auto dismiss after 4.5 seconds
-    Future.delayed(const Duration(milliseconds: 4500), () {
-      if (_rankUpOverlay != null) {
-        _rankUpOverlay!.remove();
-        _rankUpOverlay = null;
-        _socketService.rankUpNotifier.value = null;
-      }
-    });
   }
 
     String _getRankTitle(int exp) {
