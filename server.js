@@ -58,15 +58,15 @@ const travelCosts = {
   "Cawayan Heights": 55
 };
 
-// ==================== WEAPON DATA (for loot rewards) ====================
-const weapons = [
-  { name: 'Small Knife', description: 'A compact blade for quick stabs and slashes in close-quarters combat.', power: 10, cost: 30 },
-  { name: 'Baseball Bat', description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.', power: 18, cost: 120 },
-  { name: 'Machete', description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250 },
-  { name: 'Splitting Maul', description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350 },
-  { name: 'Ruger Mark IV', description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520 },
-  // Add the rest of your weapons here if needed
-];
+// ==================== WEAPON DATA ====================
+const weaponData = {
+  'Small Knife': { description: 'A compact blade for quick stabs and slashes in close-quarters combat.', power: 10, cost: 30 },
+  'Baseball Bat': { description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.', power: 18, cost: 120 },
+  'Machete': { description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250 },
+  'Splitting Maul': { description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350 },
+  'Ruger Mark IV': { description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520 },
+  // Add more weapons here if needed
+};
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
@@ -279,7 +279,14 @@ io.on('connection', (socket) => {
         // If multiple, pick one randomly; if none, no reward
         if (rewardedWeapons.length > 0) {
           const rewardedWeaponName = rewardedWeapons[Math.floor(Math.random() * rewardedWeapons.length)];
-          const rewardedItem = { name: rewardedWeaponName, type: 'weapon' }; // Add more properties if needed
+          const weaponInfo = weaponData[rewardedWeaponName] || {}; // Get full data or fallback
+          const rewardedItem = { 
+            name: rewardedWeaponName,
+            type: 'weapon',
+            description: weaponInfo.description || 'No description',
+            power: weaponInfo.power || 0,
+            cost: weaponInfo.cost || 0,
+          };
           p.inventory = p.inventory.concat([rewardedItem]);
           message += `\nYou found a ${rewardedWeaponName}!`;
         }
@@ -409,10 +416,7 @@ io.on('connection', (socket) => {
         .get();
 
       if (!targetQuery.empty) {
-        await targetQuery.docs[0].ref.update({
-          prisonEndTime: 0,
-          lastLowLevelOp: 0
-        });
+        await targetQuery.docs[0].ref.update({ prisonEndTime: 0 });
       }
 
       // Give saver +15 EXP
