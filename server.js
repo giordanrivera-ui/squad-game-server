@@ -278,6 +278,39 @@ io.on('connection', (socket) => {
       rawDamage = Math.floor(Math.random() * 41) + 20; // 20-60
       expGain = 10;
       message = `You looted the weapons store and got $${money}!`;
+
+      // Weapon reward chance (only if not caught)
+      if (!isCaught) {
+        const possibleWeapons = [
+          { name: 'Small Knife', chance: 0.5 },
+          { name: 'Baseball Bat', chance: 0.5 },
+          { name: 'Machete', chance: 0.5 },
+          { name: 'Splitting Maul', chance: 0.4 },
+          { name: 'Ruger Mark IV', chance: 0.2 },
+        ];
+
+        const rewardedWeapons = [];
+        for (const weapon of possibleWeapons) {
+          if (Math.random() < weapon.chance) {
+            rewardedWeapons.push(weapon.name);
+          }
+        }
+
+        // If multiple, pick one randomly; if none, no reward
+        if (rewardedWeapons.length > 0) {
+          const rewardedWeaponName = rewardedWeapons[Math.floor(Math.random() * rewardedWeapons.length)];
+          const weaponInfo = weaponData[rewardedWeaponName] || {}; // Get full data or fallback
+          const rewardedItem = { 
+            name: rewardedWeaponName,
+            type: 'weapon',
+            description: weaponInfo.description || 'No description',
+            power: weaponInfo.power || 0,
+            cost: weaponInfo.cost || 0,
+          };
+          p.inventory = p.inventory.concat([rewardedItem]);
+          message += `\nYou found a ${rewardedWeaponName}!`;
+        }
+      }
     }
 
     // Prison Chance
@@ -316,49 +349,9 @@ io.on('connection', (socket) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
-
-      p.lastLowLevelOp = Date.now();
-      
-      if (operation === "Loot weapons store") {
-        const rank = getRankTitle(p.experience);
-        const stealChance = rankStealChances[rank] || 0.25; // Default to Thug if not found
-
-        if (Math.random() < stealChance) {
-          const possibleWeapons = [
-            { name: 'Small Knife', chance: 0.3 },
-            { name: 'Baseball Bat', chance: 0.25 },
-            { name: 'Machete', chance: 0.2 },
-            { name: 'Splitting Maul', chance: 0.2 },
-            { name: 'Ruger Mark IV', chance: 0.05 },
-          ];
-
-          // Normalize chances to sum to 1
-          const totalChance = possibleWeapons.reduce((sum, w) => sum + w.chance, 0);
-          let rand = Math.random() * totalChance;
-          let rewardedWeaponName;
-          for (const weapon of possibleWeapons) {
-            rand -= weapon.chance;
-            if (rand <= 0) {
-              rewardedWeaponName = weapon.name;
-              break;
-            }
-          }
-
-          if (rewardedWeaponName) {
-            const weaponInfo = weaponData[rewardedWeaponName] || {};
-            const rewardedItem = { 
-              name: rewardedWeaponName,
-              type: 'weapon',
-              description: weaponInfo.description || 'No description',
-              power: weaponInfo.power || 0,
-              cost: weaponInfo.cost || 0,
-            };
-            p.inventory = p.inventory.concat([rewardedItem]);
-            message += `\nYou stole a ${rewardedWeaponName}!`;
-          }
-        }
-      }
     }
+
+    p.lastLowLevelOp = Date.now();
 
     await docRef.set(p);
 
@@ -394,7 +387,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ==================== REQUEST PRISON LIST ====================
+  // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
       displayName,
@@ -430,7 +423,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
+    const isSuccess = Math.random() < 0.5;   // 50% chance (change later if needed)
 
     if (isSuccess) {
       // SUCCESS: Free the target
@@ -482,7 +475,7 @@ io.on('connection', (socket) => {
           message: `You were rescued by ${saverName}!`
         });
 
-        rescuedSocket.emit('rescue-result', {   // optional nice message
+        rescuedSocket.emit('rescue-result', {
           success: true,
           message: 'You have been rescued from prison!'
         });
