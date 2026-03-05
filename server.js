@@ -58,15 +58,6 @@ const travelCosts = {
   "Cawayan Heights": 55
 };
 
-// ==================== WEAPON DATA ====================
-const weaponData = {
-  'Small Knife': { description: 'A compact blade for quick stabs and slashes in close-quarters combat.', power: 10, cost: 30 },
-  'Baseball Bat': { description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.', power: 18, cost: 120 },
-  'Machete': { description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250 },
-  'Splitting Maul': { description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350 },
-  'Ruger Mark IV': { description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520 },
-};
-
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
@@ -252,48 +243,16 @@ io.on('connection', (socket) => {
       else                     money = Math.floor(Math.random() * 401) + 600;
 
       message = `You robbed the bank and escaped with $${money}!`;
-    } else if (operation === "Loot weapons store") {
-      money = Math.floor(Math.random() * 41) + 10; // 10-50
-      rawDamage = Math.floor(Math.random() * 41) + 20; // 20-60
+    } 
+    else if (operation === "Loot weapons store") {
+      money = Math.floor(Math.random() * 41) + 10;
+      rawDamage = Math.floor(Math.random() * 41) + 20;
       expGain = 10;
-      message = `You looted the weapons store and got $${money}!`;
-
-      // Weapon reward chance (only if not caught)
-      if (!isCaught) {
-        const possibleWeapons = [
-          { name: 'Small Knife', chance: 0.5 },
-          { name: 'Baseball Bat', chance: 0.5 },
-          { name: 'Machete', chance: 0.5 },
-          { name: 'Splitting Maul', chance: 0.4 },
-          { name: 'Ruger Mark IV', chance: 0.2 },
-        ];
-
-        const rewardedWeapons = [];
-        for (const weapon of possibleWeapons) {
-          if (Math.random() < weapon.chance) {
-            rewardedWeapons.push(weapon.name);
-          }
-        }
-
-        // If multiple, pick one randomly; if none, no reward
-        if (rewardedWeapons.length > 0) {
-          const rewardedWeaponName = rewardedWeapons[Math.floor(Math.random() * rewardedWeapons.length)];
-          const weaponInfo = weaponData[rewardedWeaponName] || {}; // Get full data or fallback
-          const rewardedItem = { 
-            name: rewardedWeaponName,
-            type: 'weapon',
-            description: weaponInfo.description || 'No description',
-            power: weaponInfo.power || 0,
-            cost: weaponInfo.cost || 0,
-          };
-          p.inventory = p.inventory.concat([rewardedItem]);
-          message += `\nYou found a ${rewardedWeaponName}!`;
-        }
-      }
+      message = `You looted the weapons store and stole $${money}!`;
     }
 
     // Prison Chance
-    let prisonChance = 0.22;
+    let prisonChance = 0.50;
     const exp = p.experience || 0;
     if (exp > 499) prisonChance = 0.21;
     if (exp > 1249) prisonChance = 0.20;
@@ -328,9 +287,73 @@ io.on('connection', (socket) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
-    }
 
-    p.lastLowLevelOp = Date.now();
+      if (operation === "Loot weapons store") {
+        // Weapon steal chance based on rank (using pre-gain exp)
+        let stealChance = 0.25;
+        if (exp > 499) stealChance = 0.30;
+        if (exp > 1249) stealChance = 0.35;
+        if (exp > 2299) stealChance = 0.40;
+        if (exp > 3499) stealChance = 0.45;
+        if (exp > 4999) stealChance = 0.50;
+        if (exp > 6849) stealChance = 0.55;
+        if (exp > 8849) stealChance = 0.60;
+        if (exp > 10199) stealChance = 0.65;
+        if (exp > 11449) stealChance = 0.65;
+        if (exp > 14199) stealChance = 0.65;
+        if (exp > 17399) stealChance = 0.70;
+        if (exp > 21349) stealChance = 0.70;
+        if (exp > 25849) stealChance = 0.75;
+        if (exp > 31499) stealChance = 0.75;
+        if (exp > 38199) stealChance = 0.80;
+
+        if (Math.random() < stealChance) {
+          // Weighted random weapon
+          const rand = Math.random() * 100;
+          let weapon;
+          if (rand < 30) {
+            weapon = {
+              name: 'Small Knife',
+              description: 'A compact blade for quick stabs and slashes in close-quarters combat.',
+              power: 10,
+              cost: 30
+            };
+          } else if (rand < 55) {
+            weapon = {
+              name: 'Baseball Bat',
+              description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.',
+              power: 18,
+              cost: 120
+            };
+          } else if (rand < 75) {
+            weapon = {
+              name: 'Machete',
+              description: 'A large chopping blade effective for hacking through obstacles or enemies.',
+              power: 25,
+              cost: 250
+            };
+          } else if (rand < 95) {
+            weapon = {
+              name: 'Splitting Maul',
+              description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.',
+              power: 30,
+              cost: 350
+            };
+          } else {
+            weapon = {
+              name: 'Ruger Mark IV',
+              description: 'A reliable .22 caliber pistol perfect for target practice and small game.',
+              power: 70,
+              cost: 520
+            };
+          }
+          p.inventory.push(weapon);
+          message += ` You also stole a ${weapon.name}!`;
+        }
+      }
+
+      p.lastLowLevelOp = Date.now();
+    }
 
     await docRef.set(p);
 
@@ -372,7 +395,7 @@ io.on('connection', (socket) => {
       displayName,
       prisonEndTime
     }));
-    socket.emit('prison-list-update', {
+    io.emit('prison-list-update', {
       list: prisonList,
       serverTime: Date.now()
     });
@@ -402,9 +425,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const isSuccess = Math.random() < 0.5;   // 50% chance (change later if needed)
+    const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
 
-    if (isSuccess) {
+  if (isSuccess) {
       // SUCCESS: Free the target
       imprisonedPlayers.delete(targetDisplayName);
 
@@ -454,13 +477,13 @@ io.on('connection', (socket) => {
           message: `You were rescued by ${saverName}!`
         });
 
-        rescuedSocket.emit('rescue-result', {
+        rescuedSocket.emit('rescue-result', {   // optional nice message
           success: true,
           message: 'You have been rescued from prison!'
         });
       }
 
-    } else {
+  } else {
       // FAILURE: Imprison the saver
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;
