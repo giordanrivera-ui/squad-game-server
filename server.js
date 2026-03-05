@@ -316,6 +316,8 @@ io.on('connection', (socket) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
+
+      p.lastLowLevelOp = Date.now();
       
       if (operation === "Loot weapons store") {
         const rank = getRankTitle(p.experience);
@@ -356,8 +358,6 @@ io.on('connection', (socket) => {
           }
         }
       }
-
-            p.lastLowLevelOp = Date.now();
     }
 
     await docRef.set(p);
@@ -444,7 +444,8 @@ io.on('connection', (socket) => {
 
       if (!targetQuery.empty) {
         await targetQuery.docs[0].ref.update({
-          prisonEndTime: 0
+          prisonEndTime: 0,
+          lastLowLevelOp: 0
         });
       }
 
