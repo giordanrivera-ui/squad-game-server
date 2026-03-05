@@ -58,6 +58,16 @@ const travelCosts = {
   "Cawayan Heights": 55
 };
 
+// ==================== WEAPON DATA (for loot rewards) ====================
+const weapons = [
+  { name: 'Small Knife', description: 'A compact blade for quick stabs and slashes in close-quarters combat.', power: 10, cost: 30 },
+  { name: 'Baseball Bat', description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.', power: 18, cost: 120 },
+  { name: 'Machete', description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250 },
+  { name: 'Splitting Maul', description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350 },
+  { name: 'Ruger Mark IV', description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520 },
+  // Add the rest of your weapons here if needed
+];
+
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
@@ -313,7 +323,7 @@ io.on('connection', (socket) => {
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
 
-      p.lastLowLevelOp = Date.now();
+          p.lastLowLevelOp = Date.now();
     }
 
     await docRef.set(p);
@@ -361,7 +371,7 @@ io.on('connection', (socket) => {
       serverTime: Date.now()
     });
   });
-  
+
   // ==================== RESCUE / SAVE PLAYER ====================
   socket.on('attempt-rescue', async (targetDisplayName) => {
     const saverName = socket.data.displayName;
@@ -388,7 +398,7 @@ io.on('connection', (socket) => {
 
     const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
 
-  if (isSuccess) {
+    if (isSuccess) {
       // SUCCESS: Free the target
       imprisonedPlayers.delete(targetDisplayName);
 
@@ -444,7 +454,7 @@ io.on('connection', (socket) => {
         });
       }
 
-  } else {
+    } else {
       // FAILURE: Imprison the saver
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;

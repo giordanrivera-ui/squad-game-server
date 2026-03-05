@@ -28,9 +28,10 @@ class InventoryPage extends StatelessWidget {
                 final key = grouped.keys.elementAt(index);
                 final item = grouped[key]!;
                 final quantity = item['quantity'] as int;
+                final description = item['description'] as String? ?? 'No description';  // Handle null
                 return ListTile(
                   title: Text('$key x$quantity'),
-                  subtitle: Text(item['description'] as String),
+                  subtitle: Text(description),
                 );
               },
             ),
