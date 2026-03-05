@@ -65,27 +65,6 @@ const weaponData = {
   'Machete': { description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250 },
   'Splitting Maul': { description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350 },
   'Ruger Mark IV': { description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520 },
-  // Add the rest of your weapons here if needed
-};
-
-// ==================== RANK STEAL CHANCES ====================
-const rankStealChances = {
-  'Thug': 0.25,
-  'Recruit': 0.30,
-  'Private': 0.35,
-  'Private First Class': 0.40,
-  'Corporal': 0.45,
-  'Sergeant': 0.50,
-  'Sergeant First Class': 0.55,
-  'Warrant Officer': 0.60,
-  'First Lieutenant': 0.65,
-  'Captain': 0.65,
-  'Major': 0.65,
-  'Lieutenant Colonel': 0.70,
-  'Colonel': 0.70,
-  'General': 0.75,
-  'General of the Army': 0.75,
-  'Supreme Commander': 0.80,
 };
 
 // ==================== ONLINE PLAYERS TRACKING ====================
@@ -393,7 +372,7 @@ io.on('connection', (socket) => {
       displayName,
       prisonEndTime
     }));
-    io.emit('prison-list-update', {
+    socket.emit('prison-list-update', {
       list: prisonList,
       serverTime: Date.now()
     });
