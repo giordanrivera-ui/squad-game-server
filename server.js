@@ -100,6 +100,7 @@ io.on('connection', (socket) => {
       if (playerData.footwear === undefined) playerData.footwear = null;
       if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
+      if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -124,6 +125,7 @@ io.on('connection', (socket) => {
         armor: null,
         footwear: null,
         lastLowLevelOp: 0,
+        lastMidLevelOp: 0,
         prisonEndTime: 0
       };
 
@@ -198,9 +200,21 @@ io.on('connection', (socket) => {
       "Loot weapons store"
     ];
 
-    if (!lowLevelOps.includes(operation)) return;
+    const midLevelOps = [
+      "Attack military barracks",
+      "Storm a laboratory",
+      "Attack central issue facility"
+    ];
 
-    if (Date.now() - (p.lastLowLevelOp || 0) < 60000) return;
+    if (!lowLevelOps.includes(operation) && !midLevelOps.includes(operation)) return;
+
+    let cooldownTime = 60000; // low
+    let lastOpTime = p.lastLowLevelOp || 0;
+    if (midLevelOps.includes(operation)) {
+      cooldownTime = 72000; // mid
+      lastOpTime = p.lastMidLevelOp || 0;
+    }
+    if (Date.now() - lastOpTime < cooldownTime) return;
 
     let money = 0;
     let rawDamage = 0;
@@ -251,24 +265,44 @@ io.on('connection', (socket) => {
       message = `You looted the weapons store and stole $${money}!`;
     }
 
-    // Prison Chance
-    let prisonChance = 0.50;
+    let prisonChance;
     const exp = p.experience || 0;
-    if (exp > 499) prisonChance = 0.21;
-    if (exp > 1249) prisonChance = 0.20;
-    if (exp > 2299) prisonChance = 0.19;
-    if (exp > 3499) prisonChance = 0.18;
-    if (exp > 4999) prisonChance = 0.17;
-    if (exp > 6849) prisonChance = 0.16;
-    if (exp > 8849) prisonChance = 0.15;
-    if (exp > 10199) prisonChance = 0.14;
-    if (exp > 11449) prisonChance = 0.13;
-    if (exp > 14199) prisonChance = 0.12;
-    if (exp > 17399) prisonChance = 0.11;
-    if (exp > 21349) prisonChance = 0.10;
-    if (exp > 25849) prisonChance = 0.08;
-    if (exp > 31499) prisonChance = 0.07;
-    if (exp > 38199) prisonChance = 0.06;
+
+    if (midLevelOps.includes(operation)) {
+      prisonChance = 0.45;
+      if (exp > 499) prisonChance = 0.42;
+      if (exp > 1249) prisonChance = 0.38;
+      if (exp > 2299) prisonChance = 0.36;
+      if (exp > 3499) prisonChance = 0.34;
+      if (exp > 4999) prisonChance = 0.31;
+      if (exp > 6849) prisonChance = 0.29;
+      if (exp > 8849) prisonChance = 0.26;
+      if (exp > 10199) prisonChance = 0.25;
+      if (exp > 11449) prisonChance = 0.24;
+      if (exp > 14199) prisonChance = 0.22;
+      if (exp > 17399) prisonChance = 0.20;
+      if (exp > 21349) prisonChance = 0.16;
+      if (exp > 25849) prisonChance = 0.14;
+      if (exp > 31499) prisonChance = 0.12;
+      if (exp > 38199) prisonChance = 0.10;
+    } else {
+      prisonChance = 0.25;
+      if (exp > 499) prisonChance = 0.21;
+      if (exp > 1249) prisonChance = 0.20;
+      if (exp > 2299) prisonChance = 0.19;
+      if (exp > 3499) prisonChance = 0.18;
+      if (exp > 4999) prisonChance = 0.17;
+      if (exp > 6849) prisonChance = 0.16;
+      if (exp > 8849) prisonChance = 0.15;
+      if (exp > 10199) prisonChance = 0.14;
+      if (exp > 11449) prisonChance = 0.13;
+      if (exp > 14199) prisonChance = 0.12;
+      if (exp > 17399) prisonChance = 0.11;
+      if (exp > 21349) prisonChance = 0.10;
+      if (exp > 25849) prisonChance = 0.08;
+      if (exp > 31499) prisonChance = 0.07;
+      if (exp > 38199) prisonChance = 0.06;
+    }
 
     isCaught = Math.random() < prisonChance;
 
@@ -371,7 +405,11 @@ io.on('connection', (socket) => {
         }
       }
 
-      p.lastLowLevelOp = Date.now();
+      if (lowLevelOps.includes(operation)) {
+        p.lastLowLevelOp = Date.now();
+      } else if (midLevelOps.includes(operation)) {
+        p.lastMidLevelOp = Date.now();
+      }
     }
 
     await docRef.set(p);
