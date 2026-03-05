@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'armor_page.dart';
 import 'vehicles_page.dart'; // NEW: Import VehiclesPage
+import 'weapons_page.dart'; // NEW: Import WeaponsPage
 
 class StoreScreen extends StatelessWidget {
   final int currentBalance;
@@ -19,7 +20,19 @@ class StoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = [
-      {'title': 'Weapons', 'onTap': () { /* TODO */ }},
+      {'title': 'Weapons', 'onTap': () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WeaponsPage(
+              currentBalance: currentBalance,
+              currentHealth: currentHealth,
+              currentTime: currentTime,
+              currentLocation: currentLocation,
+            ),
+          ),
+        );
+      }},
       {'title': 'Armor', 'onTap': () {
         Navigator.push(
           context,

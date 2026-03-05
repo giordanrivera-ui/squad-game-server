@@ -2,42 +2,36 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
 
-class Vehicle {
+class Weapon {
   final String name;
+  final String description;
   final int power;
   final int cost;
-  final int skillReq;
-  final String description;
-  final int defense;
 
-  Vehicle({
+  Weapon({
     required this.name,
+    required this.description,
     required this.power,
     required this.cost,
-    required this.skillReq,
-    required this.description,
-    required this.defense,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'description': description,
       'power': power,
       'cost': cost,
-      'skillReq': skillReq,
-      'description': description,
-      'defense': defense,
     };
   }
 }
 
-class VehiclesPage extends StatefulWidget {
+class WeaponsPage extends StatefulWidget {
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
   final String currentLocation;
 
-  const VehiclesPage({
+  const WeaponsPage({
     super.key,
     required this.currentBalance,
     required this.currentHealth,
@@ -46,10 +40,10 @@ class VehiclesPage extends StatefulWidget {
   });
 
   @override
-  State<VehiclesPage> createState() => _VehiclesPageState();
+  State<WeaponsPage> createState() => _WeaponsPageState();
 }
 
-class _VehiclesPageState extends State<VehiclesPage> {
+class _WeaponsPageState extends State<WeaponsPage> {
   late int _currentBalance;
   late int _currentHealth;
 
@@ -57,19 +51,23 @@ class _VehiclesPageState extends State<VehiclesPage> {
   final Map<String, int> _quantities = {};
   int _totalCost = 0;
 
-  final List<Vehicle> _vehicles = [
-    Vehicle(name: 'Bicycle', power: 50, cost: 350, skillReq: 0, description: 'A human-powered vehicle with two wheels, propelled by pedaling.', defense: 0),
-    Vehicle(name: 'Motorcycle', power: 75, cost: 4200, skillReq: 0, description: 'A two-wheeled powered vehicle with a seat or saddle, designed for rider and passenger.', defense: 1),
-    Vehicle(name: 'Corolla', power: 150, cost: 18000, skillReq: 0, description: 'A compact sedan known for reliability, fuel efficiency, and affordability.', defense: 2),
-    Vehicle(name: 'Jeep', power: 200, cost: 36000, skillReq: 1, description: 'Rugged off-road SUV with removable doors/roof, excellent trail capability.', defense: 3),
-    Vehicle(name: 'Strada Pickup Truck', power: 280, cost: 55000, skillReq: 1, description: 'Mid-size pickup with rugged design, diesel engine, good for work/adventure.', defense: 3),
-    Vehicle(name: 'Hummer H1', power: 360, cost: 80000, skillReq: 2, description: 'Civilian version of military Humvee, extreme off-road 4x4 with high ground clearance.', defense: 4),
-    Vehicle(name: 'M998 Humvee', power: 500, cost: 92000, skillReq: 4, description: 'Military 4x4 utility vehicle, highly mobile, multi-purpose.', defense: 4),
-    Vehicle(name: 'M-ATV', power: 750, cost: 475000, skillReq: 5, description: 'Mine-resistant ambush-protected all-terrain vehicle for troop protection in hazardous environments.', defense: 5),
-    Vehicle(name: 'MaxxPro MRAP', power: 900, cost: 1400000, skillReq: 6, description: 'Armored fighting vehicle designed for IED protection, V-hull design.', defense: 5),
-    Vehicle(name: 'AMPV', power: 1200, cost: 4500000, skillReq: 8, description: 'Armored multi-purpose vehicle replacing M113, for troop transport and support.', defense: 6),
-    Vehicle(name: 'Stryker M1126', power: 1500, cost: 5250000, skillReq: 10, description: 'Wheeled armored personnel carrier, highly mobile 8x8 for infantry transport.', defense: 7),
-    Vehicle(name: 'M1 Abrams', power: 2000, cost: 8200000, skillReq: 12, description: 'Third-generation main battle tank with advanced armor, 120mm gun, high mobility.', defense: 8),
+  final List<Weapon> _weapons = [
+    Weapon(name: 'Small Knife', description: 'A compact blade for quick stabs and slashes in close-quarters combat.', power: 10, cost: 30),
+    Weapon(name: 'Baseball Bat', description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.', power: 18, cost: 120),
+    Weapon(name: 'Machete', description: 'A large chopping blade effective for hacking through obstacles or enemies.', power: 25, cost: 250),
+    Weapon(name: 'Splitting Maul', description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.', power: 30, cost: 350),
+    Weapon(name: 'Ruger Mark IV', description: 'A reliable .22 caliber pistol perfect for target practice and small game.', power: 70, cost: 520),
+    Weapon(name: 'Glock 45 Gen 5', description: 'A versatile 9mm handgun known for its durability and high-capacity magazine.', power: 150, cost: 700),
+    Weapon(name: 'Remington R1 Enhanced', description: 'A 1911-style .45 pistol with improved ergonomics and accuracy.', power: 200, cost: 830),
+    Weapon(name: 'Mossberg 590 Shotgun', description: 'A pump-action 12-gauge shotgun excellent for close-range crowd control.', power: 260, cost: 1200),
+    Weapon(name: 'MP5 SMG', description: 'A compact 9mm submachine gun favored for its controllability in full-auto fire.', power: 330, cost: 4000),
+    Weapon(name: 'H&K UMP5', description: 'A .45 caliber submachine gun offering superior stopping power in CQB.', power: 380, cost: 4600),
+    Weapon(name: 'SLR104 AK-74', description: 'A modernized 5.45mm assault rifle with reliable performance in various conditions.', power: 425, cost: 7500),
+    Weapon(name: 'M4 Carbine', description: 'A lightweight 5.56mm carbine widely used for its modularity and accuracy.', power: 475, cost: 8400),
+    Weapon(name: 'SCAR-16 Mk II', description: 'A battle-proven 5.56mm assault rifle with quick barrel swap capabilities.', power: 520, cost: 10500),
+    Weapon(name: 'M16A4', description: 'A full-length 5.56mm rifle known for its precision in semi-automatic fire.', power: 550, cost: 16800),
+    Weapon(name: 'M24 Sniper', description: 'A bolt-action 7.62mm rifle designed for long-range precision shots.', power: 580, cost: 22000),
+    Weapon(name: 'Barrett M82', description: 'A .50 caliber anti-materiel rifle capable of penetrating light armor at distance.', power: 610, cost: 28000),
   ];
 
   @override
@@ -98,7 +96,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
   void _updateTotal() {
     int total = 0;
-    for (var item in _vehicles) {
+    for (var item in _weapons) {
       final key = item.name;
       if (_checked[key] == true) {
         total += (_quantities[key] ?? 0) * item.cost;
@@ -109,7 +107,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
   void _purchaseItems() {
     List<Map<String, dynamic>> purchased = [];
-    for (var item in _vehicles) {
+    for (var item in _weapons) {
       final key = item.name;
       final qty = _quantities[key] ?? 0;
       if (_checked[key] == true && qty > 0) {
@@ -134,7 +132,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
     });
   }
 
-  Widget _buildSection(String title, List<Vehicle> items) {
+  Widget _buildSection(String title, List<Weapon> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -210,7 +208,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
     return Scaffold(
       appBar: StatusAppBar(
-        title: 'Vehicles',
+        title: 'Weapons',
         stats: {'balance': _currentBalance, 'health': _currentHealth},
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
@@ -221,7 +219,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildSection('Vehicles', _vehicles),
+                _buildSection('Weapons', _weapons),
               ],
             ),
           ),
