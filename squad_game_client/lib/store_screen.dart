@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'armor_page.dart';
+import 'vehicles_page.dart'; // NEW: Import VehiclesPage
 
 class StoreScreen extends StatelessWidget {
   final int currentBalance;
@@ -32,7 +33,19 @@ class StoreScreen extends StatelessWidget {
           ),
         );
       }},
-      {'title': 'Vehicles, aircrafts and artillery', 'onTap': () { /* TODO */ }},
+      {'title': 'Vehicles, aircrafts and artillery', 'onTap': () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VehiclesPage(
+              currentBalance: currentBalance,
+              currentHealth: currentHealth,
+              currentTime: currentTime,
+              currentLocation: currentLocation,
+            ),
+          ),
+        );
+      }},
       {'title': 'Courses', 'onTap': () { /* TODO */ }},
     ];
 
