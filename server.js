@@ -68,6 +68,26 @@ const weaponData = {
   // Add more weapons here if needed
 };
 
+// ==================== RANK TO STEAL CHANCE ====================
+const rankStealChances = {
+  'Thug': 0.25,
+  'Recruit': 0.30,
+  'Private': 0.35,
+  'Private First Class': 0.40,
+  'Corporal': 0.45,
+  'Sergeant': 0.50,
+  'Sergeant First Class': 0.55,
+  'Warrant Officer': 0.60,
+  'First Lieutenant': 0.65,
+  'Captain': 0.65,
+  'Major': 0.65,
+  'Lieutenant Colonel': 0.70,
+  'Colonel': 0.70,
+  'General': 0.75,
+  'General of the Army': 0.75,
+  'Supreme Commander': 0.80,
+};
+
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
@@ -258,39 +278,6 @@ io.on('connection', (socket) => {
       rawDamage = Math.floor(Math.random() * 41) + 20; // 20-60
       expGain = 10;
       message = `You looted the weapons store and got $${money}!`;
-
-      // Weapon reward chance (only if not caught)
-      if (!isCaught) {
-        const possibleWeapons = [
-          { name: 'Small Knife', chance: 0.5 },
-          { name: 'Baseball Bat', chance: 0.5 },
-          { name: 'Machete', chance: 0.5 },
-          { name: 'Splitting Maul', chance: 0.4 },
-          { name: 'Ruger Mark IV', chance: 0.2 },
-        ];
-
-        const rewardedWeapons = [];
-        for (const weapon of possibleWeapons) {
-          if (Math.random() < weapon.chance) {
-            rewardedWeapons.push(weapon.name);
-          }
-        }
-
-        // If multiple, pick one randomly; if none, no reward
-        if (rewardedWeapons.length > 0) {
-          const rewardedWeaponName = rewardedWeapons[Math.floor(Math.random() * rewardedWeapons.length)];
-          const weaponInfo = weaponData[rewardedWeaponName] || {}; // Get full data or fallback
-          const rewardedItem = { 
-            name: rewardedWeaponName,
-            type: 'weapon',
-            description: weaponInfo.description || 'No description',
-            power: weaponInfo.power || 0,
-            cost: weaponInfo.cost || 0,
-          };
-          p.inventory = p.inventory.concat([rewardedItem]);
-          message += `\nYou found a ${rewardedWeaponName}!`;
-        }
-      }
     }
 
     // Prison Chance
@@ -330,7 +317,49 @@ io.on('connection', (socket) => {
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
 
-          p.lastLowLevelOp = Date.now();
+      // NEW: Loot weapons store - rank-based steal chance
+      if (operation === "Loot weapons store") {
+        const rank = getRankTitle(p.experience - expGain); // Use pre-operation exp to determine rank
+        const stealChance = rankStealChances[rank] || 0.25; // Default to Thug if not found
+
+        if (Math.random() < stealChance) {
+          const possibleWeapons = [
+            { name: 'Small Knife', chance: 0.3 },
+            { name: 'Baseball Bat', chance: 0.25 },
+            { name: 'Machete', chance: 0.2 },
+            { name: 'Splitting Maul', chance: 0.2 },
+            { name: 'Ruger Mark IV', chance: 0.05 },
+          ];
+
+          // Normalize chances to select one
+          let cumulativeChance = 0;
+          const roll = Math.random();
+          let selectedWeapon = null;
+
+          for (const weapon of possibleWeapons) {
+            cumulativeChance += weapon.chance;
+            if (roll < cumulativeChance) {
+              selectedWeapon = weapon.name;
+              break;
+            }
+          }
+
+          if (selectedWeapon) {
+            const weaponInfo = weaponData[selectedWeapon] || {};
+            const rewardedItem = { 
+              name: selectedWeapon,
+              type: 'weapon',
+              description: weaponInfo.description || 'No description',
+              power: weaponInfo.power || 0,
+              cost: weaponInfo.cost || 0,
+            };
+            p.inventory = p.inventory.concat([rewardedItem]);
+            message += `\nYou stole a ${selectedWeapon}!`;
+          }
+        }
+      }
+
+      p.lastLowLevelOp = Date.now();
     }
 
     await docRef.set(p);
