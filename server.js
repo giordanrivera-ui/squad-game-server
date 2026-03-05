@@ -310,13 +310,25 @@ io.on('connection', (socket) => {
         // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
 
         if (Math.random() < stealChance) {
-          const isHighRank = exp > 3499;
-          const rand = Math.random() * 100;
-          const knifeThreshold = isHighRank ? 20 : 30;
-          const batThreshold = isHighRank ? 45 : 55;
-          const macheteThreshold = isHighRank ? 70 : 75;
-          const maulThreshold = isHighRank ? 93 : 95;
+          let knifeThreshold = 30;
+          let batThreshold = 55;
+          let macheteThreshold = 75;
+          let maulThreshold = 95;
 
+          if (exp > 3499) {  // Corporal+
+            knifeThreshold = 20;
+            batThreshold = 45;
+            macheteThreshold = 70;
+            maulThreshold = 93;
+          }
+          if (exp > 10199) {  // First Lieutenant+
+            knifeThreshold = 14;
+            batThreshold = 32;
+            macheteThreshold = 57;
+            maulThreshold = 84;
+          }
+
+          const rand = Math.random() * 100;
           let weapon;
           if (rand < knifeThreshold) {
             weapon = {
