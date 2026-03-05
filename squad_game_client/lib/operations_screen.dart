@@ -9,6 +9,7 @@ class OperationsScreen extends StatefulWidget {
   final String currentTime;
   final int lastLowLevelOp;
   final int prisonEndTime;
+  final int lastMidLevelOp;
 
   const OperationsScreen({
     super.key,
@@ -18,6 +19,7 @@ class OperationsScreen extends StatefulWidget {
     required this.currentTime,
     required this.lastLowLevelOp,
     required this.prisonEndTime,
+    required this.lastMidLevelOp,
   });
 
   @override
@@ -206,6 +208,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => _BottomSheetContent(
         lastLowLevelOp: widget.lastLowLevelOp,
+        lastMidLevelOp: widget.lastMidLevelOp,
         onSelected: (operation) {
           setState(() => _selectedOperation = operation);
           Navigator.pop(context);
@@ -223,10 +226,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
 // ==================== _BottomSheetContent (unchanged) ====================
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
+  final int lastMidLevelOp;
   final Function(String) onSelected;
 
   const _BottomSheetContent({
     required this.lastLowLevelOp,
+    required this.lastMidLevelOp,
     required this.onSelected,
     });
 
@@ -238,10 +243,14 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   Timer? _timer;
   int _remaining = 0;
 
+  Timer? _midTimer;
+  int _midRemaining = 0; 
+
   @override
   void initState() {
     super.initState();
     _startLiveCountdown();
+    _startMidLiveCountdown();
   }
 
   void _startLiveCountdown() {
@@ -260,16 +269,35 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     });
   }
 
+  void _startMidLiveCountdown() {
+    final elapsed = SocketService().currentServerTime - widget.lastMidLevelOp;
+    _midRemaining = ((72000 - elapsed) / 1000).ceil().clamp(0, 72);
+
+    _midTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _midRemaining = (_midRemaining - 1).clamp(0, 72);
+        if (_midRemaining <= 0) timer.cancel();
+      });
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _midTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
-    final isCooldown = _remaining > 0;
+    final midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];  // NEW: Add this array (like lowLevelOps)
+    final isLowCooldown = _remaining > 0;
+    final isMidCooldown = _midRemaining > 0;  // NEW: For mid group
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -278,8 +306,8 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         children: [
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _buildGroup('Low Level', lowLevelOps, isCooldown),
-          _buildGroup('Medium Level', ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"], false),
+          _buildGroup('Low Level', lowLevelOps, isLowCooldown),
+          _buildGroup('Medium Level', midLevelOps, isMidCooldown),
           _buildGroup('High Level', ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"], false),
         ],
       ),
@@ -295,7 +323,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
         ...ops.map((op) {
-          final displayText = isCooldown ? '$op ($_remaining s)' : op;
+          final displayText = isCooldown ? '$op (${title == 'Medium Level' ? _midRemaining : _remaining} s)' : op;  // UPDATED: Show _midRemaining for mid
           return ListTile(
             title: Text(displayText),
             enabled: !isCooldown,

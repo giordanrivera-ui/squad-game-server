@@ -283,6 +283,7 @@ class _GameScreenState extends State<GameScreen> {
     _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
     _socketService.socket?.on(SocketEvents.init, (data) {
       setState(() => stats = Map.from(data['player'] ?? {}));
+      stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
       _socketService.loadMessages();
       if ((stats['health'] ?? 100) <= 0) isDead = true;
     });
@@ -297,6 +298,7 @@ class _GameScreenState extends State<GameScreen> {
 
         // Now update stats
         stats = {...stats, ...data};
+        stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
 
         // Detect rank up
         if (newRank != oldRank && newExp > oldExp) {
@@ -458,6 +460,7 @@ class _GameScreenState extends State<GameScreen> {
                                   currentTime: time,
                                   lastLowLevelOp: stats['lastLowLevelOp'] ?? 0,
                                   prisonEndTime: stats['prisonEndTime'] ?? 0,
+                                  lastMidLevelOp: stats['lastMidLevelOp'] ?? 0,
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: stats)
