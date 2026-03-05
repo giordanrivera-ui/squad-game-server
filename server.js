@@ -307,32 +307,39 @@ io.on('connection', (socket) => {
         if (exp > 31499) stealChance = 0.75;
         if (exp > 38199) stealChance = 0.80;
 
+        // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
+
         if (Math.random() < stealChance) {
-          // Weighted random weapon
+          const isHighRank = exp > 3499;
           const rand = Math.random() * 100;
+          const knifeThreshold = isHighRank ? 20 : 30;
+          const batThreshold = isHighRank ? 45 : 55;
+          const macheteThreshold = isHighRank ? 70 : 75;
+          const maulThreshold = isHighRank ? 93 : 95;
+
           let weapon;
-          if (rand < 30) {
+          if (rand < knifeThreshold) {
             weapon = {
               name: 'Small Knife',
               description: 'A compact blade for quick stabs and slashes in close-quarters combat.',
               power: 10,
               cost: 30
             };
-          } else if (rand < 55) {
+          } else if (rand < batThreshold) {
             weapon = {
               name: 'Baseball Bat',
               description: 'A sturdy wooden club ideal for blunt force trauma in melee situations.',
               power: 18,
               cost: 120
             };
-          } else if (rand < 75) {
+          } else if (rand < macheteThreshold) {
             weapon = {
               name: 'Machete',
               description: 'A large chopping blade effective for hacking through obstacles or enemies.',
               power: 25,
               cost: 250
             };
-          } else if (rand < 95) {
+          } else if (rand < maulThreshold) {
             weapon = {
               name: 'Splitting Maul',
               description: 'A heavy hammer-axe hybrid designed for powerful overhead strikes.',
