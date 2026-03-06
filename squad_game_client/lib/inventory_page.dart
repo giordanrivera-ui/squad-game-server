@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
+import 'status_app_bar.dart';  // NEW: Import StatusAppBar
 
 class InventoryPage extends StatefulWidget {
   final List<dynamic> initialInventory;
+  final Map<String, dynamic> initialStats;  // NEW: Full stats for app bar
+  final String initialTime;  // NEW: Initial time for app bar
 
-  const InventoryPage({super.key, required this.initialInventory});
+  const InventoryPage({
+    super.key,
+    required this.initialInventory,
+    required this.initialStats,
+    required this.initialTime,
+  });
 
   @override
   State<InventoryPage> createState() => _InventoryPageState();
@@ -12,6 +20,8 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   late List<dynamic> _inventory;
+  late Map<String, dynamic> _stats;  // NEW: Local stats for live update
+  late String _time;  // NEW: Local time for live update
   late Map<String, Map<String, dynamic>> grouped;
   final Map<String, bool> _checked = {};
   final Map<String, int> _quantities = {};
@@ -20,30 +30,42 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   void initState() {
     super.initState();
-    _inventory = List.from(widget.initialInventory);  // Copy initial
+    _inventory = List.from(widget.initialInventory);
+    _stats = Map.from(widget.initialStats);  // NEW
+    _time = widget.initialTime;  // NEW
     _groupInventory();
 
-    // NEW: Listen for live updates
+    // Listen for live updates
     SocketService().socket?.on('update-stats', _handleUpdateStats);
+    SocketService().socket?.on('time', _handleUpdateTime);  // NEW: For time updates
   }
 
   @override
   void dispose() {
     SocketService().socket?.off('update-stats', _handleUpdateStats);
+    SocketService().socket?.off('time', _handleUpdateTime);  // NEW
     super.dispose();
   }
 
-  // NEW: Handler to refresh inventory on update
+  // Handler to refresh inventory + stats on update
   void _handleUpdateStats(dynamic data) {
-    if (data is Map<String, dynamic> && data.containsKey('inventory') && mounted) {
+    if (data is Map<String, dynamic> && mounted) {
       setState(() {
-        _inventory = List.from(data['inventory'] ?? []);
+        _stats = {..._stats, ...data};  // Merge updates
+        _inventory = List.from(data['inventory'] ?? _inventory);
         _groupInventory();
         // Reset selections on update
         _checked.clear();
         _quantities.clear();
         _totalSellValue = 0;
       });
+    }
+  }
+
+  // NEW: Handler for time updates
+  void _handleUpdateTime(dynamic data) {
+    if (data is String && mounted) {
+      setState(() => _time = data);
     }
   }
 
@@ -66,7 +88,7 @@ class _InventoryPageState extends State<InventoryPage> {
       if (_checked[key] == true) {
         final qty = _quantities[key] ?? 0;
         final cost = (item['cost'] as int?) ?? 0;
-        total += qty * (cost * 0.6).floor();  // 60% of cost, floored to int
+        total += qty * (cost * 0.6).floor();
       }
     });
     setState(() => _totalSellValue = total);
@@ -79,7 +101,7 @@ class _InventoryPageState extends State<InventoryPage> {
       final qty = _quantities[key] ?? 0;
       if (_checked[key] == true && qty > 0) {
         for (int i = 0; i < qty; i++) {
-          toSell.add({...baseItem, 'name': name});  // Full item map
+          toSell.add({...baseItem, 'name': name});
         }
       }
     });
@@ -102,7 +124,12 @@ class _InventoryPageState extends State<InventoryPage> {
     final canSell = _totalSellValue > 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventory')),
+      appBar: StatusAppBar(  // NEW: Add StatusAppBar
+        title: 'Inventory',
+        stats: _stats,
+        time: _time,
+        onMenuPressed: () => Navigator.pop(context),  // Back button
+      ),
       body: Column(
         children: [
           Expanded(
