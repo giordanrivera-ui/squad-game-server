@@ -67,6 +67,10 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
               Text('$health', style: const TextStyle(fontSize: 15)),
 
               const SizedBox(width: 16),
+              
+              const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon (or change)
+              const SizedBox(width: 4),
+              Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 15)),
 
               Text(time, style: const TextStyle(fontSize: 15)),
             ],

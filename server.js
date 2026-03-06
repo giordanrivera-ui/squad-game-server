@@ -93,6 +93,7 @@ io.on('connection', (socket) => {
       if (playerData.marksmanship === undefined) playerData.marksmanship = 0;
       if (playerData.stealth === undefined) playerData.stealth = 0;
       if (playerData.defense === undefined) playerData.defense = 0;
+      if (playerData.bullets === undefined) playerData.bullets = 0;
       if (playerData.photoURL === undefined) playerData.photoURL = '';
       if (playerData.inventory === undefined) playerData.inventory = [];
       if (playerData.headwear === undefined) playerData.headwear = null;
@@ -109,6 +110,7 @@ io.on('connection', (socket) => {
       playerData = {
         balance: 0,
         health: 100,
+        bullets: 0,
         lastRob: 0,
         displayName: displayName,
         location: randomLocation,

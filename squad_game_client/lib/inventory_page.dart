@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'status_app_bar.dart';  // NEW: Import StatusAppBar
+import 'status_app_bar.dart';
+import 'dart:async';  // NEW: For Timer
 
 class InventoryPage extends StatefulWidget {
   final List<dynamic> initialInventory;
-  final Map<String, dynamic> initialStats;  // NEW: Full stats for app bar
-  final String initialTime;  // NEW: Initial time for app bar
+  final Map<String, dynamic> initialStats;
+  final String initialTime;
 
   const InventoryPage({
     super.key,
@@ -20,53 +21,105 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   late List<dynamic> _inventory;
-  late Map<String, dynamic> _stats;  // NEW: Local stats for live update
-  late String _time;  // NEW: Local time for live update
+  late Map<String, dynamic> _stats;
+  late String _time;
   late Map<String, Map<String, dynamic>> grouped;
   final Map<String, bool> _checked = {};
   final Map<String, int> _quantities = {};
   int _totalSellValue = 0;
 
+  // NEW: For ban countdown
+  late int _sellBanEndTime;
+  Timer? _banTimer;
+  int _banRemainingSeconds = 0;
+
   @override
   void initState() {
     super.initState();
     _inventory = List.from(widget.initialInventory);
-    _stats = Map.from(widget.initialStats);  // NEW
-    _time = widget.initialTime;  // NEW
+    _stats = Map.from(widget.initialStats);
+    _time = widget.initialTime;
+    _sellBanEndTime = _stats['sellBanEndTime'] ?? 0;  // NEW
     _groupInventory();
+    _startBanCountdown();  // NEW
 
-    // Listen for live updates
     SocketService().socket?.on('update-stats', _handleUpdateStats);
-    SocketService().socket?.on('time', _handleUpdateTime);  // NEW: For time updates
+    SocketService().socket?.on('time', _handleUpdateTime);
+    SocketService().socket?.on('sell-result', _handleSellResult);
   }
 
   @override
   void dispose() {
     SocketService().socket?.off('update-stats', _handleUpdateStats);
-    SocketService().socket?.off('time', _handleUpdateTime);  // NEW
+    SocketService().socket?.off('time', _handleUpdateTime);
+    SocketService().socket?.off('sell-result', _handleSellResult);
+    _banTimer?.cancel();  // NEW
     super.dispose();
   }
 
-  // Handler to refresh inventory + stats on update
   void _handleUpdateStats(dynamic data) {
     if (data is Map<String, dynamic> && mounted) {
       setState(() {
-        _stats = {..._stats, ...data};  // Merge updates
+        _stats = {..._stats, ...data};
         _inventory = List.from(data['inventory'] ?? _inventory);
+        _sellBanEndTime = data['sellBanEndTime'] ?? _sellBanEndTime;  // NEW
         _groupInventory();
-        // Reset selections on update
         _checked.clear();
         _quantities.clear();
         _totalSellValue = 0;
+        _startBanCountdown();  // NEW: Restart countdown on update
       });
     }
   }
 
-  // NEW: Handler for time updates
   void _handleUpdateTime(dynamic data) {
     if (data is String && mounted) {
       setState(() => _time = data);
     }
+  }
+
+  void _handleSellResult(dynamic data) {
+    if (data is Map && mounted) {
+      final bool success = data['success'] ?? false;
+      final String msg = data['message'] ?? (success ? 'Items sold!' : 'Sale failed.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
+  // NEW: Start/update ban countdown
+  void _startBanCountdown() {
+    _banTimer?.cancel();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _banRemainingSeconds = ((_sellBanEndTime - now) / 1000).ceil().clamp(0, 999999);  // Large max for hours
+
+    if (_banRemainingSeconds > 0) {
+      _banTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          _banRemainingSeconds--;
+          if (_banRemainingSeconds <= 0) {
+            timer.cancel();
+            _sellBanEndTime = 0;  // Clear if ended
+          }
+        });
+      });
+    }
+  }
+
+  String _formatBanTime(int seconds) {
+    final hours = seconds ~/ 3600;
+    final mins = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
+    return '${hours.toString().padLeft(2, '0')}:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   void _groupInventory() {
@@ -108,7 +161,6 @@ class _InventoryPageState extends State<InventoryPage> {
 
     if (toSell.isEmpty) return;
 
-    // NEW: Dialog for rate choice
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -132,7 +184,6 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  // NEW: Helper to calc value at rate and emit
   void _confirmSell(BuildContext ctx, List<Map<String, dynamic>> toSell, int rate) {
     Navigator.pop(ctx);
 
@@ -149,20 +200,21 @@ class _InventoryPageState extends State<InventoryPage> {
     setState(() {
       _checked.clear();
       _quantities.clear();
-      _totalSellValue = 0;  // Reset (UI will update on socket)
+      _totalSellValue = 0;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final canSell = _totalSellValue > 0;
+    final canSell = _totalSellValue > 0 && _banRemainingSeconds <= 0;  // NEW: Check not banned
+    final isBanned = _banRemainingSeconds > 0;  // NEW
 
     return Scaffold(
-      appBar: StatusAppBar(  // NEW: Add StatusAppBar
+      appBar: StatusAppBar(
         title: 'Inventory',
         stats: _stats,
         time: _time,
-        onMenuPressed: () => Navigator.pop(context),  // Back button
+        onMenuPressed: () => Navigator.pop(context),
       ),
       body: Column(
         children: [
@@ -186,7 +238,7 @@ class _InventoryPageState extends State<InventoryPage> {
                             children: [
                               Checkbox(
                                 value: checked,
-                                onChanged: (v) {
+                                onChanged: isBanned ? null : (v) {  // NEW: Disable if banned
                                   setState(() {
                                     _checked[key] = v!;
                                     if (!v) _quantities[key] = 0;
@@ -204,7 +256,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                   ],
                                 ),
                               ),
-                              if (checked)
+                              if (checked && !isBanned)  // NEW: Hide qty if banned
                                 Row(
                                   children: [
                                     IconButton(
@@ -242,7 +294,13 @@ class _InventoryPageState extends State<InventoryPage> {
               color: Colors.grey[200],
               child: Column(
                 children: [
-                  Text('Sell Value: \$$_totalSellValue', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  if (isBanned)  // NEW: Show ban countdown
+                    Text(
+                      'Banned from selling for ${_formatBanTime(_banRemainingSeconds)}',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                    )
+                  else
+                    Text('Sell Value: \$$_totalSellValue', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: canSell ? _sellItems : null,
