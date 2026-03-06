@@ -773,7 +773,6 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Unequip armor
   socket.on('unequip-armor', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.slot !== 'string') return;
@@ -791,6 +790,44 @@ io.on('connection', (socket) => {
       p.defense -= equipped.defense || 0;
       p[slot] = null;
     }
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // NEW: Sell items
+  socket.on('sell-items', async (data) => {
+    const email = socket.data.email;
+    if (!email || !Array.isArray(data.items) || typeof data.totalSellValue !== 'number') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Validate total sell value on server (60% cost)
+    let calculatedValue = 0;
+    for (const item of data.items) {
+      if (typeof item.cost === 'number') {
+        calculatedValue += Math.floor(item.cost * 0.6);
+      }
+    }
+    if (calculatedValue !== data.totalSellValue) return; // Mismatch, cheat?
+
+    // Remove sold items from inventory (exact matches)
+    for (const soldItem of data.items) {
+      const index = p.inventory.findIndex(i => 
+        i.name === soldItem.name && 
+        i.type === soldItem.type &&  // If type exists (e.g., armor/weapon)
+        i.power === soldItem.power    // For weapons, etc.
+      );
+      if (index !== -1) {
+        p.inventory.splice(index, 1);
+      }
+    }
+
+    p.balance += data.totalSellValue;
 
     await docRef.set(p);
     socket.emit('update-stats', p);

@@ -311,6 +311,14 @@ class SocketService {
     });
   }
 
+  // In SocketService class, add:
+  void sellItems(List<Map<String, dynamic>> items, int totalSellValue) {
+    socket?.emit('sell-items', {
+      'items': items,
+      'totalSellValue': totalSellValue,
+    });
+  }
+
   void executeOperation(String operation) {
     socket?.emit('execute-operation', {
       'operation': operation,
