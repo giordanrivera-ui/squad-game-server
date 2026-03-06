@@ -108,14 +108,48 @@ class _InventoryPageState extends State<InventoryPage> {
 
     if (toSell.isEmpty) return;
 
-    SocketService().sellItems(toSell, _totalSellValue);
+    // NEW: Dialog for rate choice
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sell at What Rate?'),
+        content: const Text('Higher rate = higher risk of failure and ban.'),
+        actions: [
+          TextButton(
+            onPressed: () => _confirmSell(ctx, toSell, 60),
+            child: const Text('60% (Safe)'),
+          ),
+          TextButton(
+            onPressed: () => _confirmSell(ctx, toSell, 80),
+            child: const Text('80% (Medium Risk)'),
+          ),
+          TextButton(
+            onPressed: () => _confirmSell(ctx, toSell, 100),
+            child: const Text('100% (High Risk)'),
+          ),
+        ],
+      ),
+    );
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Items sold!')));
+  // NEW: Helper to calc value at rate and emit
+  void _confirmSell(BuildContext ctx, List<Map<String, dynamic>> toSell, int rate) {
+    Navigator.pop(ctx);
+
+    int adjustedValue = 0;
+    for (var item in toSell) {
+      final cost = (item['cost'] as int?) ?? 0;
+      adjustedValue += (cost * (rate / 100)).floor();
+    }
+
+    SocketService().sellItems(toSell, adjustedValue, rate);
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selling at $rate%...')));
 
     setState(() {
       _checked.clear();
       _quantities.clear();
-      _totalSellValue = 0;
+      _totalSellValue = 0;  // Reset (UI will update on socket)
     });
   }
 

@@ -101,6 +101,7 @@ io.on('connection', (socket) => {
       if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
+      if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -126,7 +127,8 @@ io.on('connection', (socket) => {
         footwear: null,
         lastLowLevelOp: 0,
         lastMidLevelOp: 0,
-        prisonEndTime: 0
+        sellBanEndTime: 0,
+        prisonEndTime: 0,
       };
 
       await docRef.set(playerData);
@@ -795,10 +797,9 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Sell items
   socket.on('sell-items', async (data) => {
     const email = socket.data.email;
-    if (!email || !Array.isArray(data.items) || typeof data.totalSellValue !== 'number') return;
+    if (!email || !Array.isArray(data.items) || typeof data.totalSellValue !== 'number' || ![60,80,100].includes(data.rate)) return;
 
     const docRef = db.collection('players').doc(email);
     const doc = await docRef.get();
@@ -806,21 +807,49 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
 
-    // Validate total sell value on server (60% cost)
+    // NEW: Check if banned
+    if (Date.now() < (p.sellBanEndTime || 0)) {
+      socket.emit('sell-result', { success: false, message: 'You are banned from selling. Try later.' });
+      return;
+    }
+
+    // Validate total sell value at rate
     let calculatedValue = 0;
+    const rateFactor = data.rate / 100;
     for (const item of data.items) {
       if (typeof item.cost === 'number') {
-        calculatedValue += Math.floor(item.cost * 0.6);
+        calculatedValue += Math.floor(item.cost * rateFactor);
       }
     }
-    if (calculatedValue !== data.totalSellValue) return; // Mismatch, cheat?
+    if (calculatedValue !== data.totalSellValue) return; // Cheat?
 
-    // Remove sold items from inventory (exact matches)
+    // NEW: Random success based on rate
+    let successChance = 1.0;  // 60%
+    let banMs = 0;
+    if (data.rate === 80) {
+      successChance = 0.45;
+      banMs = 3 * 60 * 60 * 1000;  // 3h
+    } else if (data.rate === 100) {
+      successChance = 0.12;
+      banMs = 8 * 60 * 60 * 1000;  // 8h
+    }
+
+    const isSuccess = Math.random() < successChance;
+
+    if (!isSuccess && banMs > 0) {
+      p.sellBanEndTime = Date.now() + banMs;
+      await docRef.set(p);
+      socket.emit('sell-result', { success: false, message: `Sale failed! Banned from selling for ${banMs / (60*60*1000)} hours.` });
+      socket.emit('update-stats', p);  // Send ban time
+      return;
+    }
+
+    // Success: Remove items, add money
     for (const soldItem of data.items) {
       const index = p.inventory.findIndex(i => 
         i.name === soldItem.name && 
-        i.type === soldItem.type &&  // If type exists (e.g., armor/weapon)
-        i.power === soldItem.power    // For weapons, etc.
+        i.type === soldItem.type && 
+        i.power === soldItem.power
       );
       if (index !== -1) {
         p.inventory.splice(index, 1);
@@ -830,6 +859,7 @@ io.on('connection', (socket) => {
     p.balance += data.totalSellValue;
 
     await docRef.set(p);
+    socket.emit('sell-result', { success: true, message: 'Items sold!' });
     socket.emit('update-stats', p);
   });
 
