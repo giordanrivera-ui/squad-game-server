@@ -226,14 +226,12 @@ io.on('connection', (socket) => {
       money = Math.floor(Math.random() * 91) + 10;
       rawDamage = Math.floor(Math.random() * 26) + 5;
       expGain = 10;
-      message = `You mugged a passerby and got $${money}!`;
-    } 
+      message = `You mugged a passerby and got $${money}!`;} 
     else if (operation === "Loot a grocery store") {
       money = Math.floor(Math.random() * 71) + 30;
       rawDamage = Math.floor(Math.random() * 21) + 15;
       expGain = 15;
-      message = `You looted the grocery store and stole $${money}!`;
-    } 
+      message = `You looted the grocery store and stole $${money}!`;} 
     else if (operation === "Rob a bank") {
       rawDamage = Math.floor(Math.random() * 41) + 15;
       expGain = 25;
@@ -256,13 +254,17 @@ io.on('connection', (socket) => {
       else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500;
       else                     money = Math.floor(Math.random() * 401) + 600;
 
-      message = `You robbed the bank and escaped with $${money}!`;
-    } 
+      message = `You robbed the bank and escaped with $${money}!`;} 
     else if (operation === "Loot weapons store") {
       money = Math.floor(Math.random() * 41) + 10;
       rawDamage = Math.floor(Math.random() * 41) + 20;
       expGain = 10;
-      message = `You looted the weapons store and stole $${money}!`;
+      message = `You looted the weapons store and stole $${money}!`;}
+    else if (operation === "Attack military barracks") {
+      money = Math.floor(Math.random() * 131) + 50;
+      rawDamage = Math.floor(Math.random() * 38) + 25;
+      expGain = 35;
+      message = `You attacked the military barracks and got $${money}!`;
     }
 
     let prisonChance;
@@ -338,8 +340,8 @@ io.on('connection', (socket) => {
         if (exp > 17399) stealChance = 0.70;
         if (exp > 21349) stealChance = 0.70;
         if (exp > 25849) stealChance = 0.75;
-        if (exp > 31499) stealChance = 0.75;
-        if (exp > 38199) stealChance = 0.80;
+        if (exp > 31499) stealChance = 0.80;
+        if (exp > 38199) stealChance = 0.85;
 
         // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
 
@@ -398,6 +400,86 @@ io.on('connection', (socket) => {
               description: 'A reliable .22 caliber pistol perfect for target practice and small game.',
               power: 70,
               cost: 520
+            };
+          }
+          p.inventory.push(weapon);
+          message += ` You also stole a ${weapon.name}!`;
+        }
+      }
+
+      if (operation === "Attack military barracks") {
+        let stealChance = 0.15;
+        if (exp > 499) stealChance = 0.20;
+        if (exp > 1249) stealChance = 0.25;
+        if (exp > 2299) stealChance = 0.30;
+        if (exp > 3499) stealChance = 0.35;
+        if (exp > 4999) stealChance = 0.40;
+        if (exp > 6849) stealChance = 0.45;
+        if (exp > 8849) stealChance = 0.55;
+        if (exp > 10199) stealChance = 0.60;
+        if (exp > 11449) stealChance = 0.62;
+        if (exp > 14199) stealChance = 0.65;
+        if (exp > 17399) stealChance = 0.68;
+        if (exp > 21349) stealChance = 0.72;
+        if (exp > 25849) stealChance = 0.75;
+        if (exp > 31499) stealChance = 0.80;
+        if (exp > 38199) stealChance = 0.85;
+
+        if (Math.random() < stealChance) {
+          let glockThreshold = 42;
+          let remingtonThreshold = 72;
+          let mossbergThreshold = 91;
+          let mp5Threshold = 97;
+
+          if (exp > 3499) {  // Corporal to Warrant
+            glockThreshold = 33;
+            remingtonThreshold = 63;
+            mossbergThreshold = 85;
+            mp5Threshold = 95;
+          }
+          if (exp > 10199) {  // First Lt+
+            glockThreshold = 24;
+            remingtonThreshold = 48;
+            mossbergThreshold = 70;
+            mp5Threshold = 88;
+          }
+
+          const rand = Math.random() * 100;
+          let weapon;
+          if (rand < glockThreshold) {
+            weapon = {
+              name: 'Glock 45 Gen 5',
+              description: 'A versatile 9mm handgun known for its durability and high-capacity magazine.',
+              power: 150,
+              cost: 700
+            };
+          } else if (rand < remingtonThreshold) {
+            weapon = {
+              name: 'Remington R1 Enhanced',
+              description: 'A 1911-style .45 pistol with improved ergonomics and accuracy.',
+              power: 200,
+              cost: 830
+            };
+          } else if (rand < mossbergThreshold) {
+            weapon = {
+              name: 'Mossberg 590 Shotgun',
+              description: 'A pump-action 12-gauge shotgun excellent for close-range crowd control.',
+              power: 260,
+              cost: 1200
+            };
+          } else if (rand < mp5Threshold) {
+            weapon = {
+              name: 'MP5 SMG',
+              description: 'A compact 9mm submachine gun favored for its controllability in full-auto fire.',
+              power: 330,
+              cost: 4000
+            };
+          } else {
+            weapon = {
+              name: 'H&K UMP5',
+              description: 'A .45 caliber submachine gun offering superior stopping power in CQB.',
+              power: 380,
+              cost: 4600
             };
           }
           p.inventory.push(weapon);
