@@ -344,7 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => InventoryPage(inventory: widget.stats['inventory'] ?? []),
+                    builder: (context) => InventoryPage(initialInventory: widget.stats['inventory'] ?? []),
                   ),
                 );
               },

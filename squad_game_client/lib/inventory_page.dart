@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 
 class InventoryPage extends StatefulWidget {
-  final List<dynamic> inventory;
+  final List<dynamic> initialInventory;
 
-  const InventoryPage({super.key, required this.inventory});
+  const InventoryPage({super.key, required this.initialInventory});
 
   @override
   State<InventoryPage> createState() => _InventoryPageState();
 }
 
 class _InventoryPageState extends State<InventoryPage> {
+  late List<dynamic> _inventory;
   late Map<String, Map<String, dynamic>> grouped;
   final Map<String, bool> _checked = {};
   final Map<String, int> _quantities = {};
@@ -19,12 +20,36 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   void initState() {
     super.initState();
+    _inventory = List.from(widget.initialInventory);  // Copy initial
     _groupInventory();
+
+    // NEW: Listen for live updates
+    SocketService().socket?.on('update-stats', _handleUpdateStats);
+  }
+
+  @override
+  void dispose() {
+    SocketService().socket?.off('update-stats', _handleUpdateStats);
+    super.dispose();
+  }
+
+  // NEW: Handler to refresh inventory on update
+  void _handleUpdateStats(dynamic data) {
+    if (data is Map<String, dynamic> && data.containsKey('inventory') && mounted) {
+      setState(() {
+        _inventory = List.from(data['inventory'] ?? []);
+        _groupInventory();
+        // Reset selections on update
+        _checked.clear();
+        _quantities.clear();
+        _totalSellValue = 0;
+      });
+    }
   }
 
   void _groupInventory() {
     grouped = {};
-    for (var item in widget.inventory) {
+    for (var item in _inventory) {
       final name = item['name'] as String;
       if (grouped.containsKey(name)) {
         grouped[name]!['quantity'] += 1;
