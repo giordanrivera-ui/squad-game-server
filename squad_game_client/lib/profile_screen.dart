@@ -270,6 +270,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 30),
 
             // Equipped Gear (unchanged)
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () => _showInventoryMenu('weapon'),
+              child: Container(
+                width: double.infinity,  // Full width
+                height: 80,  // Landscape height
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    _getEquippedImage('weapon', 'assets/weapon-empty.jpg'),  // Add this asset
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -333,6 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  Text('Overall Power: ${widget.stats['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                 ],
               ),
             ),

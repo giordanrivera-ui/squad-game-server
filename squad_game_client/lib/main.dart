@@ -287,6 +287,9 @@ class _GameScreenState extends State<GameScreen> {
       stats['bullets'] = stats['bullets'] ?? 0;
 
       stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
+
+      stats['overallPower'] = stats['overallPower'] ?? 0;
+      stats['weapon'] = stats['weapon'] ?? null;
       
       _socketService.loadMessages();
       if ((stats['health'] ?? 100) <= 0) isDead = true;
@@ -305,6 +308,8 @@ class _GameScreenState extends State<GameScreen> {
         stats = {...stats, ...data};
         stats['bullets'] = stats['bullets'] ?? 0;
         stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
+        stats['overallPower'] = stats['overallPower'] ?? 0;
+        stats['weapon'] = stats['weapon'] ?? null;
 
         // Detect rank up
         if (newRank != oldRank && newExp > oldExp) {

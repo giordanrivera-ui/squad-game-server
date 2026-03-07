@@ -99,6 +99,8 @@ io.on('connection', (socket) => {
       if (playerData.headwear === undefined) playerData.headwear = null;
       if (playerData.armor === undefined) playerData.armor = null;
       if (playerData.footwear === undefined) playerData.footwear = null;
+      if (playerData.overallPower === undefined) playerData.overallPower = 0;
+      if (playerData.weapon === undefined) playerData.weapon = null;
       if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
@@ -127,6 +129,8 @@ io.on('connection', (socket) => {
         headwear: null,
         armor: null,
         footwear: null,
+        overallPower: 0,
+        weapon: null,
         lastLowLevelOp: 0,
         lastMidLevelOp: 0,
         sellBanEndTime: 0,
@@ -768,6 +772,11 @@ io.on('connection', (socket) => {
 
     p[slot] = item;
     p.defense += item.defense || 0;
+
+    if (slot === 'weapon') {
+      p.overallPower = item.power || 0;
+    }
+
     const index = p.inventory.findIndex(i => i.name === item.name && i.type === item.type);
     if (index !== -1) {
       p.inventory.splice(index, 1);
@@ -793,6 +802,9 @@ io.on('connection', (socket) => {
       p.inventory.push(equipped);
       p.defense -= equipped.defense || 0;
       p[slot] = null;
+      if (slot === 'weapon') {
+        p.overallPower = 0;
+      }
     }
 
     await docRef.set(p);

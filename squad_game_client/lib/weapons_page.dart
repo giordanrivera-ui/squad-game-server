@@ -21,6 +21,7 @@ class Weapon {
       'description': description,
       'power': power,
       'cost': cost,
+      'type': 'weapon',
     };
   }
 }
