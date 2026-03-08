@@ -269,13 +269,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 30),
 
-            // Equipped Gear (unchanged)
-            const SizedBox(height: 12),
             GestureDetector(
               onTap: () => _showInventoryMenu('weapon'),
               child: Container(
-                width: double.infinity,  // Full width
-                height: 80,  // Landscape height
+                width: 300,  // Full width
+                height: 107,  // Landscape height
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
                   borderRadius: BorderRadius.circular(12),
@@ -283,12 +281,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.asset(
-                    _getEquippedImage('weapon', 'assets/weapon-empty.jpg'),  // Add this asset
+                    _getEquippedImage('weapon', 'assets/weapon-empty.jpg'),
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
             ),
+
+            const SizedBox(height: 12),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

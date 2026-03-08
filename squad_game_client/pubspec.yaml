@@ -71,6 +71,10 @@ flutter:
     - assets/armor-empty.jpg
     - assets/boots-empty.jpg
     - assets/helmet-empty.jpg
+    - assets/weapon-empty.jpg
+    - assets/Small Knife.jpg
+    - assets/Baseball Bat.jpg
+    - assets/Ruger Mark IV.jpg
     - assets/Generic Aramid Boots.jpg
     - assets/Kevlar Assault boots.jpg
     - assets/Barmont T8 Velocity.jpg
