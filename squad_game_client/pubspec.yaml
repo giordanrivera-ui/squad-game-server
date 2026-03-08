@@ -86,6 +86,7 @@ flutter:
     - assets/M4 Carbine.jpg
     - assets/SCAR-16 Mk II.jpg
     - assets/M16A4.jpg
+    - assets/M24 Sniper.jpg
     - assets/Barrett M82.jpg
     - assets/Generic Aramid Boots.jpg
     - assets/Kevlar Assault boots.jpg
@@ -102,6 +103,7 @@ flutter:
     - assets/Private First Class-banner.jpg
     - assets/Corporal-banner.jpg
     - assets/Sergeant-banner.jpg
+    - assets/Warrant Officer-banner.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
