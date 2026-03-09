@@ -486,13 +486,23 @@ class _GameScreenState extends State<GameScreen> {
                                         currentLocation: stats['location'] ?? 'Unknown',
                                       )
                                       : _currentScreen == 8 
-                                        ? PropertiesScreen()
+                                        ? PropertiesScreen(
+                                            currentBalance: stats['balance'] ?? 0,
+                                            currentHealth: stats['health'] ?? 100,
+                                            currentTime: time,
+                                            currentLocation: stats['location'] ?? 'Unknown',
+                                          )
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                               initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
-                                            : PropertiesScreen(),
+                                            : PropertiesScreen(
+                                              currentBalance: stats['balance'] ?? 0,
+                                              currentHealth: stats['health'] ?? 100,
+                                              currentTime: time,
+                                              currentLocation: stats['location'] ?? 'Unknown',
+                                            ),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

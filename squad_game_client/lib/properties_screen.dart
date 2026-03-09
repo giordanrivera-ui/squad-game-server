@@ -3,7 +3,18 @@ import 'socket_service.dart';
 import 'classes.dart';
 
 class PropertiesScreen extends StatefulWidget {
-  const PropertiesScreen({super.key});
+  final int currentBalance;
+  final int currentHealth;
+  final String currentTime;
+  final String currentLocation;
+
+  const PropertiesScreen({
+    super.key,
+    required this.currentBalance,
+    required this.currentHealth,
+    required this.currentTime,
+    required this.currentLocation,
+  });
 
   @override
   State<PropertiesScreen> createState() => _PropertiesScreenState();
@@ -80,7 +91,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   void initState() {
     super.initState();
     _ownedProperties = [];
-    _currentBalance = 0; // Change to widget.currentBalance if passed
+    _currentBalance = widget.currentBalance;
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
   }
