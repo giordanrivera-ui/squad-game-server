@@ -333,6 +333,9 @@ class SocketService {
     socket?.emit('request-prison-list');
   }
 
+  void buyProperty(String name) => socket?.emit('buy-property', name);
+  void collectIncome() => socket?.emit('collect-income');
+
     // Test buttons
   void addTestExp() => socket?.emit('add-test-exp', 70);
   void addTestMoney() => socket?.emit('add-test-money', 200);

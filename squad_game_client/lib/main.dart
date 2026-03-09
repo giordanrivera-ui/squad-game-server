@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // NEW: For push notes
+import 'package:firebase_messaging/firebase_messaging.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'socket_service.dart';
@@ -12,9 +12,9 @@ import 'airport_screen.dart';
 import 'messages_screen.dart';
 import 'auth_screen.dart';
 import 'status_app_bar.dart';
-import 'hospital_screen.dart';  // NEW: Import the new screen
-import 'operations_screen.dart'; // NEW: Import for Operations
-import 'profile_screen.dart'; // NEW: Import for Profile
+import 'hospital_screen.dart'; 
+import 'operations_screen.dart';
+import 'profile_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'store_screen.dart';
 import 'properties_screen.dart';
@@ -177,6 +177,7 @@ class _GameScreenState extends State<GameScreen> {
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
+  Timer? _incomeTimer;
 
   int _currentScreen = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -191,9 +192,11 @@ class _GameScreenState extends State<GameScreen> {
     super.initState();
     _connectToServer();
     _setupPushNotifications();
-
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
+    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+    SocketService().collectIncome();
+  });
   }
 
   // NEW: Set up the bell for notes
@@ -694,6 +697,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     cooldownTimer?.cancel();
+    _incomeTimer?.cancel();
     // _socketService.disconnect();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);

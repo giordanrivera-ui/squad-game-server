@@ -1,30 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
-
-class Weapon {
-  final String name;
-  final String description;
-  final int power;
-  final int cost;
-
-  Weapon({
-    required this.name,
-    required this.description,
-    required this.power,
-    required this.cost,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'description': description,
-      'power': power,
-      'cost': cost,
-      'type': 'weapon',
-    };
-  }
-}
+import 'classes.dart';
 
 class WeaponsPage extends StatefulWidget {
   final int currentBalance;

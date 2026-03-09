@@ -1,35 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
-
-class Armor {
-  final String name;
-  final int cost;
-  final int defense;
-  final String description;
-  final int durability;
-  final String type;
-
-  Armor({
-    required this.name,
-    required this.cost,
-    required this.defense,
-    required this.description,
-    required this.type,
-    this.durability = 100,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'cost': cost,
-      'defense': defense,
-      'description': description,
-      'durability': durability,
-      'type': type,
-    };
-  }
-}
+import 'classes.dart';
 
 class ArmorPage extends StatefulWidget {
   final int currentBalance;

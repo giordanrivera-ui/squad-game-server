@@ -877,7 +877,84 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-    // ==================== PRIVATE MESSAGES ====================
+  // ==================== PROPERTY PURCHASE ====================
+  socket.on('buy-property', async (propertyName) => {
+    const email = socket.data.email;
+    if (!email || typeof propertyName !== 'string') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Validate property exists and get cost (define properties server-side too)
+    const allProperties = {
+      'Micropod': { cost: 15000, income: 840 },
+      'Cottage': { cost: 45000, income: 2150 },
+      'Bungalow': { cost: 98000, income: 4400 },
+      'Townhouse': { cost: 150000, income: 6400 },
+      'Suburban home': { cost: 210000, income: 8750 },
+      'Villa': { cost: 300000, income: 11880 },
+      'Mansion': { cost: 500000, income: 18520 },
+      'Mid-Rise Block': { cost: 1200000, income: 43400 },
+      'Residential Tower': { cost: 3800000, income: 126700 },
+      'Skyscraper': { cost: 9000000, income: 276900 },
+    };
+
+    const prop = allProperties[propertyName];
+    if (!prop || p.balance < prop.cost || (p.properties || []).includes(propertyName)) return;
+
+    p.balance -= prop.cost;
+    p.properties = [...(p.properties || []), propertyName];
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // ==================== INCOME UPDATE (server-side timer per player?) ====================
+  // For simplicity, client handles timer, but to prevent cheating, implement server-side
+  // For now, assume client emits 'collect-income' every interval, server validates lastCollectTime
+
+  socket.on('collect-income', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    const now = Date.now();
+    const intervalMs = 2 * 60 * 1000; // 2 min test; change to 4*60*60*1000
+    if (now - (p.lastIncomeCollect || 0) < intervalMs) return; // Cooldown check
+
+    let totalIncome = 0;
+    const allProperties = {
+      'Micropod': { cost: 15000, income: 840 },
+      'Cottage': { cost: 45000, income: 2150 },
+      'Bungalow': { cost: 98000, income: 4400 },
+      'Townhouse': { cost: 150000, income: 6400 },
+      'Suburban home': { cost: 210000, income: 8750 },
+      'Villa': { cost: 300000, income: 11880 },
+      'Mansion': { cost: 500000, income: 18520 },
+      'Mid-Rise Block': { cost: 1200000, income: 43400 },
+      'Residential Tower': { cost: 3800000, income: 126700 },
+      'Skyscraper': { cost: 9000000, income: 276900 },
+    };
+    for (let propName of (p.properties || [])) {
+      totalIncome += allProperties[propName]?.income || 0;
+    }
+
+    p.balance += totalIncome;
+    p.lastIncomeCollect = now;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 
