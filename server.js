@@ -105,6 +105,8 @@ io.on('connection', (socket) => {
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
+      if (playerData.properties === undefined) playerData.properties = [];
+      if (playerData.lastIncomeCollect === undefined) playerData.lastIncomeCollect = Date.now();
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -135,7 +137,15 @@ io.on('connection', (socket) => {
         lastMidLevelOp: 0,
         sellBanEndTime: 0,
         prisonEndTime: 0,
+        properties: [],  // This is an empty list for houses they own
+        lastIncomeCollect: Date.now(),  // This remembers the last time they got money
       };
+
+      const now = Date.now();
+      const added = await collectAccumulatedIncome(playerData, now);
+      if (added > 0) {
+        console.log(`[SERVER] Added ${added} offline income for ${displayName}`);
+      }
 
       await docRef.set(playerData);
     }
@@ -912,25 +922,15 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== INCOME UPDATE (server-side timer per player?) ====================
-  // For simplicity, client handles timer, but to prevent cheating, implement server-side
-  // For now, assume client emits 'collect-income' every interval, server validates lastCollectTime
+  async function collectAccumulatedIncome(p, now = Date.now()) {
+    const intervalMs = 2 * 60 * 1000; // 2 min test; change to 4*60*60*1000 = 14400000
+    const lastCollect = p.lastIncomeCollect || now;
+    const elapsed = now - lastCollect;
+    const missedIntervals = Math.floor(elapsed / intervalMs);
 
-  socket.on('collect-income', async () => {
-    const email = socket.data.email;
-    if (!email) return;
+    if (missedIntervals <= 0) return 0;
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    const now = Date.now();
-    const intervalMs = 2 * 60 * 1000; // 2 min test; change to 4*60*60*1000
-    if (now - (p.lastIncomeCollect || 0) < intervalMs) return; // Cooldown check
-
-    let totalIncome = 0;
+    let totalIncomePerInterval = 0;
     const allProperties = {
       'Micropod': { cost: 15000, income: 840 },
       'Cottage': { cost: 45000, income: 2150 },
@@ -943,16 +943,36 @@ io.on('connection', (socket) => {
       'Residential Tower': { cost: 3800000, income: 126700 },
       'Skyscraper': { cost: 9000000, income: 276900 },
     };
-    for (let propName of (p.properties || [])) {
-      totalIncome += allProperties[propName]?.income || 0;
+    for (const propName of (p.properties || [])) {
+      totalIncomePerInterval += allProperties[propName]?.income || 0;
     }
 
-    p.balance += totalIncome;
-    p.lastIncomeCollect = now;
+    const accumulated = missedIntervals * totalIncomePerInterval;
+    p.balance = (p.balance || 0) + accumulated;
+    p.lastIncomeCollect = lastCollect + (missedIntervals * intervalMs); // Advance to last full interval
 
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
+    return accumulated;
+  }
+
+  setInterval(async () => {
+    const now = Date.now();
+    for (const [displayName, socket] of onlineSockets.entries()) {
+      const email = socket.data.email;
+      if (!email) continue;
+
+      const docRef = db.collection('players').doc(email);
+      const doc = await docRef.get();
+      if (!doc.exists) continue;
+
+      let p = doc.data();
+      const added = await collectAccumulatedIncome(p, now);
+      if (added > 0) {
+        await docRef.set(p);
+        socket.emit('update-stats', p);
+        console.log(`[SERVER] Added ${added} online income for ${displayName}`);
+      }
+    }
+  }, 2 * 60 * 1000); // Same interval
 
   // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
@@ -1042,8 +1062,8 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Echo to sender
-    socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
+  // Echo to sender
+  socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
   });
 
   // ==================== ANNOUNCEMENTS ====================

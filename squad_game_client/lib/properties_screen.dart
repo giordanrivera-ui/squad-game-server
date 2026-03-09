@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'classes.dart';
-import 'dart:async';
 
 class PropertiesScreen extends StatefulWidget {
   const PropertiesScreen({super.key});
@@ -13,7 +12,6 @@ class PropertiesScreen extends StatefulWidget {
 class _PropertiesScreenState extends State<PropertiesScreen> {
   late List<Properties> _ownedProperties;
   late int _currentBalance;
-  Timer? _incomeTimer;
 
   final List<Properties> _allProperties = [
     Properties(
@@ -85,10 +83,6 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     _currentBalance = 0; // Change to widget.currentBalance if passed
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
-
-    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
-      SocketService().collectIncome();
-    });
   }
 
   void _handleStatsUpdate(dynamic data) {
@@ -105,7 +99,6 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   @override
   void dispose() {
     SocketService().socket?.off('update-stats', _handleStatsUpdate);
-    _incomeTimer?.cancel();
     super.dispose();
   }
 

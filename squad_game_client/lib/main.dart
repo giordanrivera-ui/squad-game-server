@@ -549,13 +549,25 @@ class _GameScreenState extends State<GameScreen> {
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
-                  SocketService().addTestMoney();
+                  SocketService().addTestMoney(200);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Test: +\$200')),
                   );
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                 child: const Text('MONEY +\$200'),
+              ),
+            ),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney(500000);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$500,000')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$500K'),
               ),
             ),
           ],
