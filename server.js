@@ -168,6 +168,7 @@ io.on('connection', (socket) => {
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
       if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
       if (playerData.lastIncomeClaim === undefined) playerData.lastIncomeClaim = Date.now();
+      if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];  // FIXED: Changed condition from lastIncomeClaim to propertyClaims
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -200,6 +201,7 @@ io.on('connection', (socket) => {
         prisonEndTime: 0,
         ownedProperties: [],
         lastIncomeClaim: Date.now(),
+        propertyClaims: [],
       };
 
       await docRef.set(playerData);
@@ -941,7 +943,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Handler for buying property
+  // NEW: Handler for buying property (updated to add claim entry)
   socket.on('buy-property', async (propertyName) => {
     const email = socket.data.email;
     if (!email || typeof propertyName !== 'string') return;
@@ -963,14 +965,16 @@ io.on('connection', (socket) => {
     // Check balance
     if (p.balance < prop.cost) return;
 
+    const now = Date.now();
     p.balance -= prop.cost;
     p.ownedProperties = [...owned, propertyName];
+    p.propertyClaims = [...(p.propertyClaims || []), {name: propertyName, lastClaim: now}];  // NEW: Add per-property entry
 
     await docRef.set(p);
     socket.emit('update-stats', p);
   });
 
-  // NEW: Handler for claiming income
+  // NEW: Handler for claiming income (now per-property)
   socket.on('claim-income', async () => {
     const email = socket.data.email;
     if (!email) return;
@@ -982,31 +986,45 @@ io.on('connection', (socket) => {
     let p = doc.data();
 
     const now = Date.now();
-    const lastClaim = p.lastIncomeClaim || 0;
-    const intervalMs = 2 * 60 * 1000;  // 2 min test; change to 4*60*60*1000 for prod
+    const intervalMs = 2 * 60 * 1000;  // 2 min test; 4*60*60*1000 for prod
 
-    const elapsedMs = now - lastClaim;
-    if (elapsedMs < intervalMs) return;  // Nothing to claim
+    let totalAward = 0;
+    let updatedClaims = [];
 
-    // Compute number of full intervals
-    const intervals = Math.floor(elapsedMs / intervalMs);
-
-    // Compute total income per interval
+    const claims = p.propertyClaims || [];
     const owned = p.ownedProperties || [];
-    let totalIncomePerInterval = 0;
-    for (const name of owned) {
-      const prop = properties.find(pr => pr.name === name);
-      if (prop) totalIncomePerInterval += prop.income;
+
+    // Only process owned properties (in case of future sell/remove)
+    for (const claim of claims) {
+      if (!owned.includes(claim.name)) continue;
+
+      const prop = properties.find(pr => pr.name === claim.name);
+      if (!prop) continue;
+
+      const lastClaim = claim.lastClaim || 0;
+      const elapsedMs = now - lastClaim;
+      if (elapsedMs < intervalMs) {
+        updatedClaims.push(claim);  // No change
+        continue;
+      }
+
+      const intervals = Math.floor(elapsedMs / intervalMs);
+      const award = intervals * prop.income;
+      totalAward += award;
+
+      // Update this property's lastClaim
+      updatedClaims.push({
+        name: claim.name,
+        lastClaim: lastClaim + (intervals * intervalMs)
+      });
     }
 
-    // Award
-    const award = intervals * totalIncomePerInterval;
-    if (award > 0) {
-      p.balance += award;
-      p.lastIncomeClaim = lastClaim + (intervals * intervalMs);  // Advance by full intervals
+    if (totalAward > 0) {
+      p.balance += totalAward;
+      p.propertyClaims = updatedClaims;  // Save updated per-property claims
       await docRef.set(p);
       socket.emit('update-stats', p);
-      socket.emit('income-claimed', { amount: award });  // Optional: Notify client
+      socket.emit('income-claimed', { amount: totalAward });  // Optional notify
     }
   });
 
