@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 
 class PropertiesScreen extends StatefulWidget {
-  const PropertiesScreen({super.key});
+  final Map<String, dynamic> initialStats;
+
+  const PropertiesScreen({
+    super.key,
+    required this.initialStats,
+  });
 
   @override
   State<PropertiesScreen> createState() => _PropertiesScreenState();
@@ -14,6 +19,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   @override
   void initState() {
     super.initState();
+    _stats = widget.initialStats;
     // Listen for updates
     SocketService().socket?.on('update-stats', _handleUpdate);
     // Initial claim on open

@@ -488,13 +488,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                         currentLocation: stats['location'] ?? 'Unknown',
                                       )
                                       : _currentScreen == 8 
-                                        ? PropertiesScreen()
+                                        ? PropertiesScreen(initialStats: stats)
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                               initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
-                                            : PropertiesScreen(),
+                                            : PropertiesScreen(initialStats: stats),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
