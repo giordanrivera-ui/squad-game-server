@@ -104,6 +104,11 @@ flutter:
     - assets/Corporal-banner.jpg
     - assets/Sergeant-banner.jpg
     - assets/Warrant Officer-banner.jpg
+    - assets/Micropod.jpg
+    - assets/Cottage.jpg
+    - assets/Bungalow.jpg
+    - assets/Townhouse.jpg
+    - assets/Suburban home.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
