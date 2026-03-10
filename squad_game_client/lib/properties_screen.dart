@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';  // For FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';  // For FirebaseFirestore
+import 'dart:async';
 
 class PropertiesScreen extends StatefulWidget {
   final Map<String, dynamic> initialStats;  // Assuming this is added from previous fix
@@ -17,6 +18,9 @@ class PropertiesScreen extends StatefulWidget {
 
 class _PropertiesScreenState extends State<PropertiesScreen> {
   Map<String, dynamic> _stats = {};
+  Timer? _countdownTimer;  // NEW: For per-second progress updates
+  int _remainingMs = 0;    // NEW: Milliseconds left until next income
+  static const int _incomeIntervalMs = 120000;  // NEW: 2 min test (change to 4*60*60*1000 = 14400000 for prod)
 
   @override
   void initState() {
@@ -29,11 +33,23 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     SocketService().claimIncome();
     // Fetch latest stats as backup
     _fetchLatestStats();
+
+    // NEW: Start countdown if player owns any properties
+    if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
+      _startCountdown();
+    }
   }
 
   void _handleUpdate(dynamic data) {
     if (data is Map<String, dynamic> && mounted) {
-      setState(() => _stats = data);
+      setState(() {
+        _stats = data;
+        // NEW: Restart countdown if stats update (e.g., after claim)
+        _countdownTimer?.cancel();
+        if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
+          _startCountdown();
+        }
+      });
     }
   }
 
@@ -48,16 +64,45 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        setState(() => _stats = doc.data()!);  // Update with fresh data
+        setState(() {
+          _stats = doc.data()!;  // Update with fresh data
+          // NEW: Start/restart countdown after fetch
+          _countdownTimer?.cancel();
+          if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
+            _startCountdown();
+          }
+        });
       }
     } catch (e) {
       print('Error fetching stats: $e');  // For debugging
     }
   }
 
+  // NEW: Start the local countdown timer (client-side only, no server hits)
+  void _startCountdown() {
+    final lastClaim = _stats['lastIncomeClaim'] as int? ?? 0;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final elapsedMs = nowMs - lastClaim;
+    _remainingMs = (_incomeIntervalMs - (elapsedMs % _incomeIntervalMs)).clamp(0, _incomeIntervalMs);
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _remainingMs -= 1000;  // Subtract 1 second (1000 ms)
+        if (_remainingMs <= 0) {
+          _remainingMs = _incomeIntervalMs;  // Reset for next cycle (but claim might happen separately)
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     SocketService().socket?.off('update-stats', _handleUpdate);
+    _countdownTimer?.cancel();  // NEW: Clean up timer
     super.dispose();
   }
 
@@ -81,20 +126,23 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         // Image path: assumes assets/$name.jpg (handles spaces in name like "Suburban home.jpg")
         final imagePath = 'assets/$name.jpg';
 
+        // NEW: For owned, calculate progress (0.0 to 1.0) towards next income
+        final progress = isOwned ? (1 - (_remainingMs / _incomeIntervalMs)).clamp(0.0, 1.0) : 0.0;
+
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // NEW: Add image at the top, above all details (including name)
+                // Image at the top
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),  // Optional: rounded corners for nice look
                   child: Image.asset(
                     imagePath,
                     fit: BoxFit.cover,  // Fill the space nicely
                     width: double.infinity,  // Full width of card
-                    height: 150,  // Fixed height; adjust as needed
+                    height: 180,  // Fixed height; adjust as needed
                     errorBuilder: (context, error, stackTrace) {
                       // Fallback if image not found (e.g., for properties without assets yet)
                       return Container(
@@ -113,6 +161,19 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                 const SizedBox(height: 8),
                 Text('Cost: \$$cost', style: const TextStyle(color: Colors.blue)),
                 Text('Income: \$$income / 4 hours', style: const TextStyle(color: Colors.green)),
+                if (isOwned) ...[  // NEW: Add progress bar for owned properties
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: progress,  // Fills as time approaches next payout
+                    backgroundColor: Colors.grey[300],
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Next payout in ${_remainingMs ~/ 60000} min ${((_remainingMs % 60000) ~/ 1000)} sec',  // Human-readable time left
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
                 if (!isOwned)
                   ElevatedButton(
                     onPressed: canAfford ? () {

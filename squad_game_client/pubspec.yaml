@@ -109,6 +109,9 @@ flutter:
     - assets/Bungalow.jpg
     - assets/Townhouse.jpg
     - assets/Suburban home.jpg
+    - assets/Villa.jpg
+    - assets/Mansion.jpg
+    - assets/Mid-Rise Block.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
