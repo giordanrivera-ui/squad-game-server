@@ -165,7 +165,7 @@ class GameScreen extends StatefulWidget {
   _GameScreenState createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   final SocketService _socketService = SocketService();
 
   List<String> messages = [];
@@ -190,13 +190,15 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      SocketService().claimIncome();
+    });
+    WidgetsBinding.instance.addObserver(this);
     _connectToServer();
     _setupPushNotifications();
+
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
-    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
-    SocketService().collectIncome();
-  });
   }
 
   // NEW: Set up the bell for notes
@@ -486,23 +488,13 @@ class _GameScreenState extends State<GameScreen> {
                                         currentLocation: stats['location'] ?? 'Unknown',
                                       )
                                       : _currentScreen == 8 
-                                        ? PropertiesScreen(
-                                            currentBalance: stats['balance'] ?? 0,
-                                            currentHealth: stats['health'] ?? 100,
-                                            currentTime: time,
-                                            currentLocation: stats['location'] ?? 'Unknown',
-                                          )
+                                        ? PropertiesScreen()
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                               initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
-                                            : PropertiesScreen(
-                                              currentBalance: stats['balance'] ?? 0,
-                                              currentHealth: stats['health'] ?? 100,
-                                              currentTime: time,
-                                              currentLocation: stats['location'] ?? 'Unknown',
-                                            ),
+                                            : PropertiesScreen(),
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
@@ -719,12 +711,21 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     cooldownTimer?.cancel();
-    _incomeTimer?.cancel();
     // _socketService.disconnect();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
+    WidgetsBinding.instance.removeObserver(this);
+    _incomeTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      SocketService().claimIncome();  // Claim when app resumes
+    }
   }
 }

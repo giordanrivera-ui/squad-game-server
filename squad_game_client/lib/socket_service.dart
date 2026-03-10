@@ -30,6 +30,7 @@ class SocketService {
 
   List<String> normalLocations = [];
   Map<String, int> travelCosts = {};
+  List<Map<String, dynamic>> properties = [];
 
   int serverTimeOffset = 0;
   int get currentServerTime => DateTime.now().millisecondsSinceEpoch + serverTimeOffset;
@@ -57,6 +58,7 @@ class SocketService {
       if (data is Map) {
         normalLocations = List<String>.from(data['locations'] ?? []);
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
+        properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
         print('Got locations from server: $normalLocations');
       }
     });
@@ -334,7 +336,8 @@ class SocketService {
   }
 
   void buyProperty(String name) => socket?.emit('buy-property', name);
-  void collectIncome() => socket?.emit('collect-income');
+  
+  void claimIncome() => socket?.emit('claim-income');
 
     // Test buttons
   void addTestExp() => socket?.emit('add-test-exp', 70);

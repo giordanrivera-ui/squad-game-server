@@ -45,18 +45,79 @@ setInterval(() => {
   }
 }, 1000);
 
-// ==================== LOCATIONS ====================
-const normalLocations = [
+const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
   "Valleora", "Lónghǎi", "Sakuragawa", "Cawayan Heights"
 ];
 
-// ==================== TRAVEL COSTS ====================
-const travelCosts = {
+const travelCosts = { // ==================== TRAVEL COSTS ====================
   "Riverstone": 40, "Thornbury": 45, "Vostokgrad": 110, "Eichenwald": 60,
   "Montclair": 85, "Valleora": 70, "Lónghǎi": 140, "Sakuragawa": 95,
   "Cawayan Heights": 55
 };
+
+const properties = [  // ==================== PROPERTY COSTS ====================
+  {
+    name: "Micropod",
+    cost: 15000,
+    income: 840,
+    description: "A compact, efficient urban dwelling designed for minimalist living in bustling city centers, offering basic amenities in a small footprint."
+  },
+  {
+    name: "Cottage",
+    cost: 45000,
+    income: 2150,
+    description: "A cozy, single-story home with a quaint charm, perfect for small families or retirees seeking a peaceful rural or suburban retreat."
+  },
+  {
+    name: "Bungalow",
+    cost: 98000,
+    income: 4400,
+    description: "A single-level residence with a low-pitched roof and wide veranda, ideal for comfortable living in temperate climates with easy accessibility."
+  },
+  {
+    name: "Townhouse",
+    cost: 150000,
+    income: 6400,
+    description: "A multi-story attached home in urban rows, combining privacy with community living, suitable for professionals in city environments."
+  },
+  {
+    name: "Suburban home",
+    cost: 210000,
+    income: 8750,
+    description: "A spacious family house in residential neighborhoods, featuring multiple bedrooms and a yard for everyday comfort and child-rearing."
+  },
+  {
+    name: "Villa",
+    cost: 300000,
+    income: 11880,
+    description: "An elegant countryside estate with expansive grounds, offering luxury and seclusion for those desiring a refined lifestyle away from urban hustle."
+  },
+  {
+    name: "Mansion",
+    cost: 500000,
+    income: 18520,
+    description: "A grand, opulent residence with numerous rooms and high-end features, symbolizing wealth and providing ample space for entertaining."
+  },
+  {
+    name: "Mid-Rise Block",
+    cost: 1200000,
+    income: 43400,
+    description: "A multi-unit apartment building of moderate height, catering to urban dwellers with shared amenities and convenient city access."
+  },
+  {
+    name: "Residential Tower",
+    cost: 3800000,
+    income: 126700,
+    description: "A high-rise condominium complex offering modern living spaces with panoramic views and premium facilities in metropolitan areas."
+  },
+  {
+    name: "Skyscraper",
+    cost: 9000000,
+    income: 276900,
+    description: "A towering architectural marvel housing luxury apartments and offices, representing pinnacle urban development and investment potential."
+  }
+];
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
@@ -105,8 +166,8 @@ io.on('connection', (socket) => {
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
-      if (playerData.properties === undefined) playerData.properties = [];
-      if (playerData.lastIncomeCollect === undefined) playerData.lastIncomeCollect = Date.now();
+      if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
+      if (playerData.lastIncomeClaim === undefined) playerData.lastIncomeClaim = Date.now();
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -137,15 +198,9 @@ io.on('connection', (socket) => {
         lastMidLevelOp: 0,
         sellBanEndTime: 0,
         prisonEndTime: 0,
-        properties: [],  // This is an empty list for houses they own
-        lastIncomeCollect: Date.now(),  // This remembers the last time they got money
+        ownedProperties: [],
+        lastIncomeClaim: Date.now(),
       };
-
-      const now = Date.now();
-      const added = await collectAccumulatedIncome(playerData, now);
-      if (added > 0) {
-        console.log(`[SERVER] Added ${added} offline income for ${displayName}`);
-      }
 
       await docRef.set(playerData);
     }
@@ -163,7 +218,8 @@ io.on('connection', (socket) => {
     socket.emit('init', {
       player: playerData,
       locations: normalLocations,
-      travelCosts: travelCosts
+      travelCosts: travelCosts,
+      properties: properties
     });
     socket.emit('time', timeFormatter.format(new Date()));
   });
@@ -666,7 +722,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ==================== OTHER HANDLERS (unchanged) ====================
+  // ==================== OTHER HANDLERS ====================
   socket.on('message', (msg) => {
     const name = socket.data.displayName || 'Anonymous';
     io.emit('message', `${name}: ${msg}`);
@@ -730,8 +786,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Purchase armor
-  socket.on('purchase-armor', async (data) => {
+  socket.on('purchase-armor', async (data) => { // NEW: Purchase armor
     const email = socket.data.email;
     if (!email || !Array.isArray(data.items) || typeof data.totalCost !== 'number') return;
 
@@ -760,8 +815,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Equip armor
-  socket.on('equip-armor', async (data) => {
+  socket.on('equip-armor', async (data) => { // NEW: Equip armor
     const email = socket.data.email;
     if (!email || typeof data.slot !== 'string' || typeof data.item !== 'object') return;
 
@@ -887,7 +941,7 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== PROPERTY PURCHASE ====================
+  // NEW: Handler for buying property
   socket.on('buy-property', async (propertyName) => {
     const email = socket.data.email;
     if (!email || typeof propertyName !== 'string') return;
@@ -898,83 +952,65 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
 
-    // Validate property exists and get cost (define properties server-side too)
-    const allProperties = {
-      'Micropod': { cost: 15000, income: 840 },
-      'Cottage': { cost: 45000, income: 2150 },
-      'Bungalow': { cost: 98000, income: 4400 },
-      'Townhouse': { cost: 150000, income: 6400 },
-      'Suburban home': { cost: 210000, income: 8750 },
-      'Villa': { cost: 300000, income: 11880 },
-      'Mansion': { cost: 500000, income: 18520 },
-      'Mid-Rise Block': { cost: 1200000, income: 43400 },
-      'Residential Tower': { cost: 3800000, income: 126700 },
-      'Skyscraper': { cost: 9000000, income: 276900 },
-    };
+    // Check if already owned
+    const owned = p.ownedProperties || [];
+    if (owned.includes(propertyName)) return;
 
-    const prop = allProperties[propertyName];
-    if (!prop || p.balance < prop.cost || (p.properties || []).includes(propertyName)) return;
+    // Find property
+    const prop = properties.find(pr => pr.name === propertyName);
+    if (!prop) return;
+
+    // Check balance
+    if (p.balance < prop.cost) return;
 
     p.balance -= prop.cost;
-    p.properties = [...(p.properties || []), propertyName];
+    p.ownedProperties = [...owned, propertyName];
 
     await docRef.set(p);
     socket.emit('update-stats', p);
   });
 
-  async function collectAccumulatedIncome(p, now = Date.now()) {
-    const intervalMs = 2 * 60 * 1000; // 2 min test; change to 4*60*60*1000 = 14400000
-    const lastCollect = p.lastIncomeCollect || now;
-    const elapsed = now - lastCollect;
-    const missedIntervals = Math.floor(elapsed / intervalMs);
+  // NEW: Handler for claiming income
+  socket.on('claim-income', async () => {
+    const email = socket.data.email;
+    if (!email) return;
 
-    if (missedIntervals <= 0) return 0;
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
 
-    let totalIncomePerInterval = 0;
-    const allProperties = {
-      'Micropod': { cost: 15000, income: 840 },
-      'Cottage': { cost: 45000, income: 2150 },
-      'Bungalow': { cost: 98000, income: 4400 },
-      'Townhouse': { cost: 150000, income: 6400 },
-      'Suburban home': { cost: 210000, income: 8750 },
-      'Villa': { cost: 300000, income: 11880 },
-      'Mansion': { cost: 500000, income: 18520 },
-      'Mid-Rise Block': { cost: 1200000, income: 43400 },
-      'Residential Tower': { cost: 3800000, income: 126700 },
-      'Skyscraper': { cost: 9000000, income: 276900 },
-    };
-    for (const propName of (p.properties || [])) {
-      totalIncomePerInterval += allProperties[propName]?.income || 0;
-    }
+    let p = doc.data();
 
-    const accumulated = missedIntervals * totalIncomePerInterval;
-    p.balance = (p.balance || 0) + accumulated;
-    p.lastIncomeCollect = lastCollect + (missedIntervals * intervalMs); // Advance to last full interval
-
-    return accumulated;
-  }
-
-  setInterval(async () => {
     const now = Date.now();
-    for (const [displayName, socket] of onlineSockets.entries()) {
-      const email = socket.data.email;
-      if (!email) continue;
+    const lastClaim = p.lastIncomeClaim || 0;
+    const intervalMs = 2 * 60 * 1000;  // 2 min test; change to 4*60*60*1000 for prod
 
-      const docRef = db.collection('players').doc(email);
-      const doc = await docRef.get();
-      if (!doc.exists) continue;
+    const elapsedMs = now - lastClaim;
+    if (elapsedMs < intervalMs) return;  // Nothing to claim
 
-      let p = doc.data();
-      const added = await collectAccumulatedIncome(p, now);
-      if (added > 0) {
-        await docRef.set(p);
-        socket.emit('update-stats', p);
-        console.log(`[SERVER] Added ${added} online income for ${displayName}`);
-      }
+    // Compute number of full intervals
+    const intervals = Math.floor(elapsedMs / intervalMs);
+
+    // Compute total income per interval
+    const owned = p.ownedProperties || [];
+    let totalIncomePerInterval = 0;
+    for (const name of owned) {
+      const prop = properties.find(pr => pr.name === name);
+      if (prop) totalIncomePerInterval += prop.income;
     }
-  }, 2 * 60 * 1000); // Same interval
 
-  // ==================== PRIVATE MESSAGES ====================
+    // Award
+    const award = intervals * totalIncomePerInterval;
+    if (award > 0) {
+      p.balance += award;
+      p.lastIncomeClaim = lastClaim + (intervals * intervalMs);  // Advance by full intervals
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+      socket.emit('income-claimed', { amount: award });  // Optional: Notify client
+    }
+  });
+
+    // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 
@@ -1062,8 +1098,8 @@ io.on('connection', (socket) => {
       }
     }
 
-  // Echo to sender
-  socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
+    // Echo to sender
+    socket.emit('private-message', { ...baseMsg, to: data.to, isFromMe: true });
   });
 
   // ==================== ANNOUNCEMENTS ====================
