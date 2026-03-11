@@ -1,3 +1,4 @@
+// In profile_screen.dart (updated full file with toggles)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -18,14 +19,28 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _photoURL;
+  bool _showArmor = true;
+  bool _showWeapon = true;
 
   @override
   void initState() {
     super.initState();
     _photoURL = FirebaseAuth.instance.currentUser?.photoURL;
+    _showArmor = widget.stats['showArmor'] ?? true;
+    _showWeapon = widget.stats['showWeapon'] ?? true;
+
+    // Listen for updates to refresh toggles if changed elsewhere
+    SocketService().socket?.on('update-stats', (data) {
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() {
+          _showArmor = data['showArmor'] ?? _showArmor;
+          _showWeapon = data['showWeapon'] ?? _showWeapon;
+        });
+      }
+    });
   }
 
-    // ==================== RANK PROGRESS HELPER ====================
+  // ==================== RANK PROGRESS HELPER ====================
   Map<String, dynamic> _getRankProgress(int currentExp) {
     const rankList = [
       {'exp': 0, 'title': 'Thug'},
@@ -180,6 +195,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (balance <= 1999999999) return 'Billionaire';
     if (balance <= 10000000000) return 'Multi-Billionaire';
     return 'Lord';
+  }
+
+  // NEW: Update visibility on server
+  void _updateVisibility() {
+    SocketService().updateVisibility(_showArmor, _showWeapon);
   }
 
   @override
@@ -338,6 +358,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 40),
+
+            // NEW: Toggle buttons for visibility
+            Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Show Armor to Others'),
+                  value: _showArmor,
+                  onChanged: (value) {
+                    setState(() => _showArmor = value);
+                    _updateVisibility();
+                  },
+                ),
+                SwitchListTile(
+                  title: const Text('Show Weapon to Others'),
+                  value: _showWeapon,
+                  onChanged: (value) {
+                    setState(() => _showWeapon = value);
+                    _updateVisibility();
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
 
             // Rest of stats (optional: you can keep or remove raw Experience number)
             Container(

@@ -111,7 +111,9 @@ io.on('connection', (socket) => {
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
       if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
       if (playerData.lastIncomeClaim === undefined) playerData.lastIncomeClaim = Date.now();
-      if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];  // FIXED: Changed condition from lastIncomeClaim to propertyClaims
+      if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];
+      if (playerData.showArmor === undefined) playerData.showArmor = true;
+      if (playerData.showWeapon === undefined) playerData.showWeapon = true;
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -145,6 +147,8 @@ io.on('connection', (socket) => {
         ownedProperties: [],
         lastIncomeClaim: Date.now(),
         propertyClaims: [],
+        showArmor: true,
+        showWeapon: true,
       };
 
       await docRef.set(playerData);
@@ -726,6 +730,22 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.photoURL = data.photoURL;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+  });
+
+  socket.on('update-visibility', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data.showArmor !== 'boolean' || typeof data.showWeapon !== 'boolean') return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    p.showArmor = data.showArmor;
+    p.showWeapon = data.showWeapon;
 
     await docRef.set(p);
     socket.emit('update-stats', p);

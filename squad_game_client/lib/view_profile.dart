@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';  // If needed for auth checks, but not here
 
 class ViewProfileScreen extends StatefulWidget {
   final String displayName;
@@ -86,6 +85,14 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     return 'Lord';
   }
 
+  String _getEquippedImage(String slot, String emptyAsset) {
+    final equipped = _playerData?[slot];
+    if (equipped == null) return emptyAsset;
+
+    final name = equipped['name'] as String;
+    return 'assets/$name.jpg';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -108,22 +115,118 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     final rank = _getRankTitle(exp);
     final wealthTitle = _getWealthTitle(balance);
 
+    // NEW: Respect visibility for armor/weapon (show empty if hidden)
+    final showArmor = _playerData?['showArmor'] ?? true;
+    final showWeapon = _playerData?['showWeapon'] ?? true;
+
+    final weaponImage = showWeapon && _playerData?['weapon'] != null 
+        ? _getEquippedImage('weapon', 'assets/weapon-empty.jpg') 
+        : 'assets/weapon-empty.jpg';
+
+    final headwearImage = showArmor && _playerData?['headwear'] != null 
+        ? _getEquippedImage('headwear', 'assets/helmet-empty.jpg') 
+        : 'assets/helmet-empty.jpg';
+
+    final armorImage = showArmor && _playerData?['armor'] != null 
+        ? _getEquippedImage('armor', 'assets/armor-empty.jpg') 
+        : 'assets/armor-empty.jpg';
+
+    final footwearImage = showArmor && _playerData?['footwear'] != null 
+        ? _getEquippedImage('footwear', 'assets/boots-empty.jpg') 
+        : 'assets/boots-empty.jpg';
+
     return Scaffold(
       appBar: AppBar(title: Text("${widget.displayName}'s Profile")),
-      body: Center(
+      backgroundColor: Colors.grey[800],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircleAvatar(
-              radius: 60,
-              backgroundImage: NetworkImage(photoURL),
+            // Profile Picture + Info
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 60,
+                  backgroundImage: NetworkImage(photoURL),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.displayName,
+                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        rank,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        wealthTitle,
+                        style: const TextStyle(fontSize: 18, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            Text(widget.displayName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Text(rank, style: const TextStyle(fontSize: 20, color: Colors.orangeAccent)),
-            const SizedBox(height: 10),
-            Text(wealthTitle, style: const TextStyle(fontSize: 18, color: Colors.green)),
+            const SizedBox(height: 30),
+            // Weapon image
+            Container(
+              width: 300,
+              height: 107,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(weaponImage, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Armor images
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

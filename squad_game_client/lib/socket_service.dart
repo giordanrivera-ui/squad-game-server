@@ -359,6 +359,13 @@ void connect(String email, String displayName) {
     socket?.emit('request-prison-list');
   }
 
+  void updateVisibility(bool showArmor, bool showWeapon) {
+    socket?.emit('update-visibility', {
+      'showArmor': showArmor,
+      'showWeapon': showWeapon,
+    });
+  }
+
   void buyProperty(String name) => socket?.emit('buy-property', name);
   
   void claimIncome() => socket?.emit('claim-income');
