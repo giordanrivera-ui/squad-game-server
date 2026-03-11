@@ -147,7 +147,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     imagePath,
                     fit: BoxFit.cover,
                     width: double.infinity,
-                    height: 150,
+                    height: 180,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
                         width: double.infinity,
