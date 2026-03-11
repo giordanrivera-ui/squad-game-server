@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';  // For FirebaseAuth
-import 'package:cloud_firestore/cloud_firestore.dart';  // For FirebaseFirestore
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
 class PropertiesScreen extends StatefulWidget {
-  final Map<String, dynamic> initialStats;  // Assuming this is added from previous fix
+  final Map<String, dynamic> initialStats;
 
   const PropertiesScreen({
     super.key,
@@ -19,23 +19,18 @@ class PropertiesScreen extends StatefulWidget {
 class _PropertiesScreenState extends State<PropertiesScreen> {
   Map<String, dynamic> _stats = {};
   Map<String, int> _remainingMsByProp = {};  // Per-property remaining ms
-  Timer? _countdownTimer;  // For per-second progress updates
-  bool _isClaiming = false;  // NEW: Prevents multiple claim calls while waiting for server
+  Timer? _countdownTimer;
   static const int _incomeIntervalMs = 120000;  // 2 min test (change to 4*60*60*1000 = 14400000 for prod)
 
   @override
   void initState() {
     super.initState();
-    _stats = widget.initialStats;  // Set initial stats
+    _stats = widget.initialStats;
 
-    // Listen for updates
     SocketService().socket?.on('update-stats', _handleUpdate);
-    // Initial claim on open
     SocketService().claimIncome();
-    // Fetch latest stats as backup
     _fetchLatestStats();
 
-    // Start countdown if player owns any properties
     if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
       _startCountdowns();
     }
@@ -45,9 +40,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     if (data is Map<String, dynamic> && mounted) {
       setState(() {
         _stats = data;
-        // Restart countdown if stats update (e.g., after claim or buy)
         _countdownTimer?.cancel();
-        _isClaiming = false;  // NEW: Unlock after server update (claim done)
         if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
           _startCountdowns();
         }
@@ -67,26 +60,22 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
 
       if (doc.exists && doc.data() != null) {
         setState(() {
-          _stats = doc.data()!;  // Update with fresh data
-          // Restart countdown after fetch
+          _stats = doc.data()!;
           _countdownTimer?.cancel();
-          _isClaiming = false;  // NEW: Unlock after server update (claim done)
           if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
             _startCountdowns();
           }
         });
       }
     } catch (e) {
-      print('Error fetching stats: $e');  // For debugging
+      print('Error fetching stats: $e');
     }
   }
 
-  // Start the local countdown timer (client-side only, no server hits)
   void _startCountdowns() {
     _countdownTimer?.cancel();
 
-    // Initial calc for each owned property
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final nowMs = SocketService().currentServerTime;  // NEW: Synced time
     final claims = _stats['propertyClaims'] as List<dynamic>? ?? [];
     _remainingMsByProp = {};
     for (final claim in claims) {
@@ -95,7 +84,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       if (name != null) {
         final elapsedMs = nowMs - lastClaim;
         final remaining = (_incomeIntervalMs - (elapsedMs % _incomeIntervalMs)).clamp(0, _incomeIntervalMs);
-        _remainingMsByProp[name] = remaining.toInt();  // Store as int for ms
+        _remainingMsByProp[name] = remaining.toInt();
       }
     }
 
@@ -109,15 +98,9 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       setState(() {
         _remainingMsByProp = Map.from(_remainingMsByProp.map((name, remaining) {
           var newRemaining = remaining - 1000;
-          if (newRemaining <= 0) newRemaining = _incomeIntervalMs;  // Reset cycle locally (but server will confirm after claim)
+          if (newRemaining <= 0) newRemaining = _incomeIntervalMs;
           return MapEntry(name, newRemaining.toInt());
         }));
-
-        // NEW: If any property is ready for payout and not already claiming, auto-claim
-        if (!_isClaiming && _remainingMsByProp.values.any((r) => r <= 0)) {
-          _isClaiming = true;  // Lock to prevent spam
-          SocketService().claimIncome();  // Ask server for income now
-        }
       });
     });
   }
@@ -125,7 +108,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   @override
   void dispose() {
     SocketService().socket?.off('update-stats', _handleUpdate);
-    _countdownTimer?.cancel();  // Clean up timer
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -146,10 +129,8 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         final isOwned = owned.contains(name);
         final canAfford = !isOwned && (_stats['balance'] ?? 0) >= cost;
 
-        // Image path: assumes assets/$name.jpg (handles spaces in name like "Suburban home.jpg")
         final imagePath = 'assets/$name.jpg';
 
-        // For owned, calculate progress (0.0 to 1.0) towards next income
         final progress = isOwned 
             ? (1 - ((_remainingMsByProp[name] ?? 0) / _incomeIntervalMs)).clamp(0.0, 1.0) 
             : 0.0;
@@ -160,16 +141,14 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Image at the top
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),  // Optional: rounded corners for nice look
+                  borderRadius: BorderRadius.circular(8),
                   child: Image.asset(
                     imagePath,
-                    fit: BoxFit.cover,  // Fill the space nicely
-                    width: double.infinity,  // Full width of card
-                    height: 150,  // Fixed height; adjust as needed
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 150,
                     errorBuilder: (context, error, stackTrace) {
-                      // Fallback if image not found (e.g., for properties without assets yet)
                       return Container(
                         width: double.infinity,
                         height: 150,
@@ -179,23 +158,23 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 12),  // Space between image and details
+                const SizedBox(height: 12),
                 Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text(desc, style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 8),
                 Text('Cost: \$$cost', style: const TextStyle(color: Colors.blue)),
                 Text('Income: \$$income / 4 hours', style: const TextStyle(color: Colors.green)),
-                if (isOwned) ...[  // Progress bar for owned properties
+                if (isOwned) ...[
                   const SizedBox(height: 12),
                   LinearProgressIndicator(
-                    value: progress,  // Fills as time approaches next payout
+                    value: progress,
                     backgroundColor: Colors.grey[300],
                     valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Next payout in ${(_remainingMsByProp[name] ?? 0) ~/ 60000} min ${(((_remainingMsByProp[name] ?? 0) % 60000) ~/ 1000)} sec',  // Human-readable time left
+                    'Next payout in ${(_remainingMsByProp[name] ?? 0) ~/ 60000} min ${(((_remainingMsByProp[name] ?? 0) % 60000) ~/ 1000)} sec',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],

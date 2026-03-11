@@ -25,6 +25,9 @@ class SocketService {
 
     // NEW: Rank-up celebration trigger
   final ValueNotifier<Map<String, String>?> rankUpNotifier = ValueNotifier(null);
+
+    // NEW: Notifier for income claimed (for optional snackbar/UI feedback)
+  final ValueNotifier<int?> incomeClaimedNotifier = ValueNotifier(null);
   
   String? _currentEmail;
 
@@ -130,6 +133,12 @@ class SocketService {
           'rescuer': data['rescuer']?.toString() ?? 'Someone',
           'message': data['message']?.toString() ?? 'You have been rescued!'
         };
+      }
+    });
+
+    socket?.on('income-claimed', (data) {
+      if (data is Map && data['amount'] is int) {
+        incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
       }
     });
 

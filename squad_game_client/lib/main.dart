@@ -178,6 +178,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool isDead = false;
   Timer? cooldownTimer;
   Timer? _incomeTimer;
+  Timer? _globalIncomeTimer;  // NEW: App-wide per-second checker
 
   int _currentScreen = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -199,6 +200,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
+
+    // NEW: Start global per-second income checker (only if owned props)
+    _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (stats['ownedProperties'] != null && (stats['ownedProperties'] as List).isNotEmpty) {
+        _checkForDueIncome();
+      }
+    });
+
+    // NEW: Listen for income claimed (show snackbar app-wide)
+    _socketService.incomeClaimedNotifier.addListener(() {
+      final amount = _socketService.incomeClaimedNotifier.value;
+      if (amount != null && amount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Income received: +\$$amount!')),
+        );
+        _socketService.incomeClaimedNotifier.value = null;  // Reset
+      }
+    });
   }
 
   // NEW: Set up the bell for notes
@@ -488,13 +507,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                         currentLocation: stats['location'] ?? 'Unknown',
                                       )
                                       : _currentScreen == 8 
-                                        ? PropertiesScreen(initialStats: stats)
+                                        ? PropertiesScreen(initialStats: stats)  // Pass stats
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                               initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
-                                            : PropertiesScreen(initialStats: stats),
+                                            : PropertiesScreen(initialStats: stats),  // Fallback with stats
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
@@ -708,6 +727,26 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return 'Supreme Commander';
   }
 
+  // NEW: Check if any property is due and claim (using server sync)
+  void _checkForDueIncome() {
+    final claims = stats['propertyClaims'] as List<dynamic>? ?? [];
+    final nowMs = _socketService.currentServerTime;  // Synced time
+
+    bool isDue = false;
+    for (final claim in claims) {
+      final lastClaim = claim['lastClaim'] as int? ?? 0;
+      final elapsedMs = nowMs - lastClaim;
+      if (elapsedMs >= 120000) {  // Use 2 min ms (match server)
+        isDue = true;
+        break;
+      }
+    }
+
+    if (isDue) {
+      _socketService.claimIncome();  // Trigger if any due
+    }
+  }
+
   @override
   void dispose() {
     cooldownTimer?.cancel();
@@ -718,6 +757,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _rankUpOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();
+    _globalIncomeTimer?.cancel();  // NEW: Cancel global timer
     super.dispose();
   }
 
