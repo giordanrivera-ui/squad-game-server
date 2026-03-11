@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';   // ← NEW import (important!)
+import 'chat_screen.dart';
+import 'view_profile.dart';
 
 class OnlinePlayersScreen extends StatelessWidget {
   final List<String> onlinePlayers;
@@ -53,15 +54,12 @@ class OnlinePlayersScreen extends StatelessWidget {
     );
   }
 
+  // In online_players_screen.dart (update _showProfile method)
   void _showProfile(BuildContext context, String name) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("$name's Profile"),
-        content: const Text("Profile details will be shown here in the future."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewProfileScreen(displayName: name),
       ),
     );
   }
