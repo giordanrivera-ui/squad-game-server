@@ -20,6 +20,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   Map<String, dynamic> _stats = {};
   Map<String, int> _remainingMsByProp = {};  // Per-property remaining ms
   Timer? _countdownTimer;  // For per-second progress updates
+  bool _isClaiming = false;  // NEW: Prevents multiple claim calls while waiting for server
   static const int _incomeIntervalMs = 120000;  // 2 min test (change to 4*60*60*1000 = 14400000 for prod)
 
   @override
@@ -46,6 +47,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
         _stats = data;
         // Restart countdown if stats update (e.g., after claim or buy)
         _countdownTimer?.cancel();
+        _isClaiming = false;  // NEW: Unlock after server update (claim done)
         if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
           _startCountdowns();
         }
@@ -68,6 +70,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           _stats = doc.data()!;  // Update with fresh data
           // Restart countdown after fetch
           _countdownTimer?.cancel();
+          _isClaiming = false;  // NEW: Unlock after server update (claim done)
           if ((_stats['ownedProperties'] as List?)?.isNotEmpty ?? false) {
             _startCountdowns();
           }
@@ -106,9 +109,15 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       setState(() {
         _remainingMsByProp = Map.from(_remainingMsByProp.map((name, remaining) {
           var newRemaining = remaining - 1000;
-          if (newRemaining <= 0) newRemaining = _incomeIntervalMs;  // Reset cycle
+          if (newRemaining <= 0) newRemaining = _incomeIntervalMs;  // Reset cycle locally (but server will confirm after claim)
           return MapEntry(name, newRemaining.toInt());
         }));
+
+        // NEW: If any property is ready for payout and not already claiming, auto-claim
+        if (!_isClaiming && _remainingMsByProp.values.any((r) => r <= 0)) {
+          _isClaiming = true;  // Lock to prevent spam
+          SocketService().claimIncome();  // Ask server for income now
+        }
       });
     });
   }
