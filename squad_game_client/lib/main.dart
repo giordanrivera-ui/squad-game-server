@@ -808,6 +808,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
       SocketService().claimIncome();  // Claim when app resumes
+      if (!_socketService.isConnected.value) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          _socketService.connect(user.email!, user.displayName ?? 'Anonymous');  // NEW: Reconnect if needed
+        }
+      }
+    } else if (state == AppLifecycleState.paused) {
+      _socketService.socket?.disconnect();  // NEW: Force disconnect on background
     }
   }
 }

@@ -47,7 +47,6 @@ void connect(String email, String displayName) {
       GameConstants.serverUrl,
       IO.OptionBuilder()
         .setTransports(['websocket'])
-        .enableReconnection(true)  // NEW: Explicitly enable auto-reconnect
         .setReconnectionAttempts(5)  // NEW: Try 5 times before giving up
         .setReconnectionDelay(1000)  // NEW: Start with 1 sec delay between tries
         .setReconnectionDelayMax(5000)  // NEW: Max 5 sec delay

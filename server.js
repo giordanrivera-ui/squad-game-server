@@ -4,7 +4,12 @@ const { Server } = require('socket.io');
 const admin = require('firebase-admin');
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+const io = new Server(server, { 
+  cors: { origin: "*" },
+  pingTimeout: 10000,  // NEW: 10 sec timeout before disconnect
+  pingInterval: 5000   // NEW: Ping every 5 sec to check alive
+});
 
 const { properties, handleBuyProperty, handleClaimIncome } = require('./properties.js');
 
