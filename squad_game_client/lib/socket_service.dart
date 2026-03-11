@@ -38,14 +38,21 @@ class SocketService {
   int serverTimeOffset = 0;
   int get currentServerTime => DateTime.now().millisecondsSinceEpoch + serverTimeOffset;
 
-  void connect(String email, String displayName) {
-    if (socket != null && socket!.connected) return;
+void connect(String email, String displayName) {
+  if (socket != null && socket!.connected) return;
 
     _currentEmail = email;
 
     socket = IO.io(
       GameConstants.serverUrl,
-      IO.OptionBuilder().setTransports(['websocket']).build(),
+      IO.OptionBuilder()
+        .setTransports(['websocket'])
+        .enableReconnection(true)  // NEW: Explicitly enable auto-reconnect
+        .setReconnectionAttempts(5)  // NEW: Try 5 times before giving up
+        .setReconnectionDelay(1000)  // NEW: Start with 1 sec delay between tries
+        .setReconnectionDelayMax(5000)  // NEW: Max 5 sec delay
+        .setTimeout(20000)  // NEW: Ping timeout 20 sec (adjust if needed)
+        .build(),
     );
 
     socket?.onConnect((_) {
@@ -140,6 +147,15 @@ class SocketService {
       if (data is Map && data['amount'] is int) {
         incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
       }
+    });
+
+    socket?.onReconnect((_) {
+      print('🔄 Reconnected to server!');
+      // Re-register on reconnect to ensure online list updates
+      socket?.emit(SocketEvents.register, {
+        'email': email,
+        'displayName': displayName,
+      });
     });
 
     socket?.onDisconnect((_) {

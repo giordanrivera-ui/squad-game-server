@@ -22,6 +22,8 @@ import 'sidebar.dart';
 import 'prison_screen.dart';
 import 'rescue_celebration_overlay.dart';
 import 'rank_up_celebration_overlay.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -57,6 +59,9 @@ void main() async {
 
   // NEW: Set up the bell helper for sleeping app
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // Hide status bar and navigation bar for immersive mode
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   runApp(MyApp());
 }
@@ -404,38 +409,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       key: _scaffoldKey,
-      appBar: _currentScreen == 0
-          ? AppBar(
-              title: Text('Squad Game - ${FirebaseAuth.instance.currentUser?.displayName ?? "Player"}'),
-              leading: Builder(
-                builder: (context) => Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.menu),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: _socketService.hasUnreadMessages,
-                      builder: (context, hasUnread, child) {
-                        if (!hasUnread) return const SizedBox.shrink();
-                        return Positioned(
-                          right: 11,
-                          top: 11,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            )
+      appBar: _currentScreen == 0 
+          ? null  // REMOVE AppBar for dashboard
           : StatusAppBar(
               title: _currentScreen == 1 
                   ? 'Players Online' 
@@ -526,30 +501,97 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildDashboard() {
-    return Column(
-      children: [
-        Container(
+  return Column(
+    children: [
+      // NEW: Top section for menu button, time, location, health, bullets
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        color: Colors.grey[800],  // Lighter grey for contrast
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // NEW: Menu button here (with unread dot)
+                Builder(
+                  builder: (context) => Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu, color: Colors.white),
+                        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                      ),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _socketService.hasUnreadMessages,
+                        builder: (context, hasUnread, child) {
+                          if (!hasUnread) return const SizedBox.shrink();
+                          return Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),  // Space between button and time
+                Expanded(  // Let time take remaining space
+                  child: Text(
+                    time,
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
+            Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
+                const SizedBox(width: 4),
+                Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+              ],
+            ),
+          ],
+        ),
+      ),
+      // Black rectangle ONLY for bank balance
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
           width: double.infinity,
+          constraints: BoxConstraints(
+            minHeight: 120,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(20)
+          ),
           padding: const EdgeInsets.all(16),
-          color: Colors.grey[900],
-          child: Column(
-            children: [
-              Text(time, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-              Text('Bank: \$${stats['balance']}', style: const TextStyle(fontSize: 20, color: Colors.green)),
-              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-              Text('Health: ${stats['health'] ?? 100}/100'),
-              const SizedBox(height: 8),
-              Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
-            ],
-          ),
+
+          child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
+            style: const TextStyle(fontSize: 20, color: Colors.green)),
+        )
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: messages.length,
+          itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: messages.length,
-            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-          ),
-        ),
-        Container(
+      ),
+      Container(
         padding: const EdgeInsets.all(16),
         color: Colors.grey[850],
         child: Row(
@@ -594,24 +636,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-              ElevatedButton(
-                onPressed: () {
-                  _socketService.sendMessage(_controller.text);
-                  _controller.clear();
-                },
-                child: const Text('Send'),
-              ),
-            ],
-          ),
+      Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
+            ElevatedButton(
+              onPressed: () {
+                _socketService.sendMessage(_controller.text);
+                _controller.clear();
+              },
+              child: const Text('Send'),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();

@@ -43,6 +43,7 @@ dependencies:
   firebase_storage: ^13.0.6
   image_picker: ^1.2.1
   firebase_app_check: ^0.4.1+4
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
@@ -112,6 +113,8 @@ flutter:
     - assets/Villa.jpg
     - assets/Mansion.jpg
     - assets/Mid-Rise Block.jpg
+    - assets/Residential Tower.jpg
+    - assets/Skyscraper.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

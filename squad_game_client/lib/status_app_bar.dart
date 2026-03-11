@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
+import 'package:intl/intl.dart';
 
 class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -22,7 +23,7 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       leading: Builder(
-        builder: (context) => Stack(  // UPDATED: Wrap in Stack for red dot
+        builder: (context) => Stack(
           children: [
             IconButton(
               icon: const Icon(Icons.menu),
@@ -58,7 +59,7 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               const Icon(Icons.account_balance_wallet, size: 20, color: Colors.green),
               const SizedBox(width: 4),
-              Text('\$$balance', style: const TextStyle(fontSize: 15)),
+              Text('\$${NumberFormat('#,###').format(balance)}', style: const TextStyle(fontSize: 15)),
 
               const SizedBox(width: 16),
 
