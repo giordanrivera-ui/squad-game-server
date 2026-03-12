@@ -307,8 +307,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-
-            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Show Weapon to Others', style: TextStyle(fontSize: 14, color: Colors.white)),
+                Transform.scale(
+                  scale: 0.65,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
+                  child: Switch(
+                    value: _showWeapon,
+                    onChanged: (value) {
+                      setState(() => _showWeapon = value);
+                      _updateVisibility();
+                    },
+                  ),
+                ),
+              ],
+            ),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -356,27 +369,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ],
             ),
-
-            const SizedBox(height: 40),
-
-            // NEW: Toggle buttons for visibility
-            Column(
+            Row(
               children: [
-                SwitchListTile(
-                  title: const Text('Show Armor to Others'),
-                  value: _showArmor,
-                  onChanged: (value) {
-                    setState(() => _showArmor = value);
-                    _updateVisibility();
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Show Weapon to Others'),
-                  value: _showWeapon,
-                  onChanged: (value) {
-                    setState(() => _showWeapon = value);
-                    _updateVisibility();
-                  },
+                const Text('Show Armor to Others', style: TextStyle(fontSize: 14, color: Colors.white)),
+                const Spacer(),
+                Transform.scale(
+                  scale: 0.7,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
+                  child: Switch(
+                    value: _showArmor,
+                    onChanged: (value) {
+                      setState(() => _showArmor = value);
+                      _updateVisibility();
+                    },
+                  ),
                 ),
               ],
             ),
