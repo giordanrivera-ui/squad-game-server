@@ -1,5 +1,3 @@
-// This file holds all the magic words and numbers we use a lot
-
 class SocketEvents {
   static const String register = 'register';
   static const String robBank = 'rob-bank';

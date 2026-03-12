@@ -134,14 +134,6 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
       await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
       await FirebaseAuth.instance.currentUser!.reload();
 
-      // NEW: Add to usedNames collection (permanent)
-      await FirebaseFirestore.instance.collection('usedNames').doc(name.toLowerCase()).set({
-        'name': name,  // Store original case
-        'taken': true,
-        'originalEmail': FirebaseAuth.instance.currentUser?.email,  // Optional: Track who took it first
-        'takenAt': FieldValue.serverTimestamp(),
-      });
-
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
