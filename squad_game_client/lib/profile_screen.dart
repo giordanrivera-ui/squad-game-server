@@ -311,9 +311,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Text('Show Weapon to Others', style: TextStyle(fontSize: 14, color: Colors.white)),
                 Transform.scale(
-                  scale: 0.6,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
+                  scale: 0.55,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
                   child: Switch(
                     value: _showWeapon,
+                    activeTrackColor: Colors.orange,
                     onChanged: (value) {
                       setState(() => _showWeapon = value);
                       _updateVisibility();
@@ -373,7 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Text('Show Armor to Others', style: TextStyle(fontSize: 14, color: Colors.white)),
                 Transform.scale(
-                  scale: 0.6,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
+                  scale: 0.55,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
                   child: Switch(
                     value: _showArmor,
                     activeTrackColor: Colors.orange,

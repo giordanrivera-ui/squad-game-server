@@ -24,6 +24,8 @@ import 'rescue_celebration_overlay.dart';
 import 'rank_up_celebration_overlay.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'kill_player_screen.dart';
+import 'hall_of_fame_screen.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -488,7 +490,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                               initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
                                             )
-                                            : PropertiesScreen(initialStats: stats),  // Fallback with stats
+                                            : _currentScreen == 10  // NEW: Kill a Player
+                                            ? const KillPlayerScreen()
+                                            : _currentScreen == 11  // NEW: Hall of Fame
+                                                ? const HallOfFameScreen()
+                                                : PropertiesScreen(initialStats: stats),  // Fallback
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

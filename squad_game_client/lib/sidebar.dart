@@ -187,6 +187,26 @@ class Sidebar extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
+          // NEW: Kill a Player tile
+          ListTile(
+            leading: const Icon(Icons.person_remove),
+            title: const Text('Kill a Player'),
+            selected: currentScreen == 10,
+            onTap: () {
+              onScreenChanged(10);
+              Navigator.pop(context);
+            },
+          ),
+          // NEW: Hall of Fame tile
+          ListTile(
+            leading: const Icon(Icons.emoji_events),
+            title: const Text('Hall of Fame'),
+            selected: currentScreen == 11,
+            onTap: () {
+              onScreenChanged(11);
+              Navigator.pop(context);
+            },
+          ),
         ],
       ),
     );
