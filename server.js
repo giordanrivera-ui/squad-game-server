@@ -114,6 +114,11 @@ io.on('connection', (socket) => {
       if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];
       if (playerData.showArmor === undefined) playerData.showArmor = true;
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
+
+      if (playerData.displayName) {
+        playerData.displayNameLower = playerData.displayName.toLowerCase();
+      }
+
       await docRef.set(playerData);
     } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
@@ -124,6 +129,7 @@ io.on('connection', (socket) => {
         bullets: 0,
         lastRob: 0,
         displayName: displayName,
+        displayNameLower: displayName.toLowerCase(),
         location: randomLocation,
         messages: [],
         fcmTokens: [],
