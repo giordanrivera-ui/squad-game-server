@@ -150,9 +150,27 @@ io.on('connection', (socket) => {
         showArmor: true,
         showWeapon: true,
       };
-
-      await docRef.set(playerData);
     }
+    
+    if (playerData.displayName) {
+      const name = playerData.displayName;
+      // Check usedNames
+      const usedNameDoc = await db.collection('usedNames').doc(name.toLowerCase()).get();
+      if (usedNameDoc.exists) {
+        // Reject or handle - for now, log and don't save name
+        console.log(`[SERVER] Attempt to reuse taken name ${name} by ${email}`);
+        socket.emit('error', { message: 'Name already taken forever.' });
+        return;  // Don't proceed
+      }
+      // Also check players for active (though client did, server double-check)
+      const playersQuery = await db.collection('players').where('displayName', '==', name).get();
+      if (!playersQuery.empty && playersQuery.docs[0].id !== email) {  // Allow same email if respawn, but per task, block even same
+        socket.emit('error', { message: 'Name already in use.' });
+        return;
+      }
+    }
+
+    await docRef.set(playerData);
 
     socket.data.email = email;
     socket.data.displayName = displayName;

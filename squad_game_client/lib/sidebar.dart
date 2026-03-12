@@ -75,144 +75,180 @@ class Sidebar extends StatelessWidget {
             ),
           ),
 
-          // Rest of your drawer items (Dashboard, Messages, etc.) remain the same...
-          // (I kept them exactly as before for brevity)
-          ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Dashboard'),
-            selected: currentScreen == 0,
-            onTap: () {
-              onScreenChanged(0);
-              Navigator.pop(context);
-            },
+          // NEW: Reordered tiles as specified
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Dashboard'),
+              selected: currentScreen == 0,
+              onTap: () {
+                onScreenChanged(0);
+                Navigator.pop(context);
+              },
+            ),
           ),
 
           ValueListenableBuilder<bool>(
             valueListenable: hasUnreadMessages,
             builder: (context, hasUnread, child) {
-              return ListTile(
-                leading: Stack(
-                  children: [
-                    const Icon(Icons.mail),
-                    if (hasUnread)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(6),
+              return SizedBox(
+                height: 48,
+                child: ListTile(
+                  leading: Stack(
+                    children: [
+                      const Icon(Icons.mail),
+                      if (hasUnread)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
                           ),
-                          constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
+                  title: const Text('Messages'),
+                  selected: currentScreen == 2,
+                  onTap: () {
+                    onScreenChanged(2);
+                    Navigator.pop(context);
+                  },
                 ),
-                title: const Text('Messages'),
-                selected: currentScreen == 2,
-                onTap: () {
-                  onScreenChanged(2);
-                  Navigator.pop(context);
-                },
               );
             },
           ),
 
-          ListTile(
-            leading: const Icon(Icons.people),
-            title: const Text('Players Online'),
-            selected: currentScreen == 1,
-            onTap: () {
-              onScreenChanged(1);
-              Navigator.pop(context);
-            },
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Players Online'),
+              selected: currentScreen == 1,
+              onTap: () {
+                onScreenChanged(1);
+                Navigator.pop(context);
+              },
+            ),
           ),
 
-          ListTile(
-            leading: const Icon(Icons.airplanemode_active),
-            title: const Text('Airport'),
-            selected: currentScreen == 3,
-            onTap: () {
-              onScreenChanged(3);
-              Navigator.pop(context);
-            },
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.emoji_events),
+              title: const Text('Hall of Fame'),
+              selected: currentScreen == 11,
+              onTap: () {
+                onScreenChanged(11);
+                Navigator.pop(context);
+              },
+            ),
           ),
 
-          ListTile(
-            leading: const Icon(Icons.local_hospital),
-            title: const Text('Hospital'),
-            selected: currentScreen == 4,
-            onTap: () {
-              onScreenChanged(4);
-              Navigator.pop(context);
-            },
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.person_remove),
+              title: const Text('Kill a Player'),
+              selected: currentScreen == 10,
+              onTap: () {
+                onScreenChanged(10);
+                Navigator.pop(context);
+              },
+            ),
           ),
 
-          ListTile(
-            leading: const Icon(Icons.flash_on),
-            title: const Text('Operations'),
-            selected: currentScreen == 5,
-            onTap: () {
-              onScreenChanged(5);
-              Navigator.pop(context);
-            },
+          const Divider(thickness: 1),  // NEW: Thin divider after "Kill a Player"
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.flash_on),
+              title: const Text('Operations'),
+              selected: currentScreen == 5,
+              onTap: () {
+                onScreenChanged(5);
+                Navigator.pop(context);
+              },
+            ),
           ),
 
-          ListTile(
-            leading: const Icon(Icons.store),
-            title: const Text('Store'),
-            selected: currentScreen == 7,
-            onTap: () {
-              onScreenChanged(7);
-              Navigator.pop(context);
-            },
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.gavel),
+              title: const Text('Prison'),
+              selected: currentScreen == 9,
+              onTap: () {
+                SocketService().requestPrisonList();
+                onScreenChanged(9);
+                Navigator.pop(context);
+              },
+            ),
           ),
-          ListTile(
-            leading: const Icon(Icons.gavel),
-            title: const Text('Prison'),
-            selected: currentScreen == 9,
-            onTap: () {
-              SocketService().requestPrisonList();
-              onScreenChanged(9);
-              Navigator.pop(context);
-            },
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.local_hospital),
+              title: const Text('Hospital'),
+              selected: currentScreen == 4,
+              onTap: () {
+                onScreenChanged(4);
+                Navigator.pop(context);
+              },
+            ),
           ),
-          ListTile(
-            leading: const Icon(Icons.apartment),
-            title: const Text('Properties'),
-            selected: currentScreen == 8,
-            onTap: () {
-              onScreenChanged(8);
-              Navigator.pop(context);
-            },
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.store),
+              title: const Text('Store'),
+              selected: currentScreen == 7,
+              onTap: () {
+                onScreenChanged(7);
+                Navigator.pop(context);
+              },
+            ),
           ),
-          // NEW: Kill a Player tile
-          ListTile(
-            leading: const Icon(Icons.person_remove),
-            title: const Text('Kill a Player'),
-            selected: currentScreen == 10,
-            onTap: () {
-              onScreenChanged(10);
-              Navigator.pop(context);
-            },
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.apartment),
+              title: const Text('Properties'),
+              selected: currentScreen == 8,
+              onTap: () {
+                onScreenChanged(8);
+                Navigator.pop(context);
+              },
+            ),
           ),
-          // NEW: Hall of Fame tile
-          ListTile(
-            leading: const Icon(Icons.emoji_events),
-            title: const Text('Hall of Fame'),
-            selected: currentScreen == 11,
-            onTap: () {
-              onScreenChanged(11);
-              Navigator.pop(context);
-            },
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
+              leading: const Icon(Icons.airplanemode_active),
+              title: const Text('Airport'),
+              selected: currentScreen == 3,
+              onTap: () {
+                onScreenChanged(3);
+                Navigator.pop(context);
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-    // Helper methods (copied from main.dart)
+  // Helper methods (copied from main.dart)
   String _getRankTitle(int exp) {
     if (exp <= 499) return 'Thug';
     if (exp <= 1249) return 'Recruit';

@@ -121,16 +121,27 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     setState(() => isLoading = true);
 
     try {
-      // NEW: Check if name is unique
-      final query = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
-      if (query.docs.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken. Pick a different one.')));
+      // NEW: Check if name is unique in players AND usedNames
+      final playersQuery = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
+      final usedNamesQuery = await FirebaseFirestore.instance.collection('usedNames').where('name', isEqualTo: name).get();  // Assuming 'name' field in usedNames
+
+      if (playersQuery.docs.isNotEmpty || usedNamesQuery.docs.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')));
         setState(() => isLoading = false);
         return;
       }
 
       await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
       await FirebaseAuth.instance.currentUser!.reload();
+
+      // NEW: Add to usedNames collection (permanent)
+      await FirebaseFirestore.instance.collection('usedNames').doc(name.toLowerCase()).set({
+        'name': name,  // Store original case
+        'taken': true,
+        'originalEmail': FirebaseAuth.instance.currentUser?.email,  // Optional: Track who took it first
+        'takenAt': FieldValue.serverTimestamp(),
+      });
+
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
