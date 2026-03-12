@@ -114,9 +114,16 @@ io.on('connection', (socket) => {
       if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];
       if (playerData.showArmor === undefined) playerData.showArmor = true;
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
+      if (playerData.dead === undefined) playerData.dead = false;
 
       if (playerData.displayName) {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
+      }
+
+      // If displayName is null (after death) and client sends a new one, set it
+      if (!playerData.displayName && displayName !== 'Anonymous') {
+        playerData.displayName = displayName;
+        playerData.displayNameLower = displayName.toLowerCase();
       }
 
       await docRef.set(playerData);
@@ -155,6 +162,7 @@ io.on('connection', (socket) => {
         propertyClaims: [],
         showArmor: true,
         showWeapon: true,
+        dead: false,
       };
     }
     
@@ -195,6 +203,71 @@ io.on('connection', (socket) => {
       properties: properties
     });
     socket.emit('time', timeFormatter.format(new Date()));
+  });
+
+  // ==================== RESPAWN HANDLER ====================
+  socket.on('respawn', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (p.dead) {
+      const oldName = p.displayName;
+      if (oldName) {
+        // Add old name to usedNames
+        await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+          name: oldName,
+          taken: true,
+          originalEmail: email,
+          takenAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Reset stats to defaults
+      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+      p = {
+        ...p,
+        balance: 0,
+        health: 100,
+        bullets: 0,
+        lastRob: 0,
+        displayName: null,
+        displayNameLower: null,
+        location: randomLocation,
+        experience: 0,
+        intelligence: 0,
+        skill: 0,
+        marksmanship: 0,
+        stealth: 0,
+        defense: 0,
+        photoURL: '',
+        inventory: [],
+        headwear: null,
+        armor: null,
+        footwear: null,
+        overallPower: 0,
+        weapon: null,
+        lastLowLevelOp: 0,
+        lastMidLevelOp: 0,
+        sellBanEndTime: 0,
+        prisonEndTime: 0,
+        ownedProperties: [],
+        lastIncomeClaim: Date.now(),
+        propertyClaims: [],
+        showArmor: true,
+        showWeapon: true,
+        dead: false,
+      };
+
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+      console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
+    }
   });
 
   // ==================== TEST BUTTONS ====================

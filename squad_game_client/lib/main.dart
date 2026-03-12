@@ -417,7 +417,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: () async {
+                  _socketService.respawn();
                   await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
+                  await FirebaseAuth.instance.currentUser?.reload();
                   await FirebaseAuth.instance.signOut();
                   _socketService.disconnect();
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));

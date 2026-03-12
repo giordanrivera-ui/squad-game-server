@@ -376,6 +376,8 @@ void connect(String email, String displayName) {
   
   void claimIncome() => socket?.emit('claim-income');
 
+  void respawn() => socket?.emit('respawn');
+
     // Test buttons
   void addTestExp() => socket?.emit('add-test-exp', 70);
   void addTestMoney(int amount) => socket?.emit('add-test-money', amount);
