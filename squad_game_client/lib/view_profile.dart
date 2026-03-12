@@ -1,53 +1,71 @@
+// view_profile.dart (Complete new file)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ViewProfileScreen extends StatefulWidget {
   final String displayName;
+  final bool isDead;  // True if viewing a dead profile
 
-  const ViewProfileScreen({super.key, required this.displayName});
+  const ViewProfileScreen({
+    super.key,
+    required this.displayName,
+    this.isDead = false,
+  });
 
   @override
   State<ViewProfileScreen> createState() => _ViewProfileScreenState();
 }
 
 class _ViewProfileScreenState extends State<ViewProfileScreen> {
-  Map<String, dynamic>? _playerData;
-  bool _isLoading = true;
-  String? _error;
+  Map<String, dynamic>? _profileData;
 
   @override
   void initState() {
     super.initState();
-    _fetchPlayerData();
+    _loadProfile();
   }
 
-  Future<void> _fetchPlayerData() async {
+  Future<void> _loadProfile() async {
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('players')
-          .where('displayName', isEqualTo: widget.displayName)
-          .limit(1)
-          .get();
-
-      if (query.docs.isNotEmpty) {
-        setState(() {
-          _playerData = query.docs.first.data();
-          _isLoading = false;
-        });
+      DocumentSnapshot doc;
+      if (widget.isDead) {
+        // Load from deadProfiles for dead characters
+        doc = await FirebaseFirestore.instance
+            .collection('deadProfiles')
+            .doc(widget.displayName.toLowerCase())
+            .get();
       } else {
-        setState(() {
-          _error = 'Player not found.';
-          _isLoading = false;
-        });
+        // Load from players for alive characters (find by displayName)
+        final query = await FirebaseFirestore.instance
+            .collection('players')
+            .where('displayName', isEqualTo: widget.displayName)
+            .limit(1)
+            .get();
+        if (query.docs.isEmpty) {
+          // No profile found - show error
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile not found.')),
+          );
+          return;
+        }
+        doc = query.docs.first;
+      }
+
+      if (doc.exists) {
+        setState(() => _profileData = doc.data() as Map<String, dynamic>?);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile not found.')),
+        );
       }
     } catch (e) {
-      setState(() {
-        _error = 'Error fetching profile: $e';
-        _isLoading = false;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading profile: $e')),
+      );
     }
   }
 
+  // Helper: Get rank title based on experience (copied from profile_screen.dart)
   String _getRankTitle(int exp) {
     if (exp <= 499) return 'Thug';
     if (exp <= 1249) return 'Recruit';
@@ -67,6 +85,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     return 'Supreme Commander';
   }
 
+  // Helper: Get wealth title based on balance (copied from profile_screen.dart)
   String _getWealthTitle(int balance) {
     if (balance <= 800) return 'Destitute';
     if (balance <= 1600) return 'Skint';
@@ -85,8 +104,9 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     return 'Lord';
   }
 
+  // Helper: Get image for equipped slot (copied/adapted from profile_screen.dart)
   String _getEquippedImage(String slot, String emptyAsset) {
-    final equipped = _playerData?[slot];
+    final equipped = _profileData?[slot];
     if (equipped == null) return emptyAsset;
 
     final name = equipped['name'] as String;
@@ -95,48 +115,29 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_profileData == null) {
       return Scaffold(
-        appBar: AppBar(title: Text("${widget.displayName}'s Profile")),
+        appBar: AppBar(title: const Text('Loading Profile')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(title: Text("${widget.displayName}'s Profile")),
-        body: Center(child: Text(_error!)),
-      );
-    }
-
-    final photoURL = _playerData?['photoURL'] ?? 'https://via.placeholder.com/150';
-    final exp = _playerData?['experience'] ?? 0;
-    final balance = _playerData?['balance'] ?? 0;
+    final exp = _profileData!['experience'] ?? 0;
+    final balance = _profileData!['balance'] ?? 0;
     final rank = _getRankTitle(exp);
-    final wealthTitle = _getWealthTitle(balance);
+    final wealth = _getWealthTitle(balance);
 
-    // NEW: Respect visibility for armor/weapon (show empty if hidden)
-    final showArmor = _playerData?['showArmor'] ?? true;
-    final showWeapon = _playerData?['showWeapon'] ?? true;
-
-    final weaponImage = showWeapon && _playerData?['weapon'] != null 
-        ? _getEquippedImage('weapon', 'assets/weapon-empty.jpg') 
-        : 'assets/weapon-empty.jpg';
-
-    final headwearImage = showArmor && _playerData?['headwear'] != null 
-        ? _getEquippedImage('headwear', 'assets/helmet-empty.jpg') 
-        : 'assets/helmet-empty.jpg';
-
-    final armorImage = showArmor && _playerData?['armor'] != null 
-        ? _getEquippedImage('armor', 'assets/armor-empty.jpg') 
-        : 'assets/armor-empty.jpg';
-
-    final footwearImage = showArmor && _playerData?['footwear'] != null 
-        ? _getEquippedImage('footwear', 'assets/boots-empty.jpg') 
-        : 'assets/boots-empty.jpg';
+    final headwearImage = _getEquippedImage('headwear', 'assets/helmet-empty.jpg');
+    final armorImage = _getEquippedImage('armor', 'assets/armor-empty.jpg');
+    final footwearImage = _getEquippedImage('footwear', 'assets/boots-empty.jpg');
+    final weaponImage = _getEquippedImage('weapon', 'assets/weapon-empty.jpg');
 
     return Scaffold(
-      appBar: AppBar(title: Text("${widget.displayName}'s Profile")),
+      appBar: AppBar(
+        title: Text(
+          '${_profileData!['displayName']}${widget.isDead ? ' (Deceased)' : ''}',
+        ),
+      ),
       backgroundColor: Colors.grey[800],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -148,7 +149,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundImage: NetworkImage(photoURL),
+                  backgroundImage: NetworkImage(_profileData!['photoURL'] ?? 'https://via.placeholder.com/150'),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -157,7 +158,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                     children: [
                       const SizedBox(height: 8),
                       Text(
-                        widget.displayName,
+                        _profileData!['displayName'],
                         style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
@@ -166,16 +167,25 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        wealthTitle,
+                        wealth,
                         style: const TextStyle(fontSize: 18, color: Colors.white70),
                       ),
+                      if (widget.isDead) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Deceased',
+                          style: TextStyle(fontSize: 18, color: Colors.red, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
+
             const SizedBox(height: 30),
-            // Weapon image
+
+            // Weapon
             Container(
               width: 300,
               height: 107,
@@ -185,11 +195,16 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(weaponImage, fit: BoxFit.cover),
+                child: Image.asset(
+                  weaponImage,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            // Armor images
+
+            const SizedBox(height: 20),
+
+            // Armor Items
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -226,6 +241,23 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                   ),
                 ),
               ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Other Stats
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Text('Overall Power: ${_profileData!['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  // Add more if needed (e.g., intelligence, but they're unused)
+                ],
+              ),
             ),
           ],
         ),

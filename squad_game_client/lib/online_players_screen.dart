@@ -43,16 +43,34 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
     });
 
     try {
-      // Partial search using Firestore range query (case-sensitive; consider lowercasing names if needed)
       final searchLower = query.toLowerCase();
+
+      // Query alive players
       final playersQuery = await FirebaseFirestore.instance
           .collection('players')
-          .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)  // Assume you add 'displayNameLower' field (lowercase) in server for case-insensitive
+          .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)
+          .where('displayNameLower', isLessThan: searchLower + '\uf8ff')
+          .get();
+
+      // Query dead profiles (NEW)
+      final deadQuery = await FirebaseFirestore.instance
+          .collection('deadProfiles')
+          .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)
           .where('displayNameLower', isLessThan: searchLower + '\uf8ff')
           .get();
 
       setState(() {
-        _searchResults = playersQuery.docs.map((doc) => {'displayName': doc.data()['displayName']}).toList();
+        // Combine results with type
+        _searchResults = [
+          ...playersQuery.docs.map((doc) => {
+            'displayName': doc.data()['displayName'],
+            'type': 'alive',  // NEW: Mark as alive
+          }),
+          ...deadQuery.docs.map((doc) => {
+            'displayName': doc.data()['displayName'],
+            'type': 'dead',   // NEW: Mark as dead
+          }),
+        ];
         _isSearching = false;
         if (_searchResults.isEmpty) {
           _searchError = 'No players found.';
@@ -143,12 +161,18 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
               itemBuilder: (context, index) {
                 final player = _searchResults[index];
                 final name = player['displayName'] as String;
+                final type = player['type'] as String;
+                final displayText = type == 'dead' ? '$name (Dead)' : name;
+
                 return ListTile(
-                  title: Text(name),
+                  title: Text(displayText),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ViewProfileScreen(displayName: name),
+                      builder: (context) => ViewProfileScreen(
+                        displayName: name,
+                        isDead: type == 'dead',  // NEW: Pass if dead
+                      ),
                     ),
                   ),
                 );
