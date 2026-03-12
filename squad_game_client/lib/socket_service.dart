@@ -29,6 +29,8 @@ class SocketService {
     // NEW: Notifier for income claimed (for optional snackbar/UI feedback)
   final ValueNotifier<int?> incomeClaimedNotifier = ValueNotifier(null);
   
+  final ValueNotifier<bool> deathNotifier = ValueNotifier(false);
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -146,6 +148,10 @@ void connect(String email, String displayName) {
       if (data is Map && data['amount'] is int) {
         incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
       }
+    });
+
+    socket?.on('player-died', (_) {
+      deathNotifier.value = true;  // Trigger death UI
     });
 
     socket?.onReconnect((_) {

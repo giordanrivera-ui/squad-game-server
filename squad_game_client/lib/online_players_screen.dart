@@ -1,8 +1,10 @@
+// In online_players_screen.dart (updated full file)
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';
-import 'view_profile.dart';
+import 'chat_screen.dart';   // ← NEW import (important!)
+import 'view_profile.dart';  // Import for profile viewing
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class OnlinePlayersScreen extends StatelessWidget {
+class OnlinePlayersScreen extends StatefulWidget {
   final List<String> onlinePlayers;
 
   const OnlinePlayersScreen({
@@ -10,11 +12,64 @@ class OnlinePlayersScreen extends StatelessWidget {
     required this.onlinePlayers,
   });
 
+  @override
+  State<OnlinePlayersScreen> createState() => _OnlinePlayersScreenState();
+}
+
+class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  String _searchError = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchPlayers(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _searchError = '';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchError = '';
+    });
+
+    try {
+      // Partial search using Firestore range query (case-sensitive; consider lowercasing names if needed)
+      final searchLower = query.toLowerCase();
+      final playersQuery = await FirebaseFirestore.instance
+          .collection('players')
+          .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)  // Assume you add 'displayNameLower' field (lowercase) in server for case-insensitive
+          .where('displayNameLower', isLessThan: searchLower + '\uf8ff')
+          .get();
+
+      setState(() {
+        _searchResults = playersQuery.docs.map((doc) => {'displayName': doc.data()['displayName']}).toList();
+        _isSearching = false;
+        if (_searchResults.isEmpty) {
+          _searchError = 'No players found.';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _searchError = 'Error searching: $e';
+        _isSearching = false;
+      });
+    }
+  }
+
   void _showPlayerMenu(BuildContext context, String name) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -23,7 +78,12 @@ class OnlinePlayersScreen extends StatelessWidget {
             title: Text('View $name\'s Profile'),
             onTap: () {
               Navigator.pop(context);
-              _showProfile(context, name);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ViewProfileScreen(displayName: name),
+                ),
+              );
             },
           ),
           ListTile(
@@ -54,37 +114,62 @@ class OnlinePlayersScreen extends StatelessWidget {
     );
   }
 
-  // In online_players_screen.dart (update _showProfile method)
-  void _showProfile(BuildContext context, String name) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ViewProfileScreen(displayName: name),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (onlinePlayers.isEmpty) {
-      return const Center(
-        child: Text(
-          'No one is online right now',
-          style: TextStyle(fontSize: 18),
+    return Column(
+      children: [
+        // NEW: Search section above the list
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              labelText: 'Search for players',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => _searchPlayers(_searchController.text),
+              ),
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: _searchPlayers,
+          ),
         ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: onlinePlayers.length,
-      itemBuilder: (context, index) {
-        final name = onlinePlayers[index];
-        return ListTile(
-          leading: const Icon(Icons.person, color: Colors.blue),
-          title: Text(name, style: const TextStyle(fontSize: 18)),
-          onTap: () => _showPlayerMenu(context, name),
-        );
-      },
+        if (_isSearching) const Center(child: CircularProgressIndicator()),
+        if (_searchError.isNotEmpty) Center(child: Text(_searchError)),
+        if (_searchResults.isNotEmpty)
+          Expanded(
+            child: ListView.builder(
+              itemCount: _searchResults.length,
+              itemBuilder: (context, index) {
+                final player = _searchResults[index];
+                final name = player['displayName'] as String;
+                return ListTile(
+                  title: Text(name),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ViewProfileScreen(displayName: name),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        const Divider(),
+        Expanded(
+          child: ListView.builder(
+            itemCount: widget.onlinePlayers.length,
+            itemBuilder: (context, index) {
+              final name = widget.onlinePlayers[index];
+              return ListTile(
+                leading: const Icon(Icons.person, color: Colors.blue),
+                title: Text(name, style: const TextStyle(fontSize: 18)),
+                onTap: () => _showPlayerMenu(context, name),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

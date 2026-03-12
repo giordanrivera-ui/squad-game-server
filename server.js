@@ -564,8 +564,11 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
 
     if (p.health <= 0 && !isCaught) {
-      await docRef.delete();
-      console.log(`Player ${email} died and data was reset`);
+      p.dead = true;  // NEW: Mark as dead
+      p.health = 0;   // Ensure health is 0
+      await docRef.set(p);  // Save changes (don't delete doc anymore)
+      socket.emit('player-died');  // NEW: Notify client
+      console.log(`Player ${email} died and marked as dead`);
     }
   });
 
