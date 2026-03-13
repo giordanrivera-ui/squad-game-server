@@ -319,7 +319,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         });
       }
     });
-
     // NEW: Join the big announcement group
     FirebaseMessaging.instance.subscribeToTopic('announcements');
 

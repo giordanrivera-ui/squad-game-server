@@ -11,6 +11,8 @@ class SocketService {
   IO.Socket? socket;
   final ValueNotifier<bool> isConnected = ValueNotifier(false);
 
+  final ValueNotifier<Map<String, dynamic>> statsNotifier = ValueNotifier({});
+
   // The permanent mailbox
   final ValueNotifier<List<Map<String, dynamic>>> inboxNotifier = ValueNotifier([]);
 
@@ -70,7 +72,15 @@ void connect(String email, String displayName) {
         normalLocations = List<String>.from(data['locations'] ?? []);
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
         properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
+        statsNotifier.value = Map.from(data['player'] ?? {});
         print('Got locations from server: $normalLocations');
+      }
+    });
+    
+    // NEW: Handle update-stats (update the notifier)
+    socket?.on(SocketEvents.updateStats, (data) {
+      if (data is Map<String, dynamic>) {
+        statsNotifier.value = {...statsNotifier.value, ...data};
       }
     });
 
