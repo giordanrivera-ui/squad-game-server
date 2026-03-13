@@ -391,6 +391,9 @@ void connect(String email, String displayName) {
     // Test buttons
   void addTestExp() => socket?.emit('add-test-exp', 70);
   void addTestMoney(int amount) => socket?.emit('add-test-money', amount);
+
+  // Add this method in SocketService class (e.g., below addTestMoney)
+void addTestBullets(int amount) => socket?.emit('add-test-bullets', amount);
   
   void disconnect() {
     socket?.disconnect();

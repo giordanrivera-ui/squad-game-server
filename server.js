@@ -318,6 +318,21 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
+  socket.on('add-test-bullets', async (amount) => {
+  const email = socket.data.email;
+  if (!email || typeof amount !== 'number') return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+  p.bullets = (p.bullets || 0) + amount;
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+});
+
   // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {
     const email = socket.data.email;

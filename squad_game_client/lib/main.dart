@@ -520,160 +520,181 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildDashboard() {
-    return Column(
-      children: [
-        // NEW: Top section for menu button, time, location, health, bullets
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[800],  // Lighter grey for contrast
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // NEW: Menu button here (with unread dot)
-                  Builder(
-                    builder: (context) => Stack(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.menu, color: Colors.white),
-                          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                        ),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _socketService.hasUnreadMessages,
-                          builder: (context, hasUnread, child) {
-                            if (!hasUnread) return const SizedBox.shrink();
-                            return Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+  // In main.dart, update the _buildDashboard() method in GameScreen
+Widget _buildDashboard() {
+  return Column(
+    children: [
+      // NEW: Top section for menu button, time, location, health, bullets
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        color: Colors.grey[800],  // Lighter grey for contrast
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // NEW: Menu button here (with unread dot)
+                Builder(
+                  builder: (context) => Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.menu, color: Colors.white),
+                        onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                      ),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _socketService.hasUnreadMessages,
+                        builder: (context, hasUnread, child) {
+                          if (!hasUnread) return const SizedBox.shrink();
+                          return Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                              constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),  // Space between button and time
-                  Expanded(  // Let time take remaining space
-                    child: Text(
-                      time,
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
+                ),
+                const SizedBox(width: 8),  // Space between button and time
+                Expanded(  // Let time take remaining space
+                  child: Text(
+                    time,
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-              Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
-                  const SizedBox(width: 4),
-                  Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
+            Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
+                const SizedBox(width: 4),
+                Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+              ],
+            ),
+          ],
         ),
-        // Black rectangle ONLY for bank balance
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            width: double.infinity,
-            constraints: BoxConstraints(
-            minHeight: 120,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(20)
-          ),
-          padding: const EdgeInsets.all(16),
+      ),
+      // Black rectangle ONLY for bank balance
+      Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          width: double.infinity,
+          constraints: BoxConstraints(
+          minHeight: 120,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(20)
+        ),
+        padding: const EdgeInsets.all(16),
 
-          child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
-            style: const TextStyle(fontSize: 20, color: Colors.green)),
-        )
+        child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
+          style: const TextStyle(fontSize: 20, color: Colors.green)),
+      )
+      ),
+      Expanded(
+        child: ListView.builder(
+          itemCount: messages.length,
+          itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: messages.length,
-            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[850],
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestExp();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +70 Experience')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                  child: const Text('EXP +70'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestMoney(200);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +\$200')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('MONEY +\$200'),
-                ),
-              ),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestMoney(500000);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +\$500,000')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('MONEY +\$500K'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-              ElevatedButton(
+      ),
+      Container(
+        padding: const EdgeInsets.all(16),
+        color: Colors.grey[850],
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
                 onPressed: () {
-                  _socketService.sendMessage(_controller.text);
-                  _controller.clear();
+                  SocketService().addTestExp();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +70 Experience')),
+                  );
                 },
-                child: const Text('Send'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                child: const Text('EXP +70'),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney(200);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$200')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$200'),
+              ),
+            ),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney(500000);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$500,000')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$500K'),
+              ),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+      Container(
+        padding: const EdgeInsets.all(16),
+        color: Colors.grey[850],
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestBullets(10000);  // NEW: Add test bullets button
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +10,000 Bullets')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: const Text('BULLETS +10K'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
+            ElevatedButton(
+              onPressed: () {
+                _socketService.sendMessage(_controller.text);
+                _controller.clear();
+              },
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
 
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();

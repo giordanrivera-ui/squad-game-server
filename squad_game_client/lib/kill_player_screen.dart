@@ -1,7 +1,8 @@
 // kill_player_screen.dart (UPDATED FILE)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'socket_service.dart';  // Import to access stats/inventory/equip
+import 'socket_service.dart';
+import 'dart:math' as math;
 
 class KillPlayerScreen extends StatefulWidget {
   const KillPlayerScreen({super.key});
@@ -18,11 +19,20 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   String _searchError = '';
   String? _selectedTarget;
   int _bullets = 0;
+  int? _targetExp;  // NEW: To calculate K
+
+  @override
+  void initState() {
+    super.initState();
+    // NEW: Listen for kill result from server
+    SocketService().socket?.on('kill-result', _handleKillResult);
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     _bulletsController.dispose();
+    SocketService().socket?.off('kill-result', _handleKillResult);
     super.dispose();
   }
 
@@ -43,18 +53,17 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     try {
       final searchLower = query.toLowerCase();
 
-      // Query only alive players (dead == false)
       final playersQuery = await FirebaseFirestore.instance
           .collection('players')
           .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)
           .where('displayNameLower', isLessThan: searchLower + '\uf8ff')
-          .where('dead', isEqualTo: false)  // Only alive players
+          .where('dead', isEqualTo: false)
           .get();
 
       setState(() {
         _searchResults = playersQuery.docs.map((doc) => {
           'displayName': doc.data()['displayName'],
-          'type': 'alive',  // All results are alive
+          'type': 'alive',
         }).toList();
         _isSearching = false;
         if (_searchResults.isEmpty) {
@@ -69,12 +78,30 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     }
   }
 
-  void _selectPlayer(String name) {
+  Future<void> _selectPlayer(String name) async {
     setState(() {
       _selectedTarget = name;
-      _bullets = 0;  // Reset bullets input
+      _bullets = 0;
       _bulletsController.clear();
+      _targetExp = null;  // Reset
     });
+
+    // NEW: Fetch target's exp to calculate K
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('players')
+          .where('displayName', isEqualTo: name)
+          .limit(1)
+          .get();
+      if (query.docs.isNotEmpty) {
+        final data = query.docs.first.data();
+        setState(() => _targetExp = data['experience'] ?? 0);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading target info: $e')),
+      );
+    }
   }
 
   void _showWeaponInventory() {
@@ -97,7 +124,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                     return ListTile(
                       title: Text(item['name'] as String),
                       onTap: () {
-                        SocketService().equipArmor('weapon', item);  // Equip the selected weapon
+                        SocketService().equipArmor('weapon', item);
                         Navigator.pop(ctx);
                       },
                     );
@@ -122,13 +149,108 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     return 'assets/$name.jpg';
   }
 
+  // NEW: Helper to get upper bound for a given exp (P or K)
+  int _getUpperBound(int exp) {
+    if (exp <= 499) return 499;
+    if (exp <= 1249) return 1249;
+    if (exp <= 2299) return 2299;
+    if (exp <= 3499) return 3499;
+    if (exp <= 4999) return 4999;
+    if (exp <= 6849) return 6849;
+    if (exp <= 8849) return 8849;
+    if (exp <= 10199) return 10199;
+    if (exp <= 11449) return 11449;
+    if (exp <= 14199) return 14199;
+    if (exp <= 17399) return 17399;
+    if (exp <= 21349) return 21349;
+    if (exp <= 25849) return 25849;
+    if (exp <= 31499) return 31499;
+    if (exp <= 38199) return 38199;
+    return 44000;  // Supreme Commander (special for kill mechanics)
+  }
+
+  // NEW: Helper to get rank title (for min check)
+  String _getRankTitle(int exp) {
+    if (exp <= 499) return 'Thug';
+    if (exp <= 1249) return 'Recruit';
+    if (exp <= 2299) return 'Private';
+    if (exp <= 3499) return 'Private First Class';
+    if (exp <= 4999) return 'Corporal';
+    if (exp <= 6849) return 'Sergeant';
+    if (exp <= 8849) return 'Sergeant First Class';
+    if (exp <= 10199) return 'Warrant Officer';
+    if (exp <= 11449) return 'First Lieutenant';
+    if (exp <= 14199) return 'Captain';
+    if (exp <= 17399) return 'Major';
+    if (exp <= 21349) return 'Lieutenant Colonel';
+    if (exp <= 25849) return 'Colonel';
+    if (exp <= 31499) return 'General';
+    if (exp <= 38199) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
+  // NEW: Calculate B (bullets needed)
+  double _calculateBulletsNeeded(int p, int o, int k) {
+    if (o <= 0) return double.infinity;  // No weapon, can't kill
+    final log10 = (double x) => math.log(x) / math.log(10);
+    final inner = 10 * log10(k.toDouble()) - 3 * log10(o.toDouble()) - 2.5 * log10(p.toDouble());
+    final term = 1000 * inner;
+    var b = 0.25 * term + term - 0.23 * p + 480;
+
+    // Handle negative (set to 0)
+    b = math.max(b, 0);
+
+    return b;
+  }
+
+  // NEW: Handle kill result from server (success/fail message)
+  void _handleKillResult(dynamic data) {
+    if (data is Map<String, dynamic> && mounted) {
+      final bool success = data['success'] ?? false;
+      final String message = data['message'] ?? (success ? 'Kill successful!' : 'Kill unsuccessful.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      if (success) {
+        // Optional: Reset screen or something
+        setState(() {
+          _selectedTarget = null;
+          _bullets = 0;
+          _bulletsController.clear();
+        });
+      }
+    }
+  }
+
+  // NEW: Attempt kill on button click
+  void _attemptKill() {
+    if (_selectedTarget == null || _targetExp == null) return;
+
+    // Emit to server (server will calculate/validate)
+    SocketService().socket?.emit('attempt-kill', {
+      'target': _selectedTarget,
+      'bullets': _bullets,
+    });
+  }
+
   @override
-    Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: SocketService().statsNotifier,
       builder: (context, stats, child) {
         final balance = stats['balance'] ?? 0;
-        final canKill = _selectedTarget != null && _bullets > 0 && balance >= 10000;
+        final ownBullets = stats['bullets'] ?? 0;
+        final equippedWeapon = stats['weapon'];
+        final o = equippedWeapon?['power'] ?? 0;
+        final hasWeapon = o > 0;
+        final attackerExp = stats['experience'] ?? 0;
+        final p = _getUpperBound(attackerExp);
+        final canKill = _selectedTarget != null && 
+                        _bullets > 0 && 
+                        _bullets <= ownBullets && 
+                        balance >= 10000 && 
+                        hasWeapon &&
+                        _targetExp != null;
 
         return Column(
           children: [
@@ -184,6 +306,14 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                                   setState(() => _bullets = int.tryParse(value) ?? 0);
                                 },
                               ),
+                              if (_bullets > ownBullets)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'You don\'t have enough bullets.',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
                               const SizedBox(height: 20),
                               const Text('Equipped Weapon:'),
                               GestureDetector(
@@ -201,11 +331,17 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                                   ),
                                 ),
                               ),
+                              if (!hasWeapon)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'You need to equip a weapon.',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
                               const SizedBox(height: 20),
                               ElevatedButton(
-                                onPressed: canKill ? () {
-                                  // For now, does nothing (kill mechanics later)
-                                } : null,
+                                onPressed: canKill ? _attemptKill : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: canKill ? Colors.red : Colors.grey,
                                   minimumSize: const Size(double.infinity, 50),
