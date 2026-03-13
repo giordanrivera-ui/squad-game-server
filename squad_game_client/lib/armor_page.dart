@@ -59,7 +59,7 @@ final List<Armor> _footWear = [
     Armor(
       name: 'Solomon Mission 4D',
       cost: 0,
-      defense: 10,
+      defense: 13,
       description: 'The pinnacle of military footwear with advanced 4D chassis for stability, GORE-TEX waterproofing, and Contagrip outsoles for exceptional grip. Ideal for rugged environments, they provide superior comfort, flexibility, and protection in wet or amphibious conditions, reducing fatigue during extended missions.',
       type: 'footwear',
     ),
