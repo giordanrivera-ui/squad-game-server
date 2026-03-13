@@ -303,34 +303,34 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  socket.on('add-test-money', async (amount) => {
-    const email = socket.data.email;
-    if (!email || typeof amount !== 'number') return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-    p.balance = (p.balance || 0) + amount;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
-
   socket.on('add-test-bullets', async (amount) => {
   const email = socket.data.email;
-  if (!email || typeof amount !== 'number') return;
+  if (!email || typeof amount !== 'number') {
+    console.log(`[SERVER ERROR] Invalid add-test-bullets: email=${email}, amount=${amount}`);
+    return;
+  }
+
+  console.log(`[SERVER] Processing add-test-bullets for ${email}, adding ${amount}`);
 
   const docRef = db.collection('players').doc(email);
   const doc = await docRef.get();
-  if (!doc.exists) return;
+  if (!doc.exists) {
+    console.log(`[SERVER ERROR] No player doc for ${email}`);
+    return;
+  }
 
   let p = doc.data();
-  p.bullets = (p.bullets || 0) + amount;
+  const oldBullets = p.bullets || 0;
+  p.bullets = oldBullets + amount;
+  console.log(`[SERVER] Updated bullets for ${email}: ${oldBullets} -> ${p.bullets}`);
 
-  await docRef.set(p);
-  socket.emit('update-stats', p);
+  try {
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+    console.log(`[SERVER] Sent update-stats to ${email}`);
+  } catch (error) {
+    console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
+  }
 });
 
   // ==================== EXECUTE OPERATION ====================

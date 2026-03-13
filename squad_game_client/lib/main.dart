@@ -217,6 +217,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
+    _socketService.statsNotifier.addListener(() {
+      setState(() {});  // Refresh if needed, but since builder uses it, optional
+    });
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -325,54 +328,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     // Listen to socket events
     _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
     
-    _socketService.socket?.on(SocketEvents.init, (data) {
-      setState(() => stats = Map.from(data['player'] ?? {}));
-      stats['bullets'] = stats['bullets'] ?? 0;
-
-      stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
-
-      stats['overallPower'] = stats['overallPower'] ?? 0;
-      stats['weapon'] = stats['weapon'] ?? null;
-      
-      _socketService.loadMessages();
-      if ((stats['health'] ?? 100) <= 0) isDead = true;
-    });
-
-    _socketService.socket?.on(SocketEvents.updateStats, (data) {
-      if (data is Map) {
-        // Capture old values BEFORE updating stats
-        final oldExp = stats['experience'] ?? 0;
-        final oldRank = _previousRank ?? _getRankTitle(oldExp);
-
-        final newExp = data['experience'] ?? oldExp;
-        final newRank = _getRankTitle(newExp);
-
-        // Now update stats
-        stats = {...stats, ...data};
-        stats['bullets'] = stats['bullets'] ?? 0;
-        stats['lastMidLevelOp'] = stats['lastMidLevelOp'] ?? 0;
-        stats['overallPower'] = stats['overallPower'] ?? 0;
-        stats['weapon'] = stats['weapon'] ?? null;
-
-        // Detect rank up
-        if (newRank != oldRank && newExp > oldExp) {
-          _socketService.rankUpNotifier.value = {
-            'oldRank': oldRank,
-            'newRank': newRank,
-          };
-        }
-
-        _previousRank = newRank;   // Remember for next time
-
-        if (stats['health'] <= 0) isDead = true;
-      } else {
-        stats = Map.from(data ?? {});
-        if (stats['health'] <= 0) isDead = true;
-      }
-
-      setState(() {});
-    });
-
     _socketService.socket?.on(SocketEvents.message, (data) {
       setState(() {
         messages.add(data);
