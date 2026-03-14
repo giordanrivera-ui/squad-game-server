@@ -348,6 +348,187 @@ socket.on('respawn', async () => {
   }
 });
 
+// Add this handler in server.js under the test buttons section (e.g., after 'add-test-bullets')
+socket.on('attempt-kill', async (data) => {
+  const attackerEmail = socket.data.email;
+  if (!attackerEmail || typeof data.target !== 'string' || typeof data.bullets !== 'number' || data.bullets <= 0) {
+    socket.emit('kill-result', { success: false, message: 'Invalid kill attempt.' });
+    return;
+  }
+
+  const attackerDocRef = db.collection('players').doc(attackerEmail);
+  const attackerDoc = await attackerDocRef.get();
+  if (!attackerDoc.exists) {
+    socket.emit('kill-result', { success: false, message: 'Attacker profile not found.' });
+    return;
+  }
+
+  let attacker = attackerDoc.data();
+
+  // Check mobilizing cost
+  if (attacker.balance < 10000) {
+    socket.emit('kill-result', { success: false, message: 'Not enough balance for mobilizing costs.' });
+    return;
+  }
+
+  // Check if has weapon equipped
+  if (!attacker.weapon || attacker.overallPower <= 0) {
+    socket.emit('kill-result', { success: false, message: 'You must equip a weapon.' });
+    return;
+  }
+
+  // Find target by displayName
+  const targetQuery = await db.collection('players').where('displayName', '==', data.target).limit(1).get();
+  if (targetQuery.empty) {
+    socket.emit('kill-result', { success: false, message: 'Target not found.' });
+    return;
+  }
+
+  const targetDocRef = targetQuery.docs[0].ref;
+  const target = targetQuery.docs[0].data();
+
+  // Ensure target is alive
+  if (target.dead) {
+    socket.emit('kill-result', { success: false, message: 'Target is already dead.' });
+    return;
+  }
+
+  // Get P, O, K
+  const p = getUpperBound(attacker.experience || 0);
+  const o = attacker.overallPower || 0;
+  const k = getUpperBound(target.experience || 0);
+
+  // Calculate B
+  let b = calculateBulletsNeeded(p, o, k);
+
+  // Special min for high ranks vs Thug
+  const attackerRank = getRankTitle(attacker.experience || 0);
+  const targetRank = getRankTitle(target.experience || 0);
+  if (['General', 'General of the Army', 'Supreme Commander'].includes(attackerRank) && targetRank === 'Thug') {
+    b = Math.max(b, 3000);
+  }
+
+  // Deduct mobilizing cost
+  attacker.balance -= 10000;
+
+  let success = false;
+  let message = '';
+
+  if (data.bullets >= b) {
+    // Success: Mark target dead (similar to ops death)
+    success = true;
+    message = 'Kill successful! Target eliminated.';
+    
+    // Save dead profile snapshot for target
+    const oldName = target.displayName;
+    if (oldName) {
+      const deadProfile = {
+        displayName: oldName,
+        displayNameLower: oldName.toLowerCase(),
+        experience: target.experience || 0,
+        balance: target.balance || 0,
+        headwear: target.headwear || null,
+        armor: target.armor || null,
+        footwear: target.footwear || null,
+        weapon: target.weapon || null,
+        overallPower: target.overallPower || 0,
+        deathTime: admin.firestore.FieldValue.serverTimestamp(),
+        originalEmail: targetQuery.docs[0].id
+      };
+      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
+
+      // Add to usedNames
+      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+        name: oldName,
+        taken: true,
+        originalEmail: targetQuery.docs[0].id,
+        takenAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    // Reset target (mark dead, but keep for respawn)
+    target.dead = true;
+    target.health = 0;
+    await targetDocRef.update({ dead: true, health: 0 });
+
+    // Notify target if online
+    const targetSocket = onlineSockets.get(data.target);
+    if (targetSocket) {
+      targetSocket.emit('player-died');
+      targetSocket.emit('update-stats', target);
+    }
+
+    // Deduct bullets from attacker
+    attacker.bullets -= data.bullets;
+  } else {
+    // Fail: Deduct bullets only
+    success = false;
+    message = 'Kill unsuccessful. Bullets deducted.';
+    attacker.bullets -= data.bullets;
+  }
+
+  // Save attacker updates
+  attacker.bullets = Math.max(0, attacker.bullets);  // Prevent negative
+  await attackerDocRef.set(attacker);
+
+  // Send result to attacker
+  socket.emit('kill-result', { success, message });
+  socket.emit('update-stats', attacker);
+});
+
+// Add these helpers at the top of server.js (or in a function)
+function getUpperBound(exp) {
+  if (exp <= 499) return 499;
+  if (exp <= 1249) return 1249;
+  if (exp <= 2299) return 2299;
+  if (exp <= 3499) return 3499;
+  if (exp <= 4999) return 4999;
+  if (exp <= 6849) return 6849;
+  if (exp <= 8849) return 8849;
+  if (exp <= 10199) return 10199;
+  if (exp <= 11449) return 11449;
+  if (exp <= 14199) return 14199;
+  if (exp <= 17399) return 17399;
+  if (exp <= 21349) return 21349;
+  if (exp <= 25849) return 25849;
+  if (exp <= 31499) return 31499;
+  if (exp <= 38199) return 38199;
+  return 44000;  // Supreme Commander for kill mechanics
+}
+
+function getRankTitle(exp) {
+  if (exp <= 499) return 'Thug';
+  if (exp <= 1249) return 'Recruit';
+  if (exp <= 2299) return 'Private';
+  if (exp <= 3499) return 'Private First Class';
+  if (exp <= 4999) return 'Corporal';
+  if (exp <= 6849) return 'Sergeant';
+  if (exp <= 8849) return 'Sergeant First Class';
+  if (exp <= 10199) return 'Warrant Officer';
+  if (exp <= 11449) return 'First Lieutenant';
+  if (exp <= 14199) return 'Captain';
+  if (exp <= 17399) return 'Major';
+  if (exp <= 21349) return 'Lieutenant Colonel';
+  if (exp <= 25849) return 'Colonel';
+  if (exp <= 31499) return 'General';
+  if (exp <= 38199) return 'General of the Army';
+  return 'Supreme Commander';
+}
+
+function calculateBulletsNeeded(p, o, k) {
+  if (o <= 0 || k <= 0 || p <= 0) return Infinity;  // Invalid, can't kill
+
+  const log10 = Math.log10;
+  const inner = 10 * log10(k) - 3 * log10(o) - 2.5 * log10(p);
+  const term = 1000 * inner;
+  let b = 0.25 * term + term - 0.23 * p + 480;
+
+  // Handle negative
+  b = Math.max(b, 0);
+
+  return Math.round(b);  // Nearest integer
+}
+
   // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {
     const email = socket.data.email;

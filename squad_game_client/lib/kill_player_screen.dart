@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'socket_service.dart';
-import 'dart:math' as math;
 
 class KillPlayerScreen extends StatefulWidget {
   const KillPlayerScreen({super.key});
@@ -149,60 +148,6 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     return 'assets/$name.jpg';
   }
 
-  // NEW: Helper to get upper bound for a given exp (P or K)
-  int _getUpperBound(int exp) {
-    if (exp <= 499) return 499;
-    if (exp <= 1249) return 1249;
-    if (exp <= 2299) return 2299;
-    if (exp <= 3499) return 3499;
-    if (exp <= 4999) return 4999;
-    if (exp <= 6849) return 6849;
-    if (exp <= 8849) return 8849;
-    if (exp <= 10199) return 10199;
-    if (exp <= 11449) return 11449;
-    if (exp <= 14199) return 14199;
-    if (exp <= 17399) return 17399;
-    if (exp <= 21349) return 21349;
-    if (exp <= 25849) return 25849;
-    if (exp <= 31499) return 31499;
-    if (exp <= 38199) return 38199;
-    return 44000;  // Supreme Commander (special for kill mechanics)
-  }
-
-  // NEW: Helper to get rank title (for min check)
-  String _getRankTitle(int exp) {
-    if (exp <= 499) return 'Thug';
-    if (exp <= 1249) return 'Recruit';
-    if (exp <= 2299) return 'Private';
-    if (exp <= 3499) return 'Private First Class';
-    if (exp <= 4999) return 'Corporal';
-    if (exp <= 6849) return 'Sergeant';
-    if (exp <= 8849) return 'Sergeant First Class';
-    if (exp <= 10199) return 'Warrant Officer';
-    if (exp <= 11449) return 'First Lieutenant';
-    if (exp <= 14199) return 'Captain';
-    if (exp <= 17399) return 'Major';
-    if (exp <= 21349) return 'Lieutenant Colonel';
-    if (exp <= 25849) return 'Colonel';
-    if (exp <= 31499) return 'General';
-    if (exp <= 38199) return 'General of the Army';
-    return 'Supreme Commander';
-  }
-
-  // NEW: Calculate B (bullets needed)
-  double _calculateBulletsNeeded(int p, int o, int k) {
-    if (o <= 0) return double.infinity;  // No weapon, can't kill
-    final log10 = (double x) => math.log(x) / math.log(10);
-    final inner = 10 * log10(k.toDouble()) - 3 * log10(o.toDouble()) - 2.5 * log10(p.toDouble());
-    final term = 1000 * inner;
-    var b = 0.25 * term + term - 0.23 * p + 480;
-
-    // Handle negative (set to 0)
-    b = math.max(b, 0);
-
-    return b;
-  }
-
   // NEW: Handle kill result from server (success/fail message)
   void _handleKillResult(dynamic data) {
     if (data is Map<String, dynamic> && mounted) {
@@ -243,8 +188,6 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
         final equippedWeapon = stats['weapon'];
         final o = equippedWeapon?['power'] ?? 0;
         final hasWeapon = o > 0;
-        final attackerExp = stats['experience'] ?? 0;
-        final p = _getUpperBound(attackerExp);
         final canKill = _selectedTarget != null && 
                         _bullets > 0 && 
                         _bullets <= ownBullets && 

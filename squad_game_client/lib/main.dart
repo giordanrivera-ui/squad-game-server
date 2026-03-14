@@ -196,7 +196,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   OverlayEntry? _rescueOverlay;
 
   OverlayEntry? _rankUpOverlay;
-  String? _previousRank;
 
   // NEW: Store the death listener function (to remove in dispose)
   void _onDeath() {
@@ -752,27 +751,7 @@ Widget _buildDashboard() {
     Overlay.of(context).insert(_rankUpOverlay!);
   }
 
-    String _getRankTitle(int exp) {
-    if (exp <= 499) return 'Thug';
-    if (exp <= 1249) return 'Recruit';
-    if (exp <= 2299) return 'Private';
-    if (exp <= 3499) return 'Private First Class';
-    if (exp <= 4999) return 'Corporal';
-    if (exp <= 6849) return 'Sergeant';
-    if (exp <= 8849) return 'Sergeant First Class';
-    if (exp <= 10199) return 'Warrant Officer';
-    if (exp <= 11449) return 'First Lieutenant';
-    if (exp <= 14199) return 'Captain';
-    if (exp <= 17399) return 'Major';
-    if (exp <= 21349) return 'Lieutenant Colonel';
-    if (exp <= 25849) return 'Colonel';
-    if (exp <= 31499) return 'General';
-    if (exp <= 38199) return 'General of the Army';
-    return 'Supreme Commander';
-  }
-  
-
-  // NEW: Check if any property is due and claim (using server sync)
+  // Check if any property is due and claim (using server sync)
   void _checkForDueIncome() {
     final claims = stats['propertyClaims'] as List<dynamic>? ?? [];
     final nowMs = _socketService.currentServerTime;  // Synced time
