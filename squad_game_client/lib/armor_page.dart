@@ -244,7 +244,7 @@ final List<Armor> _footWear = [
   return Scaffold(
       appBar: StatusAppBar(
         title: 'Armor',
-        stats: {'balance': _currentBalance, 'health': _currentHealth},
+        statsNotifier: SocketService().statsNotifier,
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
       ),

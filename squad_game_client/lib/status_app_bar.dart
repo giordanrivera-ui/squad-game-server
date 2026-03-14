@@ -4,82 +4,86 @@ import 'package:intl/intl.dart';
 
 class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final Map<String, dynamic> stats;
+  final ValueNotifier<Map<String, dynamic>> statsNotifier;
   final String time;
   final VoidCallback onMenuPressed;
 
   const StatusAppBar({
     super.key,
     required this.title,
-    required this.stats,
+    required this.statsNotifier,
     required this.time,
     required this.onMenuPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final balance = stats['balance'] ?? 0;
-    final health = stats['health'] ?? 100;
+    return ValueListenableBuilder<Map<String, dynamic>>(
+      valueListenable: statsNotifier,
+      builder: (context, currentStats, child) {
+        final balance = currentStats['balance'] ?? 0;
+        final health = currentStats['health'] ?? 100;
 
-    return AppBar(
-      leading: Builder(
-        builder: (context) => Stack(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: onMenuPressed,
-            ),
-            ValueListenableBuilder<bool>(
-              valueListenable: SocketService().hasUnreadMessages,  // UPDATED: Listen to notifier
-              builder: (context, hasUnread, child) {
-                if (!hasUnread) return const SizedBox.shrink();
-                return Positioned(
-                  right: 11,
-                  top: 11,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-      title: Text(title),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+        return AppBar(
+          leading: Builder(
+          builder: (context) => Stack(
             children: [
-              const Icon(Icons.account_balance_wallet, size: 20, color: Colors.green),
-              const SizedBox(width: 4),
-              Text('\$${NumberFormat('#,###').format(balance)}', style: const TextStyle(fontSize: 15)),
-
-              const SizedBox(width: 16),
-
-              const Icon(Icons.favorite, size: 20, color: Colors.red),
-              const SizedBox(width: 4),
-              Text('$health', style: const TextStyle(fontSize: 15)),
-
-              const SizedBox(width: 16),
-
-              const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon (or change)
-              const SizedBox(width: 4),
-              Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 15)),
-
-              const SizedBox(width: 16),
-              
-              Text(time, style: const TextStyle(fontSize: 15)),
+              IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: onMenuPressed,
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: SocketService().hasUnreadMessages,  // UPDATED: Listen to notifier
+                builder: (context, hasUnread, child) {
+                  if (!hasUnread) return const SizedBox.shrink();
+                  return Positioned(
+                    right: 11,
+                    top: 11,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
-      ],
+        title: Text(title),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet, size: 20, color: Colors.green),
+                  const SizedBox(width: 4),
+                  Text('\$${NumberFormat('#,###').format(balance)}', style: const TextStyle(fontSize: 15)),
+
+                  const SizedBox(width: 16),
+
+                  const Icon(Icons.favorite, size: 20, color: Colors.red),
+                  const SizedBox(width: 4),
+                  Text('$health', style: const TextStyle(fontSize: 15)),
+
+                  const SizedBox(width: 16),
+
+                  const Icon(Icons.adjust, size: 20, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Text('${currentStats['bullets'] ?? 0}', style: const TextStyle(fontSize: 15)),
+
+                  const SizedBox(width: 16),
+                  
+                  Text(time, style: const TextStyle(fontSize: 15)),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

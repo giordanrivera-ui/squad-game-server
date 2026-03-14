@@ -187,7 +187,7 @@ class _WeaponsPageState extends State<WeaponsPage> {
     return Scaffold(
       appBar: StatusAppBar(
         title: 'Weapons',
-        stats: {'balance': _currentBalance, 'health': _currentHealth},
+        statsNotifier: SocketService().statsNotifier,
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
       ),

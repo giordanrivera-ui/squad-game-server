@@ -183,7 +183,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
     return Scaffold(
       appBar: StatusAppBar(
         title: 'Vehicles',
-        stats: {'balance': _currentBalance, 'health': _currentHealth},
+        statsNotifier: SocketService().statsNotifier,
         time: widget.currentTime,
         onMenuPressed: () => Navigator.pop(context),
       ),

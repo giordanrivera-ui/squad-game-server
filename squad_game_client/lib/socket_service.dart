@@ -33,6 +33,25 @@ class SocketService {
   
   final ValueNotifier<bool> deathNotifier = ValueNotifier(false);
 
+  String _getRankTitle(int exp) {
+    if (exp <= 499) return 'Thug';
+    if (exp <= 1249) return 'Recruit';
+    if (exp <= 2299) return 'Private';
+    if (exp <= 3499) return 'Private First Class';
+    if (exp <= 4999) return 'Corporal';
+    if (exp <= 6849) return 'Sergeant';
+    if (exp <= 8849) return 'Sergeant First Class';
+    if (exp <= 10199) return 'Warrant Officer';
+    if (exp <= 11449) return 'First Lieutenant';
+    if (exp <= 14199) return 'Captain';
+    if (exp <= 17399) return 'Major';
+    if (exp <= 21349) return 'Lieutenant Colonel';
+    if (exp <= 25849) return 'Colonel';
+    if (exp <= 31499) return 'General';
+    if (exp <= 38199) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -73,6 +92,14 @@ void connect(String email, String displayName) {
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
         properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
         statsNotifier.value = Map.from(data['player'] ?? {});
+        statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
+        statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
+        statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
+        statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
+
+        loadMessages();
+        if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
+
         print('Got locations from server: $normalLocations');
       }
     });
@@ -80,7 +107,33 @@ void connect(String email, String displayName) {
     // NEW: Handle update-stats (update the notifier)
     socket?.on(SocketEvents.updateStats, (data) {
       if (data is Map<String, dynamic>) {
+        // Capture old values BEFORE update
+        final oldExp = statsNotifier.value['experience'] ?? 0;
+        final oldRank = _getRankTitle(oldExp);  // Use helper below
+
+        // Update notifier
         statsNotifier.value = {...statsNotifier.value, ...data};
+
+        // Set defaults (like old code)
+        statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
+        statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
+        statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
+        statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
+
+        // Detect rank up
+        final newExp = statsNotifier.value['experience'] ?? oldExp;
+        final newRank = _getRankTitle(newExp);
+        if (newRank != oldRank && newExp > oldExp) {
+          rankUpNotifier.value = {
+            'oldRank': oldRank,
+            'newRank': newRank,
+          };
+        }
+
+        // Check death
+        if ((statsNotifier.value['health'] ?? 100) <= 0) {
+          deathNotifier.value = true;
+        }
       }
     });
 

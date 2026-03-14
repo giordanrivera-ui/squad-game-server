@@ -104,105 +104,114 @@ class _AirportScreenState extends State<AirportScreen> {
     }
 
     // Normal Airport Screen (only shown when NOT in prison)
-    final socketService = SocketService();
-    final available = socketService.normalLocations
-        .where((city) => city != widget.currentLocation)
-        .toList();
+    return ValueListenableBuilder<Map<String, dynamic>>(
+      valueListenable: SocketService().statsNotifier,
+      builder: (context, currentStats, child) {
+        final socketService = SocketService();
+        final available = socketService.normalLocations
+            .where((city) => city != currentStats['location'])  // ← Use currentStats
+            .toList();
 
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          color: Colors.blue[50],
-          child: Column(
-            children: [
-              const Text('You are in', style: TextStyle(fontSize: 18)),
-              Text(widget.currentLocation,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
+        // ← Add these (move from outside)
+        final int? cost = _selectedDestination != null
+            ? socketService.travelCosts[_selectedDestination!]  // ← "final" instead of "get"
+            : null;
 
-        Expanded(
-          child: ListView.builder(
-            itemCount: available.length,
-            itemBuilder: (context, index) {
-              final city = available[index];
-              final cityCost = socketService.travelCosts[city] ?? 0;
+        final bool canTravel = _selectedDestination != null &&
+                              cost != null &&
+                              (currentStats['balance'] ?? 0) >= cost;  // ← Use currentStats balance
 
-              return RadioListTile<String>(
-                title: Text(city, style: const TextStyle(fontSize: 18)),
-                subtitle: Text('Cost: \$$cityCost'),
-                value: city,
-                groupValue: _selectedDestination,
-                onChanged: (value) {
-                  setState(() => _selectedDestination = value);
-                },
-              );
-            },
-          ),
-        ),
-
-        // ... rest of your original airport UI (selection, button, etc.) unchanged
-        // (I kept everything below exactly as you had it)
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              if (_selectedDestination != null)
-                Text(
-                  'Flight to $_selectedDestination costs \$${_cost}',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
-                )
-              else
-                const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.grey)),
-
-              const SizedBox(height: 12),
-
-              if (_selectedDestination == null)
-                const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
-              else if (_cost! > widget.currentBalance)
-                const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
-              else
-                const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
-
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _canTravel ? _travel : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _canTravel ? Colors.green : Colors.grey,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                  ),
-                  child: const Text(
-                    '✈️ TRAVEL NOW ✈️',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                ),
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              color: Colors.blue[50],
+              child: Column(
+                children: [
+                  const Text('You are in', style: TextStyle(fontSize: 18)),
+                  Text(currentStats['location'] ?? widget.currentLocation,  // ← Use currentStats
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+
+            Expanded(
+              child: ListView.builder(
+                itemCount: available.length,
+                itemBuilder: (context, index) {
+                  final city = available[index];
+                  final cityCost = socketService.travelCosts[city] ?? 0;
+
+                  return RadioListTile<String>(
+                    title: Text(city, style: const TextStyle(fontSize: 18)),
+                    subtitle: Text('Cost: \$$cityCost'),
+                    value: city,
+                    groupValue: _selectedDestination,
+                    onChanged: (value) {
+                      setState(() => _selectedDestination = value);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  if (_selectedDestination != null)
+                    Text(
+                      'Flight to $_selectedDestination costs \$${cost}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
+                    )
+                  else
+                    const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.grey)),
+
+                  const SizedBox(height: 12),
+
+                  if (_selectedDestination == null)
+                    const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
+                  else if (cost! > (currentStats['balance'] ?? widget.currentBalance))  // ← Use currentStats
+                    const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
+                  else
+                    const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canTravel ? _travel : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canTravel ? Colors.green : Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                      ),
+                      child: const Text(
+                        '✈️ TRAVEL NOW ✈️',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   // Your existing fields and methods (kept exactly as before)
   String? _selectedDestination;
 
-  int? get _cost => _selectedDestination != null
-      ? SocketService().travelCosts[_selectedDestination!]
-      : null;
-
-  bool get _canTravel => _selectedDestination != null &&
-                         _cost != null &&
-                         widget.currentBalance >= _cost!;
-
   void _travel() {
-    if (!_canTravel) return;
+    final currentStats = SocketService().statsNotifier.value;  // Get latest inside
+    final int? cost = _selectedDestination != null
+        ? SocketService().travelCosts[_selectedDestination!]
+        : null;
+
+    if (_selectedDestination == null || cost == null || (currentStats['balance'] ?? 0) < cost) return;
 
     SocketService().travel(_selectedDestination!);
 

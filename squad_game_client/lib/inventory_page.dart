@@ -212,7 +212,7 @@ class _InventoryPageState extends State<InventoryPage> {
     return Scaffold(
       appBar: StatusAppBar(
         title: 'Inventory',
-        stats: _stats,
+        statsNotifier: SocketService().statsNotifier,
         time: _time,
         onMenuPressed: () => Navigator.pop(context),
       ),

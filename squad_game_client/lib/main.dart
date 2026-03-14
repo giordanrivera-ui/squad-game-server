@@ -183,7 +183,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   TextEditingController _controller = TextEditingController();
 
   String time = 'Loading...';
-  Map<String, dynamic> stats = {'balance': 0, 'health': 100, 'location': 'Riverstone'};
   bool cooldown = false;
   bool isDead = false;
   Timer? cooldownTimer;
@@ -398,7 +397,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                       : _currentScreen == 7 
                                           ? 'Store'
                                           : 'Properties',
-              stats: stats,
+              statsNotifier: _socketService.statsNotifier,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
             ),
@@ -408,7 +407,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         onScreenChanged: (screen) {
           setState(() => _currentScreen = screen);
         },
-        stats: stats,
+        stats: _socketService.statsNotifier.value,
         hasUnreadMessages: _socketService.hasUnreadMessages,
       ),
 
@@ -420,50 +419,50 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                   ? MessagesScreen()
                   : _currentScreen == 3 
                       ? AirportScreen(
-                          currentLocation: stats['location'] ?? 'Unknown',
-                          currentBalance: stats['balance'] ?? 0,
-                          currentHealth: stats['health'] ?? 100,
+                          currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                          currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                          currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                           currentTime: time,
-                          prisonEndTime: stats['prisonEndTime'] ?? 0,
+                          prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
                         )
                       : _currentScreen == 4 
                           ? HospitalScreen(
-                              currentLocation: stats['location'] ?? 'Unknown',
-                              currentBalance: stats['balance'] ?? 0,
-                              currentHealth: stats['health'] ?? 100,
+                              currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                              currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                              currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                               currentTime: time,
                             )
                           : _currentScreen == 5 
                               ? OperationsScreen(
-                                  currentLocation: stats['location'] ?? 'Unknown',
-                                  currentBalance: stats['balance'] ?? 0,
-                                  currentHealth: stats['health'] ?? 100,
+                                  currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                                  currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                                  currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                                   currentTime: time,
-                                  lastLowLevelOp: stats['lastLowLevelOp'] ?? 0,
-                                  prisonEndTime: stats['prisonEndTime'] ?? 0,
-                                  lastMidLevelOp: stats['lastMidLevelOp'] ?? 0,
+                                  lastLowLevelOp: _socketService.statsNotifier.value['lastLowLevelOp'] ?? 0,
+                                  prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
+                                  lastMidLevelOp: _socketService.statsNotifier.value['lastMidLevelOp'] ?? 0,
                                 )
                               : _currentScreen == 6 
-                                  ? ProfileScreen(stats: stats)
+                                  ? ProfileScreen(stats: _socketService.statsNotifier.value)
                                   : _currentScreen == 7 
                                       ? StoreScreen(
-                                        currentBalance: stats['balance'] ?? 0,
-                                        currentHealth: stats['health'] ?? 100,
+                                        currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                                        currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                                         currentTime: time,
-                                        currentLocation: stats['location'] ?? 'Unknown',
+                                        currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
                                       )
                                       : _currentScreen == 8 
-                                        ? PropertiesScreen(initialStats: stats)  // Pass stats
+                                        ? PropertiesScreen(initialStats: _socketService.statsNotifier.value)  // Pass stats
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
-                                              initialViewerPrisonEndTime: stats['prisonEndTime'] ?? 0,
+                                              initialViewerPrisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
                                             )
                                             : _currentScreen == 10  // NEW: Kill a Player
                                             ? const KillPlayerScreen()
                                             : _currentScreen == 11  // NEW: Hall of Fame
                                                 ? const HallOfFameScreen()
-                                                : PropertiesScreen(initialStats: stats),  // Fallback
+                                                : PropertiesScreen(initialStats: _socketService.statsNotifier.value),  // Fallback
 
       floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
