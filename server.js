@@ -146,6 +146,7 @@ io.on('connection', (socket) => {
         marksmanship: 0,
         stealth: 0,
         defense: 0,
+        kills: 0,
         photoURL: '',
         inventory: [],
         headwear: null,
@@ -262,6 +263,7 @@ socket.on('respawn', async () => {
       marksmanship: 0,
       stealth: 0,
       defense: 0,
+      kills: 0,
       photoURL: '',
       inventory: [],
       headwear: null,
@@ -469,6 +471,8 @@ socket.on('attempt-kill', async (data) => {
 
   // Save attacker updates
   attacker.bullets = Math.max(0, attacker.bullets);  // Prevent negative
+  await attackerDocRef.set(attacker);
+  attacker.kills = (attacker.kills || 0) + 1;  // NEW: Increment kills
   await attackerDocRef.set(attacker);
 
   // Send result to attacker

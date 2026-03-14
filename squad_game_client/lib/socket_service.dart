@@ -119,6 +119,7 @@ void connect(String email, String displayName) {
         statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
         statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
         statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
+        statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
 
         // Detect rank up
         final newExp = statsNotifier.value['experience'] ?? oldExp;

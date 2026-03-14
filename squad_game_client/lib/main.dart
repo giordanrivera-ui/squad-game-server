@@ -540,6 +540,10 @@ Widget _buildDashboard() {
                   const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
                   const SizedBox(width: 4),
                   Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.whatshot, size: 20, color: Colors.red),  // Skull or fire icon for kills
+                  const SizedBox(width: 4),
+                  Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                 ],
               ),
             ],
