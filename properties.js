@@ -1,6 +1,4 @@
-// properties.js - Handles all property-related logic
-
-const properties = [  // The list of all properties (moved from server.js)
+const properties = [
   {
     name: "Micropod",
     cost: 15000,
@@ -63,7 +61,6 @@ const properties = [  // The list of all properties (moved from server.js)
   }
 ];
 
-// Function to handle buying a property (moved and turned into a function)
 async function handleBuyProperty(db, socket, propertyName) {
   const email = socket.data.email;
   if (!email || typeof propertyName !== 'string') return;

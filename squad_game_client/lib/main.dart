@@ -222,7 +222,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (stats['ownedProperties'] != null && (stats['ownedProperties'] as List).isNotEmpty) {
+      final currentStats = _socketService.statsNotifier.value;  // NEW: Use the smart box
+      if (currentStats['ownedProperties'] != null && (currentStats['ownedProperties'] as List).isNotEmpty) {
         _checkForDueIncome();
       }
     });
@@ -753,8 +754,9 @@ Widget _buildDashboard() {
 
   // Check if any property is due and claim (using server sync)
   void _checkForDueIncome() {
-    final claims = stats['propertyClaims'] as List<dynamic>? ?? [];
-    final nowMs = _socketService.currentServerTime;  // Synced time
+    final currentStats = _socketService.statsNotifier.value;  // NEW: Use the smart box
+    final claims = currentStats['propertyClaims'] as List<dynamic>? ?? [];
+    final nowMs = _socketService.currentServerTime;
 
     bool isDue = false;
     for (final claim in claims) {
