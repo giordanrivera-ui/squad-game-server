@@ -33,6 +33,8 @@ class SocketService {
   
   final ValueNotifier<bool> deathNotifier = ValueNotifier(false);
 
+  final ValueNotifier<Map<String, dynamic>?> hitClaimedNotifier = ValueNotifier(null);
+
   String _getRankTitle(int exp) {
     if (exp <= 499) return 'Thug';
     if (exp <= 1249) return 'Recruit';
@@ -214,8 +216,23 @@ void connect(String email, String displayName) {
       }
     });
 
+    
+
     socket?.on('player-died', (_) {
       deathNotifier.value = true;  // Trigger death UI
+    });
+
+    // NEW: Hitlist updates (screen will refresh automatically via StreamBuilder)
+    socket?.on('hitlist-update', (data) {});
+
+    // NEW: Hit claimed notification
+    socket?.on('hit-claimed', (data) {
+      if (data is Map<String, dynamic>) {
+        hitClaimedNotifier.value = {
+          'target': data['target'] ?? '',
+          'reward': data['reward'] ?? 0
+        };
+      }
     });
 
     socket?.onReconnect((_) {
@@ -447,10 +464,22 @@ void connect(String email, String displayName) {
   void addTestMoney(int amount) => socket?.emit('add-test-money', amount);
 
   // Add this method in SocketService class (e.g., below addTestMoney)
-void addTestBullets(int amount) => socket?.emit('add-test-bullets', amount);
+  void addTestBullets(int amount) => socket?.emit('add-test-bullets', amount);
   
   void disconnect() {
     socket?.disconnect();
     isConnected.value = false;
   }
+
+  // ← ADD THIS NEW METHOD HERE
+  void placeHit(String target, int reward, int durationDays) {
+    if (target.isNotEmpty && reward >= 1000) {
+      socket?.emit('place-hit', {
+        'target': target,
+        'reward': reward,
+        'durationDays': durationDays
+      });
+    }
+  }
 }
+

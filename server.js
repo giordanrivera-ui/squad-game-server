@@ -51,6 +51,23 @@ setInterval(() => {
   }
 }, 1000);
 
+// ==================== AUTO-CLEANUP EXPIRED HITS ====================
+setInterval(async () => {
+  const now = Date.now();
+  const expiredHits = await db.collection('hitlist')
+    .where('endTime', '<', now)
+    .where('active', '==', true)
+    .get();
+
+  const batch = db.batch();
+  expiredHits.docs.forEach(doc => batch.update(doc.ref, { active: false }));
+  await batch.commit();
+
+  if (!expiredHits.empty) {
+    io.emit('hitlist-update'); // Refresh everyone's hitlist
+  }
+}, 60000); // Check every minute
+
 const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
   "Valleora", "Lónghǎi", "Sakuragawa", "Cawayan Heights"
@@ -321,164 +338,221 @@ socket.on('respawn', async () => {
   });
 
   socket.on('add-test-bullets', async (amount) => {
-  const email = socket.data.email;
-  if (!email || typeof amount !== 'number') {
-    console.log(`[SERVER ERROR] Invalid add-test-bullets: email=${email}, amount=${amount}`);
-    return;
-  }
-
-  console.log(`[SERVER] Processing add-test-bullets for ${email}, adding ${amount}`);
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    console.log(`[SERVER ERROR] No player doc for ${email}`);
-    return;
-  }
- 
-  let p = doc.data();
-  const oldBullets = p.bullets || 0;
-  p.bullets = oldBullets + amount;
-  console.log(`[SERVER] Updated bullets for ${email}: ${oldBullets} -> ${p.bullets}`);
-
-  try {
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    console.log(`[SERVER] Sent update-stats to ${email}`);
-  } catch (error) {
-    console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
-  }
-});
-
-// Add this handler in server.js under the test buttons section (e.g., after 'add-test-bullets')
-socket.on('attempt-kill', async (data) => {
-  const attackerEmail = socket.data.email;
-  if (!attackerEmail || typeof data.target !== 'string' || typeof data.bullets !== 'number' || data.bullets <= 0) {
-    socket.emit('kill-result', { success: false, message: 'Invalid kill attempt.' });
-    return;
-  }
-
-  const attackerDocRef = db.collection('players').doc(attackerEmail);
-  const attackerDoc = await attackerDocRef.get();
-  if (!attackerDoc.exists) {
-    socket.emit('kill-result', { success: false, message: 'Attacker profile not found.' });
-    return;
-  }
-
-  let attacker = attackerDoc.data();
-
-  // Check mobilizing cost
-  if (attacker.balance < 10000) {
-    socket.emit('kill-result', { success: false, message: 'Not enough balance for mobilizing costs.' });
-    return;
-  }
-
-  // Check if has weapon equipped
-  if (!attacker.weapon || attacker.overallPower <= 0) {
-    socket.emit('kill-result', { success: false, message: 'You must equip a weapon.' });
-    return;
-  }
-
-  // Find target by displayName
-  const targetQuery = await db.collection('players').where('displayName', '==', data.target).limit(1).get();
-  if (targetQuery.empty) {
-    socket.emit('kill-result', { success: false, message: 'Target not found.' });
-    return;
-  }
-
-  const targetDocRef = targetQuery.docs[0].ref;
-  const target = targetQuery.docs[0].data();
-
-  // Ensure target is alive
-  if (target.dead) {
-    socket.emit('kill-result', { success: false, message: 'Target is already dead.' });
-    return;
-  }
-
-  // Get P, O, K
-  const p = getUpperBound(attacker.experience || 0);
-  const o = attacker.overallPower || 0;
-  const k = getUpperBound(target.experience || 0);
-
-  // Calculate B
-  let b = calculateBulletsNeeded(p, o, k);
-
-  // Special min for high ranks vs Thug
-  const attackerRank = getRankTitle(attacker.experience || 0);
-  const targetRank = getRankTitle(target.experience || 0);
-  if (['General', 'General of the Army', 'Supreme Commander'].includes(attackerRank) && targetRank === 'Thug') {
-    b = Math.max(b, 3000);
-  }
-
-  // Deduct mobilizing cost
-  attacker.balance -= 10000;
-
-  let success = false;
-  let message = '';
-
-  if (data.bullets >= b) {
-    // Success: Mark target dead (similar to ops death)
-    success = true;
-    message = 'Kill successful! Target eliminated.';
-    
-    // Save dead profile snapshot for target
-    const oldName = target.displayName;
-    if (oldName) {
-      const deadProfile = {
-        displayName: oldName,
-        displayNameLower: oldName.toLowerCase(),
-        experience: target.experience || 0,
-        balance: target.balance || 0,
-        headwear: target.headwear || null,
-        armor: target.armor || null,
-        footwear: target.footwear || null,
-        weapon: target.weapon || null,
-        overallPower: target.overallPower || 0,
-        deathTime: admin.firestore.FieldValue.serverTimestamp(),
-        originalEmail: targetQuery.docs[0].id
-      };
-      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
-
-      // Add to usedNames
-      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
-        name: oldName,
-        taken: true,
-        originalEmail: targetQuery.docs[0].id,
-        takenAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+    const email = socket.data.email;
+    if (!email || typeof amount !== 'number') {
+      console.log(`[SERVER ERROR] Invalid add-test-bullets: email=${email}, amount=${amount}`);
+      return;
     }
 
-    // Reset target (mark dead, but keep for respawn)
-    target.dead = true;
-    target.health = 0;
-    await targetDocRef.update({ dead: true, health: 0 });
+    console.log(`[SERVER] Processing add-test-bullets for ${email}, adding ${amount}`);
 
-    // Notify target if online
-    const targetSocket = onlineSockets.get(data.target);
-    if (targetSocket) {
-      targetSocket.emit('player-died');
-      targetSocket.emit('update-stats', target);
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      console.log(`[SERVER ERROR] No player doc for ${email}`);
+      return;
+    }
+  
+    let p = doc.data();
+    const oldBullets = p.bullets || 0;
+    p.bullets = oldBullets + amount;
+    console.log(`[SERVER] Updated bullets for ${email}: ${oldBullets} -> ${p.bullets}`);
+
+    try {
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+      console.log(`[SERVER] Sent update-stats to ${email}`);
+    } catch (error) {
+      console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
+    }
+  });
+
+  // Add this handler in server.js under the test buttons section (e.g., after 'add-test-bullets')
+  socket.on('attempt-kill', async (data) => {
+    const attackerEmail = socket.data.email;
+    if (!attackerEmail || typeof data.target !== 'string' || typeof data.bullets !== 'number' || data.bullets <= 0) {
+      socket.emit('kill-result', { success: false, message: 'Invalid kill attempt.' });
+      return;
     }
 
-    // Deduct bullets from attacker
-    attacker.bullets -= data.bullets;
-  } else {
-    // Fail: Deduct bullets only
-    success = false;
-    message = 'Kill unsuccessful. Bullets deducted.';
-    attacker.bullets -= data.bullets;
-  }
+    const attackerDocRef = db.collection('players').doc(attackerEmail);
+    const attackerDoc = await attackerDocRef.get();
+    if (!attackerDoc.exists) {
+      socket.emit('kill-result', { success: false, message: 'Attacker profile not found.' });
+      return;
+    }
 
-  // Save attacker updates
-  attacker.bullets = Math.max(0, attacker.bullets);  // Prevent negative
-  await attackerDocRef.set(attacker);
-  attacker.kills = (attacker.kills || 0) + 1;  // NEW: Increment kills
-  await attackerDocRef.set(attacker);
+    let attacker = attackerDoc.data();
 
-  // Send result to attacker
-  socket.emit('kill-result', { success, message });
-  socket.emit('update-stats', attacker);
-});
+    // Check mobilizing cost
+    if (attacker.balance < 10000) {
+      socket.emit('kill-result', { success: false, message: 'Not enough balance for mobilizing costs.' });
+      return;
+    }
+
+    // Check if has weapon equipped
+    if (!attacker.weapon || attacker.overallPower <= 0) {
+      socket.emit('kill-result', { success: false, message: 'You must equip a weapon.' });
+      return;
+    }
+
+    // Find target by displayName
+    const targetQuery = await db.collection('players').where('displayName', '==', data.target).limit(1).get();
+    if (targetQuery.empty) {
+      socket.emit('kill-result', { success: false, message: 'Target not found.' });
+      return;
+    }
+
+    const targetDocRef = targetQuery.docs[0].ref;
+    const target = targetQuery.docs[0].data();
+
+    // Ensure target is alive
+    if (target.dead) {
+      socket.emit('kill-result', { success: false, message: 'Target is already dead.' });
+      return;
+    }
+
+    // Get P, O, K
+    const p = getUpperBound(attacker.experience || 0);
+    const o = attacker.overallPower || 0;
+    const k = getUpperBound(target.experience || 0);
+
+    // Calculate B
+    let b = calculateBulletsNeeded(p, o, k);
+
+    // Special min for high ranks vs Thug
+    const attackerRank = getRankTitle(attacker.experience || 0);
+    const targetRank = getRankTitle(target.experience || 0);
+    if (['General', 'General of the Army', 'Supreme Commander'].includes(attackerRank) && targetRank === 'Thug') {
+      b = Math.max(b, 3000);
+    }
+
+    // Deduct mobilizing cost
+    attacker.balance -= 10000;
+
+    let success = false;
+    let message = '';
+
+    if (data.bullets >= b) {
+      // Success: Mark target dead (similar to ops death)
+      success = true;
+      message = 'Kill successful! Target eliminated.';
+      
+      // Save dead profile snapshot for target
+      const oldName = target.displayName;
+      if (oldName) {
+        const deadProfile = {
+          displayName: oldName,
+          displayNameLower: oldName.toLowerCase(),
+          experience: target.experience || 0,
+          balance: target.balance || 0,
+          headwear: target.headwear || null,
+          armor: target.armor || null,
+          footwear: target.footwear || null,
+          weapon: target.weapon || null,
+          overallPower: target.overallPower || 0,
+          deathTime: admin.firestore.FieldValue.serverTimestamp(),
+          originalEmail: targetQuery.docs[0].id
+        };
+        await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
+
+        // Add to usedNames
+        await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+          name: oldName,
+          taken: true,
+          originalEmail: targetQuery.docs[0].id,
+          takenAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Reset target (mark dead, but keep for respawn)
+      target.dead = true;
+      target.health = 0;
+      await targetDocRef.update({ dead: true, health: 0 });
+
+      // Notify target if online
+      const targetSocket = onlineSockets.get(data.target);
+      if (targetSocket) {
+        targetSocket.emit('player-died');
+        targetSocket.emit('update-stats', target);
+      }
+
+      // NEW: Check for active hit and pay bounty
+      const hitQuery = await db.collection('hitlist')
+        .where('target', '==', data.target)
+        .where('active', '==', true)
+        .limit(1)
+        .get();
+
+      if (!hitQuery.empty) {
+        const hitDoc = hitQuery.docs[0];
+        const hitData = hitDoc.data();
+
+        // Pay bounty to killer
+        attacker.balance += hitData.reward;
+
+        // Mark hit as completed
+        await hitDoc.ref.update({ active: false });
+
+        // Notify killer
+        socket.emit('hit-claimed', { 
+          target: data.target, 
+          reward: hitData.reward 
+        });
+      }
+
+      // Deduct bullets from attacker
+      attacker.bullets -= data.bullets;
+    } else {
+      // Fail: Deduct bullets only
+      success = false;
+      message = 'Kill unsuccessful. Bullets deducted.';
+      attacker.bullets -= data.bullets;
+    }
+
+    // Save attacker updates
+    attacker.bullets = Math.max(0, attacker.bullets);  // Prevent negative
+    await attackerDocRef.set(attacker);
+    attacker.kills = (attacker.kills || 0) + 1;  // NEW: Increment kills
+    await attackerDocRef.set(attacker);
+
+    // Send result to attacker
+    socket.emit('kill-result', { success, message });
+    socket.emit('update-stats', attacker);
+  });
+
+  // ==================== PLACE HIT (BOUNTY) ====================
+  socket.on('place-hit', async (data) => {
+    const posterEmail = socket.data.email;
+    if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
+      socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
+      return;
+    }
+
+    const posterDoc = await db.collection('players').doc(posterEmail).get();
+    if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
+      socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
+      return;
+    }
+
+    const durationMs = (data.durationDays || 1) * 24 * 60 * 60 * 1000;
+    const endTime = Date.now() + durationMs;
+
+    const hitId = `${posterEmail}-${Date.now()}`;
+
+    await db.collection('hitlist').doc(hitId).set({
+      target: data.target,
+      posterEmail,
+      reward: data.reward,
+      endTime,
+      active: true
+    });
+
+    // Deduct from poster
+    await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+
+    socket.emit('hit-result', { success: true, message: `Bounty of $${data.reward} placed on ${data.target} for ${data.durationDays} days!` });
+  });
 
 // Add these helpers at the top of server.js (or in a function)
 function getUpperBound(exp) {
