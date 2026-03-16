@@ -62,7 +62,8 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
         'target': doc.data()['target'],
         'reward': doc.data()['reward'],
         'endTime': doc.data()['endTime'],
-      }).toList();
+      }).where((hit) => hit['endTime'] > DateTime.now().millisecondsSinceEpoch)
+      .toList();
     });
   }
 

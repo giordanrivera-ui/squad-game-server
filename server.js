@@ -65,20 +65,15 @@ setInterval(async () => {
       const hitData = doc.data();
       batch.update(doc.ref, { active: false });
 
-      // NEW: Refund if unclaimed (active=true on expiry)
-      const posterDoc = await db.collection('players').doc(hitData.posterEmail).get();
-      if (posterDoc.exists) {
-        await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });
+      // After update balance
+      const updatedPoster = await db.collection('players').doc(hitData.posterEmail).get();  // NEW: Re-fetch fresh
+      if (updatedPoster.exists) {
         console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
 
-        // Notify poster if online
-        const posterSocket = onlineSockets.get(posterDoc.data().displayName);
+        const posterSocket = onlineSockets.get(updatedPoster.data().displayName);  // Use updated
         if (posterSocket) {
-          posterSocket.emit('hit-expired', { 
-            target: hitData.target, 
-            reward: hitData.reward 
-          });
-          posterSocket.emit('update-stats', posterDoc.data());
+          posterSocket.emit('hit-expired', { target: hitData.target, reward: hitData.reward });
+          posterSocket.emit('update-stats', updatedPoster.data());  // Send NEW data
         }
       }
     }
