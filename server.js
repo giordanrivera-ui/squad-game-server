@@ -90,7 +90,7 @@ setInterval(async () => {
   } catch (error) {
     console.error('Error in hit cleanup: ', error);
   }
-}, 10000); // Check every minute
+}, 5000); // Check every minute
 
 const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
