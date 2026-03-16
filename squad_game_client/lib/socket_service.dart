@@ -235,6 +235,8 @@ void connect(String email, String displayName) {
       }
     });
 
+    
+
     socket?.onReconnect((_) {
       print('🔄 Reconnected to server!');
       // Re-register on reconnect to ensure online list updates
