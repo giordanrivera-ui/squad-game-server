@@ -53,18 +53,42 @@ setInterval(() => {
 
 // ==================== AUTO-CLEANUP EXPIRED HITS ====================
 setInterval(async () => {
-  const now = Date.now();
-  const expiredHits = await db.collection('hitlist')
-    .where('endTime', '<', now)
-    .where('active', '==', true)
-    .get();
+  try {
+    const now = Date.now();
+    const expiredHits = await db.collection('hitlist')
+      .where('endTime', '<', now)
+      .where('active', '==', true)
+      .get();
 
-  const batch = db.batch();
-  expiredHits.docs.forEach(doc => batch.update(doc.ref, { active: false }));
-  await batch.commit();
+    const batch = db.batch();
+    for (const doc of expiredHits.docs) {
+      const hitData = doc.data();
+      batch.update(doc.ref, { active: false });
 
-  if (!expiredHits.empty) {
-    io.emit('hitlist-update'); // Refresh everyone's hitlist
+      // NEW: Refund if unclaimed (active=true on expiry)
+      const posterDoc = await db.collection('players').doc(hitData.posterEmail).get();
+      if (posterDoc.exists) {
+        await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });
+        console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
+
+        // Notify poster if online
+        const posterSocket = onlineSockets.get(posterDoc.data().displayName);
+        if (posterSocket) {
+          posterSocket.emit('hit-expired', { 
+            target: hitData.target, 
+            reward: hitData.reward 
+          });
+          posterSocket.emit('update-stats', posterDoc.data());
+        }
+      }
+    }
+    await batch.commit();
+
+    if (!expiredHits.empty) {
+      io.emit('hitlist-update'); // Refresh everyone's hitlist
+    }
+  } catch (error) {
+    console.error('Error in hit cleanup: ', error);
   }
 }, 60000); // Check every minute
 
@@ -540,7 +564,8 @@ socket.on('respawn', async () => {
       return;
     }
 
-    const durationMs = (data.durationDays || 1) * 24 * 60 * 60 * 1000;
+    const durationDays = data.durationDays || 1;
+    const durationMs = Math.max(durationDays * 24 * 60 * 60 * 1000, 5 * 60 * 1000);  // NEW: Min 5 mins for testing
     const endTime = Date.now() + durationMs;
 
     const hitId = `${posterEmail}-${Date.now()}`;
@@ -556,7 +581,10 @@ socket.on('respawn', async () => {
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
 
-    socket.emit('hit-result', { success: true, message: `Bounty of $${data.reward} placed on ${data.target} for ${data.durationDays} days!` });
+    const updatedPoster = await posterDoc.ref.get();  // Re-fetch
+    socket.emit('update-stats', updatedPoster.data());
+
+    socket.emit('hit-result', { success: true, message: `Bounty of $${data.reward} placed on ${data.target} for ${durationDays} days!` });
   });
 
 // Add these helpers at the top of server.js (or in a function)
