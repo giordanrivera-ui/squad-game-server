@@ -594,6 +594,8 @@ socket.on('place-hit', async (data) => {
     success: true, 
     message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
   });
+  
+  io.emit('hitlist-update');
 });
 
 // Add these helpers at the top of server.js (or in a function)

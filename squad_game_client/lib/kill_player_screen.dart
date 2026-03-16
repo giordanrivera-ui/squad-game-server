@@ -26,12 +26,17 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   Timer? _hitlistTimer;  // NEW: For updating remaining time every second
 
+  void _onHitlistUpdate(dynamic data) {
+    _loadHitlist();  // Reload the list from Firestore
+  }
+
   @override
   void initState() {
     super.initState();
     SocketService().socket?.on('kill-result', _handleKillResult);
     SocketService().socket?.on('hit-claimed', _handleHitClaimed);
     _loadHitlist();
+    SocketService().socket?.on('hitlist-update', _onHitlistUpdate);
 
     // NEW: Start timer to update remaining time every second
     _hitlistTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -46,6 +51,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     SocketService().socket?.off('kill-result', _handleKillResult);
     SocketService().socket?.off('hit-claimed', _handleHitClaimed);
     _hitlistTimer?.cancel();  // NEW: Cancel timer
+    SocketService().socket?.off('hitlist-update', _onHitlistUpdate);
     super.dispose();
   }
 
