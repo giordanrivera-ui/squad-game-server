@@ -35,6 +35,8 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitClaimedNotifier = ValueNotifier(null);
 
+  final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
+
   String _getRankTitle(int exp) {
     if (exp <= 499) return 'Thug';
     if (exp <= 1249) return 'Recruit';
@@ -235,7 +237,14 @@ void connect(String email, String displayName) {
       }
     });
 
-    
+    socket?.on('hit-expired', (data) {
+      if (data is Map<String, dynamic>) {
+        hitExpiredNotifier.value = {
+          'target': data['target'] ?? '',
+          'reward': data['reward'] ?? 0
+        };
+      }
+    });
 
     socket?.onReconnect((_) {
       print('🔄 Reconnected to server!');

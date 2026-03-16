@@ -238,6 +238,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
+    _socketService.hitExpiredNotifier.addListener(() {
+      final data = _socketService.hitExpiredNotifier.value;
+      if (data != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Bounty on ${data['target']} expired: +\$${data['reward']} refunded!')),
+        );
+        _socketService.hitExpiredNotifier.value = null;  // Reset
+      }
+    });
+
     // NEW: Add death listener (stored as _onDeath)
     _socketService.deathNotifier.addListener(_onDeath);
   }
