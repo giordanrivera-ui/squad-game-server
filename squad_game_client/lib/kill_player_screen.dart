@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'socket_service.dart';
+import 'dart:async';  // For Timer
 
 class KillPlayerScreen extends StatefulWidget {
   const KillPlayerScreen({super.key});
@@ -23,12 +24,19 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   bool _isHitlistMode = false;
   List<Map<String, dynamic>> _hitlist = [];
 
+  Timer? _hitlistTimer;  // NEW: For updating remaining time every second
+
   @override
   void initState() {
     super.initState();
     SocketService().socket?.on('kill-result', _handleKillResult);
     SocketService().socket?.on('hit-claimed', _handleHitClaimed);
     _loadHitlist();
+
+    // NEW: Start timer to update remaining time every second
+    _hitlistTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _hitlist.isNotEmpty) setState(() {});  // Refresh UI if hitlist not empty
+    });
   }
 
   @override
@@ -37,6 +45,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     _bulletsController.dispose();
     SocketService().socket?.off('kill-result', _handleKillResult);
     SocketService().socket?.off('hit-claimed', _handleHitClaimed);
+    _hitlistTimer?.cancel();  // NEW: Cancel timer
     super.dispose();
   }
 
@@ -52,6 +61,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
         'id': doc.id,
         'target': doc.data()['target'],
         'reward': doc.data()['reward'],
+        'endTime': doc.data()['endTime'],
       }).toList();
     });
   }
@@ -117,7 +127,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   void _showBountyDialog(String target) {
     final rewardController = TextEditingController();
-    int selectedMinutes = 5;
+    String selectedOption = '5 Minutes';  // Default
 
     showDialog(
       context: context,
@@ -132,12 +142,19 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
               decoration: const InputDecoration(labelText: 'Reward Amount (\$)'),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<int>(
-              value: selectedMinutes,
-              items: [5, 10, 15, 30, 60, 120, 180, 240, 300, 420].map((min) => 
-                DropdownMenuItem(value: min, child: Text('${min} minutes'))
-              ).toList(),
-              onChanged: (v) => selectedMinutes = v!,
+            DropdownButtonFormField<String>(
+              value: selectedOption,
+              items: [
+                '5 Minutes',
+                '1 Day',
+                '2 Days',
+                '3 Days',
+                '4 Days',
+                '5 Days',
+                '6 Days',
+                '7 Days'
+              ].map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
+              onChanged: (v) => selectedOption = v!,
               decoration: const InputDecoration(labelText: 'Duration'),
             ),
           ],
@@ -148,7 +165,14 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
             onPressed: () {
               final reward = int.tryParse(rewardController.text) ?? 0;
               if (reward >= 1000) {
-                SocketService().placeHit(target, reward, selectedMinutes);
+                int durationMinutes;
+                if (selectedOption == '5 Minutes') {
+                  durationMinutes = 5;
+                } else {
+                  final days = int.parse(selectedOption.split(' ')[0]);
+                  durationMinutes = days * 1440;  // 24 * 60
+                }
+                SocketService().placeHit(target, reward, durationMinutes);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Bounty placed on $target!')),
@@ -247,6 +271,17 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     });
   }
 
+  // NEW: Format remaining time as HHH:MM:SS
+  String _formatRemainingTime(int endTimeMs) {
+    final remainingMs = endTimeMs - DateTime.now().millisecondsSinceEpoch;
+    if (remainingMs <= 0) return '00:00:00';
+
+    final hours = (remainingMs ~/ 3600000).toString().padLeft(3, '0');
+    final mins = ((remainingMs % 3600000) ~/ 60000).toString().padLeft(2, '0');
+    final secs = ((remainingMs % 60000) ~/ 1000).toString().padLeft(2, '0');
+    return '$hours:$mins:$secs';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Map<String, dynamic>>(
@@ -280,7 +315,12 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                   else
                     ..._hitlist.map((hit) => ListTile(
                           title: Text(hit['target'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('\$${hit['reward']} reward'),
+                          subtitle: Row(
+                            children: [
+                              Text('\$${hit['reward']} reward '),
+                              Text('(${_formatRemainingTime(hit['endTime'])})'),  // NEW: Remaining timer
+                            ],
+                          ),
                           trailing: const Icon(Icons.whatshot, color: Colors.red),
                         )),
                 ],
