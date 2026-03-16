@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'socket_service.dart';
 import 'dart:async';  // For Timer
+import 'package:intl/intl.dart'; // NEW: For NumberFormat
+import 'package:flutter/services.dart'; // NEW: For TextInputFormatter
 
 class KillPlayerScreen extends StatefulWidget {
   const KillPlayerScreen({super.key});
@@ -25,7 +27,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   List<Map<String, dynamic>> _hitlist = [];
 
   Timer? _hitlistTimer;  // NEW: For updating remaining time every second
-
+  
   void _onHitlistUpdate(dynamic data) {
     _loadHitlist();  // Reload the list from Firestore
   }
@@ -147,6 +149,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
               controller: rewardController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Reward Amount (\$)'),
+              inputFormatters: [ThousandsFormatter()], // NEW: Add formatter for commas
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -170,7 +173,8 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              final reward = int.tryParse(rewardController.text) ?? 0;
+              final cleanReward = rewardController.text.replaceAll(',', ''); // NEW: Remove commas before parsing
+              final reward = int.tryParse(cleanReward) ?? 0;
               if (reward >= 1000) {
                 int durationMinutes;
                 if (selectedOption == '5 Minutes') {
@@ -184,6 +188,10 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Bounty placed on $target!')),
                 );
+                _searchController.clear(); // NEW: Clear the search bar after submitting
+                setState(() {
+                  _searchResults = []; // NEW: Clear the search results after submitting
+                });
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Minimum bounty is \$1000')),
@@ -310,7 +318,8 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
           children: [
             // HITLIST SECTION (always at top)
             Container(
-              padding: const EdgeInsets.all(12),
+              width: MediaQuery.of(context).size.width,
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
               color: Colors.red[50],
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +333,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                           title: Text(hit['target'], style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Row(
                             children: [
-                              Text('\$${hit['reward']} reward '),
+                              Text('\$${NumberFormat('#,###').format(hit['reward'])} reward '), // EDITED: Add commas to reward
                               Text('(${_formatRemainingTime(hit['endTime'])})'),  // NEW: Remaining timer
                             ],
                           ),
@@ -452,6 +461,25 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+// NEW: Custom formatter for thousands commas
+class ThousandsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+
+    final clean = newValue.text.replaceAll(',', '');
+    if (!RegExp(r'^\d+$').hasMatch(clean)) return oldValue; // Only allow digits
+
+    final numValue = int.parse(clean);
+    final formatted = NumberFormat('#,###').format(numValue);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
