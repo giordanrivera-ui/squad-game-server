@@ -69,13 +69,17 @@ setInterval(async () => {
       const posterDoc = await db.collection('players').doc(hitData.posterEmail).get();
       if (posterDoc.exists) {
         await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });
+        console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
 
-const updatedPoster = await posterDoc.ref.get();  // Re-fetch latest
-if (posterSocket) {
-  posterSocket.emit('hit-expired', { target: hitData.target, 
-            reward: hitData.reward  });
-  posterSocket.emit('update-stats', updatedPoster.data());  // NEW: Send full stats with new balance
-}
+        // Notify poster if online
+        const posterSocket = onlineSockets.get(posterDoc.data().displayName);
+        if (posterSocket) {
+          posterSocket.emit('hit-expired', { 
+            target: hitData.target, 
+            reward: hitData.reward 
+          });
+          posterSocket.emit('update-stats', posterDoc.data());
+        }
       }
     }
     await batch.commit();
