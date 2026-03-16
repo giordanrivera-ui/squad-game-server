@@ -494,11 +494,6 @@ socket.on('respawn', async () => {
       target.health = 0;
       await targetDocRef.update({ dead: true, health: 0 });
 
-      // NEW: Null name immediately on death
-      target.displayName = null;
-      target.displayNameLower = null;
-      await targetDocRef.update({ displayName: null, displayNameLower: null });
-
       // Notify target if online
       const targetSocket = onlineSockets.get(data.target);
       if (targetSocket) {
@@ -532,6 +527,10 @@ socket.on('respawn', async () => {
 
       // Deduct bullets from attacker
       attacker.bullets -= data.bullets;
+      // NEW: Null name immediately on death
+      target.displayName = null;
+      target.displayNameLower = null;
+      await targetDocRef.update({ displayName: null, displayNameLower: null });
     } else {
       // Fail: Deduct bullets only
       success = false;
