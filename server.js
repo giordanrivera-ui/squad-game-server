@@ -62,23 +62,29 @@ setInterval(async () => {
 
     const batch = db.batch();
     for (const doc of expiredHits.docs) {
+      // Inside the for (const doc of expiredHits.docs) loop, replace the refund block with this:
       const hitData = doc.data();
       batch.update(doc.ref, { active: false });
 
-      // NEW: Refund if unclaimed (active=true on expiry)
-      const posterDoc = await db.collection('players').doc(hitData.posterEmail).get();
+      // Refund if unclaimed
+      const posterDocRef = db.collection('players').doc(hitData.posterEmail);  // Use ref for updates
+      const posterDoc = await posterDocRef.get();  // Initial fetch (optional, but keep for exists check)
       if (posterDoc.exists) {
-        await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });
+        await posterDocRef.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });  // Update using ref
         console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
 
+        // NEW: Re-fetch fresh data after update
+        const updatedPosterDoc = await posterDocRef.get();
+        const updatedPosterData = updatedPosterDoc.data();
+
         // Notify poster if online
-        const posterSocket = onlineSockets.get(posterDoc.data().displayName);
+        const posterSocket = onlineSockets.get(updatedPosterData.displayName);  // Use fresh name if needed
         if (posterSocket) {
           posterSocket.emit('hit-expired', { 
             target: hitData.target, 
             reward: hitData.reward 
           });
-          posterSocket.emit('update-stats', posterDoc.data());
+          posterSocket.emit('update-stats', updatedPosterData);  // Emit FRESH data
         }
       }
     }
