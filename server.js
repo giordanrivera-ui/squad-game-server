@@ -550,41 +550,45 @@ socket.on('respawn', async () => {
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
-  socket.on('place-hit', async (data) => {
-    const posterEmail = socket.data.email;
-    if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
-      socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
-      return;
-    }
+socket.on('place-hit', async (data) => {
+  const posterEmail = socket.data.email;
+  if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
+    socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
+    return;
+  }
 
-    const posterDoc = await db.collection('players').doc(posterEmail).get();
-    if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
-      socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
-      return;
-    }
+  const posterDoc = await db.collection('players').doc(posterEmail).get();
+  if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
+    socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
+    return;
+  }
 
-    const durationDays = data.durationDays || 1;
-    const durationMs = Math.max(durationDays * 24 * 60 * 60 * 1000, 5 * 60 * 1000);  // NEW: Min 5 mins for testing
-    const endTime = Date.now() + durationMs;
+  const durationMinutes = data.durationDays || 5;  // NEW: Now called durationMinutes (accepts minutes from client)
+  const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);  // NEW: Minutes × 60 seconds
 
-    const hitId = `${posterEmail}-${Date.now()}`;
+  const endTime = Date.now() + durationMs;
 
-    await db.collection('hitlist').doc(hitId).set({
-      target: data.target,
-      posterEmail,
-      reward: data.reward,
-      endTime,
-      active: true
-    });
+  const hitId = `${posterEmail}-${Date.now()}`;
 
-    // Deduct from poster
-    await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-
-    const updatedPoster = await posterDoc.ref.get();  // Re-fetch
-    socket.emit('update-stats', updatedPoster.data());
-
-    socket.emit('hit-result', { success: true, message: `Bounty of $${data.reward} placed on ${data.target} for ${durationDays} days!` });
+  await db.collection('hitlist').doc(hitId).set({
+    target: data.target,
+    posterEmail,
+    reward: data.reward,
+    endTime,
+    active: true
   });
+
+  // Deduct from poster
+  await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+
+  const updatedPoster = await posterDoc.ref.get();
+  socket.emit('update-stats', updatedPoster.data());
+
+  socket.emit('hit-result', { 
+    success: true, 
+    message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
+  });
+});
 
 // Add these helpers at the top of server.js (or in a function)
 function getUpperBound(exp) {

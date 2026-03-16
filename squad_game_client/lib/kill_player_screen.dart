@@ -117,7 +117,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   void _showBountyDialog(String target) {
     final rewardController = TextEditingController();
-    int selectedDays = 1;
+    int selectedMinutes = 5;
 
     showDialog(
       context: context,
@@ -133,9 +133,11 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: selectedDays,
-              items: List.generate(7, (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1} days'))),
-              onChanged: (v) => selectedDays = v!,
+              value: selectedMinutes,
+              items: [5, 10, 15, 30, 60, 120, 180, 240, 300, 420].map((min) => 
+                DropdownMenuItem(value: min, child: Text('${min} minutes'))
+              ).toList(),
+              onChanged: (v) => selectedMinutes = v!,
               decoration: const InputDecoration(labelText: 'Duration'),
             ),
           ],
@@ -146,7 +148,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
             onPressed: () {
               final reward = int.tryParse(rewardController.text) ?? 0;
               if (reward >= 1000) {
-                SocketService().placeHit(target, reward, selectedDays);
+                SocketService().placeHit(target, reward, selectedMinutes);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Bounty placed on $target!')),
