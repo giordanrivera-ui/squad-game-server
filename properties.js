@@ -1,3 +1,5 @@
+// properties.js (updated)
+
 const properties = [
   {
     name: "Micropod",
@@ -61,6 +63,108 @@ const properties = [
   }
 ];
 
+const upgradeCosts = {
+  "Fiber Optic": {
+    "Micropod": 540,
+    "Cottage": 720,
+    "Bungalow": 900,
+    "Townhouse": 1080,
+    "Suburban home": 1260,
+    "Villa": 1530,
+    "Mansion": 1800,
+    "Mid-Rise Block": 2070,
+    "Residential Tower": 2530,
+    "Skyscraper": 3200,
+  },
+  "Smart Appliances": {
+    "Micropod": 800,
+    "Cottage": 1000,
+    "Bungalow": 1200,
+    "Townhouse": 1400,
+    "Suburban home": 1600,
+    "Villa": 1900,
+    "Mansion": 2220,
+    "Mid-Rise Block": 2550,
+    "Residential Tower": 3200,
+    "Skyscraper": 4700,
+  },
+  "Double Glazing": {
+    "Micropod": 1100,
+    "Cottage": 1320,
+    "Bungalow": 1550,
+    "Townhouse": 1800,
+    "Suburban home": 2020,
+    "Villa": 2250,
+    "Mansion": 2600,
+    "Mid-Rise Block": 2900,
+    "Residential Tower": 4000,
+    "Skyscraper": 5500,
+  },
+  "Energy Recovery Ventilation": {
+    "Micropod": 1450,
+    "Cottage": 1700,
+    "Bungalow": 1950,
+    "Townhouse": 2200,
+    "Suburban home": 2500,
+    "Villa": 2750,
+    "Mansion": 3250,
+    "Mid-Rise Block": 3800,
+    "Residential Tower": 4500,
+    "Skyscraper": 6500,
+  },
+};
+
+const upgradeBoosts = {
+  "Fiber Optic": {
+    "Micropod": 30,
+    "Cottage": 40,
+    "Bungalow": 50,
+    "Townhouse": 60,
+    "Suburban home": 70,
+    "Villa": 85,
+    "Mansion": 100,
+    "Mid-Rise Block": 115,
+    "Residential Tower": 140,
+    "Skyscraper": 175,
+  },
+  "Smart Appliances": {
+    "Micropod": 40,
+    "Cottage": 50,
+    "Bungalow": 60,
+    "Townhouse": 70,
+    "Suburban home": 80,
+    "Villa": 95,
+    "Mansion": 110,
+    "Mid-Rise Block": 125,
+    "Residential Tower": 150,
+    "Skyscraper": 210,
+  },
+  "Double Glazing": {
+    "Micropod": 50,
+    "Cottage": 60,
+    "Bungalow": 70,
+    "Townhouse": 80,
+    "Suburban home": 90,
+    "Villa": 100,
+    "Mansion": 115,
+    "Mid-Rise Block": 130,
+    "Residential Tower": 170,
+    "Skyscraper": 230,
+  },
+  "Energy Recovery Ventilation": {
+    "Micropod": 60,
+    "Cottage": 70,
+    "Bungalow": 80,
+    "Townhouse": 90,
+    "Suburban home": 90,
+    "Villa": 110,
+    "Mansion": 130,
+    "Mid-Rise Block": 150,
+    "Residential Tower": 180,
+    "Skyscraper": 260,
+  },
+};
+
 async function handleBuyProperty(db, socket, propertyName) {
   const email = socket.data.email;
   if (!email || typeof propertyName !== 'string') return;
@@ -91,7 +195,41 @@ async function handleBuyProperty(db, socket, propertyName) {
   socket.emit('update-stats', p);
 }
 
-// Function to handle claiming income (moved and turned into a function)
+async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
+  const email = socket.data.email;
+  if (!email || typeof propertyName !== 'string' || typeof upgradeName !== 'string') return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+
+  // Check if owns property
+  const owned = p.ownedProperties || [];
+  if (!owned.includes(propertyName)) return;
+
+  // Check if already has upgrade
+  const ownedUps = p.ownedUpgrades?.[propertyName] || [];
+  if (ownedUps.includes(upgradeName)) return;
+
+  // Get cost
+  const cost = upgradeCosts[upgradeName]?.[propertyName];
+  if (cost === undefined) return;
+
+  // Check balance
+  if (p.balance < cost) return;
+
+  p.balance -= cost;
+
+  if (!p.ownedUpgrades) p.ownedUpgrades = {};
+  if (!p.ownedUpgrades[propertyName]) p.ownedUpgrades[propertyName] = [];
+  p.ownedUpgrades[propertyName].push(upgradeName);
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+}
+
 async function handleClaimIncome(db, socket) {
   const email = socket.data.email;
   if (!email) return;
@@ -126,7 +264,15 @@ async function handleClaimIncome(db, socket) {
     }
 
     const intervals = Math.floor(elapsedMs / intervalMs);
-    const award = intervals * prop.income;
+
+    // Calculate boost
+    const ownedUps = p.ownedUpgrades?.[claim.name] || [];
+    let boost = 0;
+    for (const up of ownedUps) {
+      boost += upgradeBoosts[up]?.[claim.name] || 0;
+    }
+
+    const award = intervals * (prop.income + boost);
     totalAward += award;
 
     // Update this property's lastClaim
@@ -149,5 +295,6 @@ async function handleClaimIncome(db, socket) {
 module.exports = {
   properties,
   handleBuyProperty,
+  handleBuyUpgrade,
   handleClaimIncome
 };

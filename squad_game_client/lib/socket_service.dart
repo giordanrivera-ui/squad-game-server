@@ -465,6 +465,13 @@ void connect(String email, String displayName) {
   }
 
   void buyProperty(String name) => socket?.emit('buy-property', name);
+
+  void buyUpgrade(String propertyName, String upgradeName) {
+    socket?.emit('buy-upgrade', {
+      'propertyName': propertyName,
+      'upgradeName': upgradeName,
+    });
+  }
   
   void claimIncome() => socket?.emit('claim-income');
 

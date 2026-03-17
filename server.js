@@ -157,6 +157,7 @@ io.on('connection', (socket) => {
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
       if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
+      if (playerData.ownedUpgrades === undefined) playerData.ownedUpgrades = {};
       if (playerData.lastIncomeClaim === undefined) playerData.lastIncomeClaim = Date.now();
       if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];
       if (playerData.showArmor === undefined) playerData.showArmor = true;
@@ -211,6 +212,7 @@ io.on('connection', (socket) => {
         showArmor: true,
         showWeapon: true,
         dead: false,
+        ownedUpgrades: {},
       };
     }
     
@@ -328,6 +330,7 @@ socket.on('respawn', async () => {
       showArmor: true,
       showWeapon: true,
       dead: false,
+      ownedUpgrades: {},
     };
 
     await docRef.set(p);
@@ -594,7 +597,7 @@ socket.on('place-hit', async (data) => {
     success: true, 
     message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
   });
-  
+
   io.emit('hitlist-update');
 });
 
@@ -1369,6 +1372,11 @@ function calculateBulletsNeeded(p, o, k) {
   // NEW: Handler for buying property (updated to add claim entry)
   socket.on('buy-property', async (propertyName) => {
     await handleBuyProperty(db, socket, propertyName);  // Call the function from properties.js
+  });
+
+  socket.on('buy-upgrade', async (data) => {
+    const { propertyName, upgradeName } = data;
+    await handleBuyUpgrade(db, socket, propertyName, upgradeName);
   });
 
   // NEW: Handler for claiming income (now per-property)
