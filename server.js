@@ -601,42 +601,43 @@ socket.on('place-hit', async (data) => {
   io.emit('hitlist-update');
 });
 
-// Add these helpers at the top of server.js (or in a function)
 function getUpperBound(exp) {
-  if (exp <= 499) return 499;
-  if (exp <= 1249) return 1249;
-  if (exp <= 2299) return 2299;
-  if (exp <= 3499) return 3499;
-  if (exp <= 4999) return 4999;
-  if (exp <= 6849) return 6849;
-  if (exp <= 8849) return 8849;
-  if (exp <= 10199) return 10199;
-  if (exp <= 11449) return 11449;
-  if (exp <= 14199) return 14199;
-  if (exp <= 17399) return 17399;
-  if (exp <= 21349) return 21349;
-  if (exp <= 25849) return 25849;
-  if (exp <= 31499) return 31499;
-  if (exp <= 38199) return 38199;
-  return 44000;  // Supreme Commander for kill mechanics
+  if (exp <= 49) return 49;
+  if (exp <= 514) return 514;
+  if (exp <= 1264) return 1264;  
+  if (exp <= 2314) return 2314;
+  if (exp <= 3514) return 3514;
+  if (exp <= 5014) return 5014;
+  if (exp <= 6864) return 6864;
+  if (exp <= 8864) return 8864;
+  if (exp <= 10214) return 10214;
+  if (exp <= 11464) return 11464;
+  if (exp <= 14214) return 14214;
+  if (exp <= 17414) return 17414;
+  if (exp <= 21364) return 21364;
+  if (exp <= 25864) return 25864;
+  if (exp <= 31514) return 31514;
+  if (exp <= 38214) return 38214;
+  return 44000;  // Supreme Commander
 }
 
 function getRankTitle(exp) {
-  if (exp <= 499) return 'Thug';
-  if (exp <= 1249) return 'Recruit';
-  if (exp <= 2299) return 'Private';
-  if (exp <= 3499) return 'Private First Class';
-  if (exp <= 4999) return 'Corporal';
-  if (exp <= 6849) return 'Sergeant';
-  if (exp <= 8849) return 'Sergeant First Class';
-  if (exp <= 10199) return 'Warrant Officer';
-  if (exp <= 11449) return 'First Lieutenant';
-  if (exp <= 14199) return 'Captain';
-  if (exp <= 17399) return 'Major';
-  if (exp <= 21349) return 'Lieutenant Colonel';
-  if (exp <= 25849) return 'Colonel';
-  if (exp <= 31499) return 'General';
-  if (exp <= 38199) return 'General of the Army';
+  if (exp <= 49) return 'Beggar';
+  if (exp <= 514) return 'Thug';
+  if (exp <= 1264) return 'Recruit';
+  if (exp <= 2314) return 'Private';
+  if (exp <= 3514) return 'Private First Class';
+  if (exp <= 5014) return 'Corporal';
+  if (exp <= 6864) return 'Sergeant';
+  if (exp <= 8864) return 'Sergeant First Class';
+  if (exp <= 10214) return 'Warrant Officer';
+  if (exp <= 11464) return 'First Lieutenant';
+  if (exp <= 14214) return 'Captain';
+  if (exp <= 17414) return 'Major';
+  if (exp <= 21364) return 'Lieutenant Colonel';
+  if (exp <= 25864) return 'Colonel';
+  if (exp <= 31514) return 'General';
+  if (exp <= 38214) return 'General of the Army';
   return 'Supreme Commander';
 }
 
@@ -710,21 +711,22 @@ function calculateBulletsNeeded(p, o, k) {
       expGain = 25;
 
       const exp = p.experience || 0;
-      if (exp <= 499)          money = Math.floor(Math.random() * 71) + 30;
-      else if (exp <= 1249)    money = Math.floor(Math.random() * 81) + 40;
-      else if (exp <= 2299)    money = Math.floor(Math.random() * 91) + 60;
-      else if (exp <= 3499)    money = Math.floor(Math.random() * 101) + 80;
-      else if (exp <= 4999)    money = Math.floor(Math.random() * 111) + 90;
-      else if (exp <= 6849)    money = Math.floor(Math.random() * 121) + 120;
-      else if (exp <= 8849)    money = Math.floor(Math.random() * 111) + 150;
-      else if (exp <= 10199)   money = Math.floor(Math.random() * 121) + 180;
-      else if (exp <= 11449)   money = Math.floor(Math.random() * 141) + 200;
-      else if (exp <= 14199)   money = Math.floor(Math.random() * 121) + 240;
-      else if (exp <= 17399)   money = Math.floor(Math.random() * 126) + 275;
-      else if (exp <= 21349)   money = Math.floor(Math.random() * 156) + 320;
-      else if (exp <= 25849)   money = Math.floor(Math.random() * 241) + 360;
-      else if (exp <= 31499)   money = Math.floor(Math.random() * 251) + 450;
-      else if (exp <= 38199)   money = Math.floor(Math.random() * 281) + 500;
+      if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
+      else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
       else                     money = Math.floor(Math.random() * 401) + 600;
 
       message = `You robbed the bank and escaped with $${money}!`;} 
@@ -737,46 +739,52 @@ function calculateBulletsNeeded(p, o, k) {
       money = Math.floor(Math.random() * 131) + 50;
       rawDamage = Math.floor(Math.random() * 38) + 25;
       expGain = 35;
-      message = `You attacked the military barracks and got $${money}!`;
-    }
+      message = `You attacked the military barracks and got $${money}!`;}
+    else if (operation === "Storm a laboratory") {
+      money = Math.floor(Math.random() * (160 - 60 + 1)) + 60;
+      rawDamage = Math.floor(Math.random() * (52 - 20 + 1)) + 20;
+      expGain = 27;
+      message = `You stormed a laboratory and got $${money}!`;}
 
     let prisonChance;
     const exp = p.experience || 0;
 
     if (midLevelOps.includes(operation)) {
-      prisonChance = 0.45;
-      if (exp > 499) prisonChance = 0.42;
-      if (exp > 1249) prisonChance = 0.38;
-      if (exp > 2299) prisonChance = 0.36;
-      if (exp > 3499) prisonChance = 0.34;
-      if (exp > 4999) prisonChance = 0.31;
-      if (exp > 6849) prisonChance = 0.29;
-      if (exp > 8849) prisonChance = 0.26;
-      if (exp > 10199) prisonChance = 0.25;
-      if (exp > 11449) prisonChance = 0.24;
-      if (exp > 14199) prisonChance = 0.22;
-      if (exp > 17399) prisonChance = 0.20;
-      if (exp > 21349) prisonChance = 0.16;
-      if (exp > 25849) prisonChance = 0.14;
-      if (exp > 31499) prisonChance = 0.12;
-      if (exp > 38199) prisonChance = 0.10;
+      prisonChance = 0.47;
+      if (exp > 49) prisonChance = 0.45;
+      if (exp > 514) prisonChance = 0.42;
+      if (exp > 1264) prisonChance = 0.38;
+      if (exp > 2314) prisonChance = 0.36;
+      if (exp > 3514) prisonChance = 0.34;
+      if (exp > 5014) prisonChance = 0.31;
+      if (exp > 6864) prisonChance = 0.29;
+      if (exp > 8864) prisonChance = 0.26;
+      if (exp > 10214) prisonChance = 0.25;
+      if (exp > 11464) prisonChance = 0.24;
+      if (exp > 14214) prisonChance = 0.22;
+      if (exp > 17414) prisonChance = 0.20;
+      if (exp > 21364) prisonChance = 0.16;
+      if (exp > 25864) prisonChance = 0.14;
+      if (exp > 31514) prisonChance = 0.12;
+      if (exp > 38214) prisonChance = 0.10;
     } else {
-      prisonChance = 0.25;
-      if (exp > 499) prisonChance = 0.21;
-      if (exp > 1249) prisonChance = 0.20;
-      if (exp > 2299) prisonChance = 0.19;
-      if (exp > 3499) prisonChance = 0.18;
-      if (exp > 4999) prisonChance = 0.17;
-      if (exp > 6849) prisonChance = 0.16;
-      if (exp > 8849) prisonChance = 0.15;
-      if (exp > 10199) prisonChance = 0.14;
-      if (exp > 11449) prisonChance = 0.13;
-      if (exp > 14199) prisonChance = 0.12;
-      if (exp > 17399) prisonChance = 0.11;
-      if (exp > 21349) prisonChance = 0.10;
-      if (exp > 25849) prisonChance = 0.08;
-      if (exp > 31499) prisonChance = 0.07;
-      if (exp > 38199) prisonChance = 0.06;
+      prisonChance = 0.27;
+      if (exp > 49) prisonChance = 0.25;
+      if (exp > 514) prisonChance = 0.21;
+      if (exp > 1264) prisonChance = 0.20;
+      if (exp > 2314) prisonChance = 0.19;
+      if (exp > 3514) prisonChance = 0.18;
+      if (exp > 5014) prisonChance = 0.17;
+      if (exp > 6864) prisonChance = 0.16;
+      if (exp > 8864) prisonChance = 0.15;
+      if (exp > 10214) prisonChance = 0.14;
+      if (exp > 11464) prisonChance = 0.13;
+      if (exp > 14214) prisonChance = 0.12;
+      if (exp > 17414) prisonChance = 0.11;
+      if (exp > 21364) prisonChance = 0.10;
+      if (exp > 25864) prisonChance = 0.08;
+      if (exp > 31514) prisonChance = 0.07;
+      if (exp > 38214) prisonChance = 0.06;
     }
 
     isCaught = Math.random() < prisonChance;
@@ -799,22 +807,23 @@ function calculateBulletsNeeded(p, o, k) {
 
       if (operation === "Loot weapons store") {
         // Weapon steal chance based on rank (using pre-gain exp)
-        let stealChance = 0.25;
-        if (exp > 499) stealChance = 0.30;
-        if (exp > 1249) stealChance = 0.35;
-        if (exp > 2299) stealChance = 0.40;
-        if (exp > 3499) stealChance = 0.45;
-        if (exp > 4999) stealChance = 0.50;
-        if (exp > 6849) stealChance = 0.55;
-        if (exp > 8849) stealChance = 0.60;
-        if (exp > 10199) stealChance = 0.65;
-        if (exp > 11449) stealChance = 0.65;
-        if (exp > 14199) stealChance = 0.65;
-        if (exp > 17399) stealChance = 0.70;
-        if (exp > 21349) stealChance = 0.70;
-        if (exp > 25849) stealChance = 0.75;
-        if (exp > 31499) stealChance = 0.80;
-        if (exp > 38199) stealChance = 0.85;
+        let stealChance = 0.22;
+        if (exp > 49) stealChance = 0.25;
+        if (exp > 514) stealChance = 0.30;
+        if (exp > 1264) stealChance = 0.35;
+        if (exp > 2314) stealChance = 0.40;
+        if (exp > 3514) stealChance = 0.45;
+        if (exp > 5014) stealChance = 0.50;
+        if (exp > 6864) stealChance = 0.55;
+        if (exp > 8864) stealChance = 0.60;
+        if (exp > 10214) stealChance = 0.65;
+        if (exp > 11464) stealChance = 0.65;
+        if (exp > 14214) stealChance = 0.65;
+        if (exp > 17414) stealChance = 0.70;
+        if (exp > 21364) stealChance = 0.70;
+        if (exp > 25864) stealChance = 0.75;
+        if (exp > 31514) stealChance = 0.80;
+        if (exp > 38214) stealChance = 0.85;
 
         // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
 
@@ -824,13 +833,13 @@ function calculateBulletsNeeded(p, o, k) {
           let macheteThreshold = 75;
           let maulThreshold = 95;
 
-          if (exp > 3499) {  // Corporal+
+          if (exp > 3514) {  // Corporal+
             knifeThreshold = 20;
             batThreshold = 45;
             macheteThreshold = 70;
             maulThreshold = 93;
           }
-          if (exp > 10199) {  // First Lieutenant+
+          if (exp > 10214) {  // First Lieutenant+
             knifeThreshold = 14;
             batThreshold = 32;
             macheteThreshold = 57;
@@ -886,22 +895,23 @@ function calculateBulletsNeeded(p, o, k) {
       }
 
       if (operation === "Attack military barracks") {
-        let stealChance = 0.15;
-        if (exp > 499) stealChance = 0.20;
-        if (exp > 1249) stealChance = 0.25;
-        if (exp > 2299) stealChance = 0.30;
-        if (exp > 3499) stealChance = 0.35;
-        if (exp > 4999) stealChance = 0.40;
-        if (exp > 6849) stealChance = 0.45;
-        if (exp > 8849) stealChance = 0.55;
-        if (exp > 10199) stealChance = 0.60;
-        if (exp > 11449) stealChance = 0.62;
-        if (exp > 14199) stealChance = 0.65;
-        if (exp > 17399) stealChance = 0.68;
-        if (exp > 21349) stealChance = 0.72;
-        if (exp > 25849) stealChance = 0.75;
-        if (exp > 31499) stealChance = 0.80;
-        if (exp > 38199) stealChance = 0.85;
+        let stealChance = 0.12;
+        if (exp > 49) stealChance = 0.15;
+        if (exp > 514) stealChance = 0.20;
+        if (exp > 1264) stealChance = 0.25;
+        if (exp > 2314) stealChance = 0.30;
+        if (exp > 3514) stealChance = 0.35;
+        if (exp > 5014) stealChance = 0.40;
+        if (exp > 6864) stealChance = 0.45;
+        if (exp > 8864) stealChance = 0.55;
+        if (exp > 10214) stealChance = 0.60;
+        if (exp > 11464) stealChance = 0.62;
+        if (exp > 14214) stealChance = 0.65;
+        if (exp > 17414) stealChance = 0.68;
+        if (exp > 21364) stealChance = 0.72;
+        if (exp > 25864) stealChance = 0.75;
+        if (exp > 31514) stealChance = 0.80;
+        if (exp > 38214) stealChance = 0.85;
 
         if (Math.random() < stealChance) {
           let glockThreshold = 42;
@@ -909,13 +919,13 @@ function calculateBulletsNeeded(p, o, k) {
           let mossbergThreshold = 91;
           let mp5Threshold = 97;
 
-          if (exp > 3499) {  // Corporal to Warrant
+          if (exp > 3514) {  // Corporal to Warrant
             glockThreshold = 33;
             remingtonThreshold = 63;
             mossbergThreshold = 85;
             mp5Threshold = 95;
           }
-          if (exp > 10199) {  // First Lt+
+          if (exp > 10214) {  // First Lt+
             glockThreshold = 24;
             remingtonThreshold = 48;
             mossbergThreshold = 70;

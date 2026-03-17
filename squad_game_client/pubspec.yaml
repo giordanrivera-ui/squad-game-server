@@ -98,6 +98,7 @@ flutter:
     - assets/Tactical Mask.jpg
     - assets/GTEK FLEX Ballistic Helmet.jpg
     - assets/Ops-Core RF1 Helmet.jpg
+    - assets/Beggar-banner.jpg
     - assets/Thug-banner.jpg
     - assets/Recruit-banner.jpg
     - assets/Private-banner.jpg
@@ -115,6 +116,11 @@ flutter:
     - assets/Mid-Rise Block.jpg
     - assets/Residential Tower.jpg
     - assets/Skyscraper.jpg
+    - assets/store_weapons.jpg
+    - assets/store_vehicles.jpg
+    - assets/store_courses.jpg
+    - assets/store_armor.jpg
+
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

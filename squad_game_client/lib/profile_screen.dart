@@ -43,22 +43,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ==================== RANK PROGRESS HELPER ====================
   Map<String, dynamic> _getRankProgress(int currentExp) {
     const rankList = [
-      {'exp': 0, 'title': 'Thug'},
-      {'exp': 500, 'title': 'Recruit'},
-      {'exp': 1250, 'title': 'Private'},
-      {'exp': 2300, 'title': 'Private First Class'},
-      {'exp': 3500, 'title': 'Corporal'},
-      {'exp': 5000, 'title': 'Sergeant'},
-      {'exp': 6850, 'title': 'Sergeant First Class'},
-      {'exp': 8850, 'title': 'Warrant Officer'},
-      {'exp': 10200, 'title': 'First Lieutenant'},
-      {'exp': 11450, 'title': 'Captain'},
-      {'exp': 14200, 'title': 'Major'},
-      {'exp': 17400, 'title': 'Lieutenant Colonel'},
-      {'exp': 21350, 'title': 'Colonel'},
-      {'exp': 25850, 'title': 'General'},
-      {'exp': 31500, 'title': 'General of the Army'},
-      {'exp': 38200, 'title': 'Supreme Commander'},
+      {'exp': 0,   'title': 'Beggar'},
+      {'exp': 50,  'title': 'Thug'},
+      {'exp': 515, 'title': 'Recruit'},
+      {'exp': 1265, 'title': 'Private'},
+      {'exp': 2315, 'title': 'Private First Class'},
+      {'exp': 3515, 'title': 'Corporal'},
+      {'exp': 5015, 'title': 'Sergeant'},
+      {'exp': 6865, 'title': 'Sergeant First Class'},
+      {'exp': 8865, 'title': 'Warrant Officer'},
+      {'exp': 10215, 'title': 'First Lieutenant'},
+      {'exp': 11465, 'title': 'Captain'},
+      {'exp': 14215, 'title': 'Major'},
+      {'exp': 17415, 'title': 'Lieutenant Colonel'},
+      {'exp': 21365, 'title': 'Colonel'},
+      {'exp': 25865, 'title': 'General'},
+      {'exp': 31515, 'title': 'General of the Army'},
+      {'exp': 38215, 'title': 'Supreme Commander'},
     ];
 
     for (int i = 0; i < rankList.length - 1; i++) {
@@ -67,7 +68,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (currentExp < nextRankExp) {
         final progress = (currentExp - currentRankExp) / (nextRankExp - currentRankExp);
-
         return {
           'currentRank': rankList[i]['title'],
           'nextRank': rankList[i + 1]['title'],
@@ -78,7 +78,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
 
-    // Max rank reached
     return {
       'currentRank': 'Supreme Commander',
       'nextRank': 'Max Rank',

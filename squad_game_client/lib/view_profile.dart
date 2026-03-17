@@ -65,23 +65,23 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     }
   }
 
-  // Helper: Get rank title based on experience (copied from profile_screen.dart)
   String _getRankTitle(int exp) {
-    if (exp <= 499) return 'Thug';
-    if (exp <= 1249) return 'Recruit';
-    if (exp <= 2299) return 'Private';
-    if (exp <= 3499) return 'Private First Class';
-    if (exp <= 4999) return 'Corporal';
-    if (exp <= 6849) return 'Sergeant';
-    if (exp <= 8849) return 'Sergeant First Class';
-    if (exp <= 10199) return 'Warrant Officer';
-    if (exp <= 11449) return 'First Lieutenant';
-    if (exp <= 14199) return 'Captain';
-    if (exp <= 17399) return 'Major';
-    if (exp <= 21349) return 'Lieutenant Colonel';
-    if (exp <= 25849) return 'Colonel';
-    if (exp <= 31499) return 'General';
-    if (exp <= 38199) return 'General of the Army';
+    if (exp <= 49) return 'Beggar';
+    if (exp <= 514) return 'Thug';
+    if (exp <= 1264) return 'Recruit';
+    if (exp <= 2314) return 'Private';
+    if (exp <= 3514) return 'Private First Class';
+    if (exp <= 5014) return 'Corporal';
+    if (exp <= 6864) return 'Sergeant';
+    if (exp <= 8864) return 'Sergeant First Class';
+    if (exp <= 10214) return 'Warrant Officer';
+    if (exp <= 11464) return 'First Lieutenant';
+    if (exp <= 14214) return 'Captain';
+    if (exp <= 17414) return 'Major';
+    if (exp <= 21364) return 'Lieutenant Colonel';
+    if (exp <= 25864) return 'Colonel';
+    if (exp <= 31514) return 'General';
+    if (exp <= 38214) return 'General of the Army';
     return 'Supreme Commander';
   }
 
