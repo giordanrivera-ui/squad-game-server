@@ -11,7 +11,7 @@ const io = new Server(server, {
   pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
-const { properties, handleBuyProperty, handleClaimIncome } = require('./properties.js');
+const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
