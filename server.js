@@ -398,6 +398,42 @@ socket.on('place-hit', async (data) => {
     return;
   }
 
+  const targetName = data.target.trim();
+
+  // 1. Cannot place bounty on yourself
+  if (targetName.toLowerCase() === posterDoc.data().displayNameLower) {
+    socket.emit('hit-result', { 
+      success: false, 
+      message: 'You cannot place a bounty on yourself.' 
+    });
+    return;
+  }
+
+  // 2. Check if target exists and is alive
+  const targetQuery = await db.collection('players')
+    .where('displayName', '==', targetName)
+    .limit(1)
+    .get();
+
+  if (targetQuery.empty) {
+    socket.emit('hit-result', { 
+      success: false, 
+      message: 'Player not found.' 
+    });
+    return;
+  }
+
+  const targetDoc = targetQuery.docs[0];
+  const targetData = targetDoc.data();
+
+  if (targetData.dead === true) {
+    socket.emit('hit-result', { 
+      success: false, 
+      message: 'You cannot place a bounty on a dead player.' 
+    });
+    return;
+  }
+
   const durationMinutes = data.durationDays || 5;  // NEW: Now called durationMinutes (accepts minutes from client)
   const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);  // NEW: Minutes × 60 seconds
 
