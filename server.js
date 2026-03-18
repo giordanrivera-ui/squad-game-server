@@ -7,8 +7,8 @@ const server = http.createServer(app);
 
 const io = new Server(server, { 
   cors: { origin: "*" },
-  pingTimeout: 10000,  // NEW: 10 sec timeout before disconnect
-  pingInterval: 5000   // NEW: Ping every 5 sec to check alive
+  pingTimeout: 10000,  // 10 sec timeout before disconnect
+  pingInterval: 5000   // Ping every 5 sec to check alive
 });
 
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');

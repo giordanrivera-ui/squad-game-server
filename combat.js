@@ -154,12 +154,30 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
     target.health = 0;
     target.displayName = null;
     target.displayNameLower = null;
+    target.prisonEndTime = 0;
+
+    // Also remove from global imprisonedPlayers Map if present
+    if (data.target && imprisonedPlayers.has(data.target)) {
+      imprisonedPlayers.delete(data.target);
+      console.log(`[COMBAT] Removed dead prisoner ${data.target} from imprisonedPlayers`);
+
+      // Broadcast updated prison list to ALL clients
+      const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+        displayName,
+        prisonEndTime
+      }));
+      io.emit('prison-list-update', {
+        list: prisonList,
+        serverTime: Date.now()
+      });
+    }
 
     await targetDocRef.update({ 
       dead: true, 
       health: 0,
       displayName: null,
-      displayNameLower: null 
+      displayNameLower: null,
+      prisonEndTime: 0
     });
 
     // Notify target if online
