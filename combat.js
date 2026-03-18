@@ -148,6 +148,20 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
     message = 'Kill successful! Target eliminated.';
 
     // === DEATH LOGIC ===
+    const targetSocket = onlineSockets.get(data.target);
+    if (targetSocket) {
+      targetSocket.emit('player-died');
+      // We can send partial update — or full current target state
+      targetSocket.emit('update-stats', {
+        ...target,
+        dead: true,
+        health: 0,
+        displayName: null,           // already prepare client
+        displayNameLower: null,
+        prisonEndTime: 0
+      });
+    }
+
     await markPlayerAsDead(db, target, targetEmail, data.target);
 
     target.dead = true;
@@ -163,13 +177,6 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
       displayNameLower: null,
       prisonEndTime: 0
     });
-
-    // Notify target if online
-    const targetSocket = onlineSockets.get(data.target);
-    if (targetSocket) {
-      targetSocket.emit('player-died');
-      targetSocket.emit('update-stats', target);
-    }
 
     // === BOUNTY PAYOUT ===
     const hitQuery = await db.collection('hitlist')
