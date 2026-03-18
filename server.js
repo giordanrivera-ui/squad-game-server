@@ -133,21 +133,65 @@ io.on('connection', (socket) => {
     if (!email) return;
 
     const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
+    let doc = await docRef.get();
 
     let playerData;
 
-    if (doc.exists) {
-      playerData = doc.data();
+    // === AUTO FULL RESET FOR DEAD PLAYERS ===
+    if (doc.exists && doc.data().dead === true) {
+      console.log(`[SERVER] Dead player ${email} reconnected - performing FULL auto-respawn`);
 
-      // ==================== NEW: DEAD PLAYER PROTECTION ====================
-      // This stops the old name from coming back when the player just reopens the app
-      if (playerData.dead === true) {
-        console.log(`[SERVER] Dead player ${email} reconnected - forcing new name`);
-        socket.emit('force-respawn');   // Tell client to go to name selection
-        return;                         // STOP here - do NOT restore old name
+      const oldData = doc.data();
+      const oldName = oldData.displayName;
+      if (oldName) {
+        await markPlayerAsDead(db, oldData, email, oldName);
+        console.log(`[SERVER] Old name ${oldName} permanently locked`);
       }
-      // =================================================================
+
+      // Create completely clean new profile (exact same as your respawn handler)
+      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+
+      playerData = {
+        balance: 0,
+        health: 100,
+        bullets: 0,
+        lastRob: 0,
+        displayName: null,
+        displayNameLower: null,
+        location: randomLocation,
+        experience: 0,
+        intelligence: 0,
+        skill: 0,
+        marksmanship: 0,
+        stealth: 0,
+        defense: 0,
+        kills: 0,
+        photoURL: '',
+        inventory: [],
+        headwear: null,
+        armor: null,
+        footwear: null,
+        overallPower: 0,
+        weapon: null,
+        lastLowLevelOp: 0,
+        lastMidLevelOp: 0,
+        sellBanEndTime: 0,
+        prisonEndTime: 0,
+        ownedProperties: [],
+        lastIncomeClaim: Date.now(),
+        propertyClaims: [],
+        showArmor: true,
+        showWeapon: true,
+        dead: false,
+        ownedUpgrades: {},
+        messages: oldData.messages || [],
+        fcmTokens: oldData.fcmTokens || []
+      };
+
+      await docRef.set(playerData);
+    }
+    else if (doc.exists) {
+      playerData = doc.data();
 
       if (playerData.experience === undefined) playerData.experience = 0;
       if (playerData.intelligence === undefined) playerData.intelligence = 0;
@@ -178,15 +222,8 @@ io.on('connection', (socket) => {
       if (playerData.displayName) {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
       }
-
-      // If displayName is null (after death) and client sends a new one, set it
-      if (!playerData.displayName && displayName !== 'Anonymous') {
-        playerData.displayName = displayName;
-        playerData.displayNameLower = displayName.toLowerCase();
-      }
-
-      await docRef.set(playerData);
-    } else {
+    }
+    else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
 
       playerData = {
@@ -227,6 +264,11 @@ io.on('connection', (socket) => {
       };
     }
     
+    if (!playerData.displayName && displayName !== 'Anonymous') {
+      playerData.displayName = displayName;
+      playerData.displayNameLower = displayName.toLowerCase();
+    }
+    
     if (playerData.displayName) {
       const name = playerData.displayName;
       // Check usedNames
@@ -248,14 +290,12 @@ io.on('connection', (socket) => {
     await docRef.set(playerData);
 
     socket.data.email = email;
-    socket.data.displayName = displayName;
+    socket.data.displayName = playerData.displayName || displayName;
 
-    onlinePlayers.add(displayName);
-    onlineSockets.set(displayName, socket);
+    onlinePlayers.add(playerData.displayName || displayName);  // use the fresh one
+    onlineSockets.set(playerData.displayName || displayName, socket);
 
     io.emit('online-players', Array.from(onlinePlayers));
-
-    console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
 
     socket.emit('init', {
       player: playerData,

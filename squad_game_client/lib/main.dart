@@ -121,24 +121,62 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     setState(() => isLoading = true);
 
     try {
-      // NEW: Check if name is unique in players AND usedNames
-      final playersQuery = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
-      final usedNamesQuery = await FirebaseFirestore.instance.collection('usedNames').where('name', isEqualTo: name).get();  // Assuming 'name' field in usedNames
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('No authenticated user found. Please sign in again.');
+      }
+
+      // Check uniqueness first (your existing code)
+      final playersQuery = await FirebaseFirestore.instance
+          .collection('players')
+          .where('displayName', isEqualTo: name)
+          .get();
+
+      final usedNamesQuery = await FirebaseFirestore.instance
+          .collection('usedNames')
+          .where('name', isEqualTo: name)
+          .get();
 
       if (playersQuery.docs.isNotEmpty || usedNamesQuery.docs.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')),
+        );
         setState(() => isLoading = false);
         return;
       }
 
-      await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
-      await FirebaseAuth.instance.currentUser!.reload();
+      // Update name — no ! operator here
+      await user.updateDisplayName(name);
 
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
+      // Wait a tiny bit + reload to make sure auth state is consistent
+      await Future.delayed(const Duration(milliseconds: 300));
+      await user.reload();
+
+      // Re-fetch current user to be extra safe
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+      if (refreshedUser == null || refreshedUser.displayName == null) {
+        throw Exception('Failed to update display name. Please try again.');
+      }
+
+      // Now navigate
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => GameScreen()),
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Welcome, $name!')),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      print('Error saving name: $e'); // For debugging
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
-    setState(() => isLoading = false);
   }
 
   @override
@@ -351,22 +389,27 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
 
     _socketService.socket?.on('force-respawn', (_) async {
-      if (mounted) {
-        // Clear the old name from Firebase Auth
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          await user.updateDisplayName(null);
-          await user.reload();
-        }
+      print('[CLIENT] force-respawn received — clearing old character');
 
-        // Force go to name selection screen
-        Navigator.pushReplacement(
-          context,
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          await user.updateDisplayName(null);
+          await Future.delayed(const Duration(milliseconds: 300)); // give Firebase time
+          await user.reload();
+        } catch (e) {
+          print('Error clearing displayName: $e');
+        }
+      }
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
+          (route) => false,  // clear entire stack
         );
       }
     });
-      }
+  }
 
   void robBank() {
     if (cooldown || isDead) return;
