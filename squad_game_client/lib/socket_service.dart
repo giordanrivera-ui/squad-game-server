@@ -37,7 +37,7 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
 
-  String getRankTitle(int exp) {
+  String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
     if (exp <= 514) return 'Thug';
     if (exp <= 1264) return 'Recruit';
@@ -114,7 +114,7 @@ void connect(String email, String displayName) {
       if (data is Map<String, dynamic>) {
         // Capture old values BEFORE update
         final oldExp = statsNotifier.value['experience'] ?? 0;
-        final oldRank = getRankTitle(oldExp);  // Use helper below
+        final oldRank = _getRankTitle(oldExp);  // Use helper below
 
         // Update notifier
         statsNotifier.value = {...statsNotifier.value, ...data};
@@ -128,7 +128,7 @@ void connect(String email, String displayName) {
 
         // Detect rank up
         final newExp = statsNotifier.value['experience'] ?? oldExp;
-        final newRank = getRankTitle(newExp);
+        final newRank = _getRankTitle(newExp);
         if (newRank != oldRank && newExp > oldExp) {
           rankUpNotifier.value = {
             'oldRank': oldRank,
@@ -219,9 +219,10 @@ void connect(String email, String displayName) {
       }
     });
 
+    
+
     socket?.on('player-died', (_) {
-      print('[SOCKET] Received player-died event → showing death screen');
-      deathNotifier.value = true;
+      deathNotifier.value = true;  // Trigger death UI
     });
 
     // NEW: Hitlist updates (screen will refresh automatically via StreamBuilder)

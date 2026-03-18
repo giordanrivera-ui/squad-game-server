@@ -121,62 +121,24 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     setState(() => isLoading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('No authenticated user found. Please sign in again.');
-      }
-
-      // Check uniqueness first (your existing code)
-      final playersQuery = await FirebaseFirestore.instance
-          .collection('players')
-          .where('displayName', isEqualTo: name)
-          .get();
-
-      final usedNamesQuery = await FirebaseFirestore.instance
-          .collection('usedNames')
-          .where('name', isEqualTo: name)
-          .get();
+      // NEW: Check if name is unique in players AND usedNames
+      final playersQuery = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
+      final usedNamesQuery = await FirebaseFirestore.instance.collection('usedNames').where('name', isEqualTo: name).get();  // Assuming 'name' field in usedNames
 
       if (playersQuery.docs.isNotEmpty || usedNamesQuery.docs.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')));
         setState(() => isLoading = false);
         return;
       }
 
-      // Update name — no ! operator here
-      await user.updateDisplayName(name);
+      await FirebaseAuth.instance.currentUser!.updateDisplayName(name);
+      await FirebaseAuth.instance.currentUser!.reload();
 
-      // Wait a tiny bit + reload to make sure auth state is consistent
-      await Future.delayed(const Duration(milliseconds: 300));
-      await user.reload();
-
-      // Re-fetch current user to be extra safe
-      final refreshedUser = FirebaseAuth.instance.currentUser;
-      if (refreshedUser == null || refreshedUser.displayName == null) {
-        throw Exception('Failed to update display name. Please try again.');
-      }
-
-      // Now navigate
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => GameScreen()),
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, $name!')),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => GameScreen()));
     } catch (e) {
-      print('Error saving name: $e'); // For debugging
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     }
+    setState(() => isLoading = false);
   }
 
   @override
@@ -234,6 +196,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   OverlayEntry? _rankUpOverlay;
 
+  // NEW: Store the death listener function (to remove in dispose)
+  void _onDeath() {
+    if (_socketService.deathNotifier.value) {
+      setState(() => isDead = true);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -246,6 +215,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
+    _socketService.statsNotifier.addListener(() {
+      setState(() {});  // Refresh if needed, but since builder uses it, optional
+    });
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -276,21 +248,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
-    // Also check immediately after stats are loaded
-    _socketService.statsNotifier.addListener(() {
-      final stats = _socketService.statsNotifier.value;
-      if (stats['dead'] == true) {
-        _socketService.deathNotifier.value = true;
-      }
-      setState(() {}); // refresh UI if needed
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-    final stats = _socketService.statsNotifier.value;
-    if (stats['dead'] == true) {
-      _socketService.deathNotifier.value = true;
-    }
-  });
+    // NEW: Add death listener (stored as _onDeath)
+    _socketService.deathNotifier.addListener(_onDeath);
   }
 
   // NEW: Set up the bell for notes
@@ -386,31 +345,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         }
       });
     });
-
     _socketService.socket?.on(SocketEvents.onlinePlayers, (data) {
       setState(() => onlinePlayers = List<String>.from(data));
-    });
-
-    _socketService.socket?.on('force-respawn', (_) async {
-      print('[CLIENT] force-respawn received — clearing old character');
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        try {
-          await user.updateDisplayName(null);
-          await Future.delayed(const Duration(milliseconds: 300)); // give Firebase time
-          await user.reload();
-        } catch (e) {
-          print('Error clearing displayName: $e');
-        }
-      }
-
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
-          (route) => false,  // clear entire stack
-        );
-      }
     });
   }
 
@@ -423,20 +359,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
   }
 
-  void _handleDeathChange() {
-    if (_socketService.deathNotifier.value && mounted) {
-      setState(() {
-        isDead = true;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (isDead) {
-      final stats = _socketService.statsNotifier.value;
-      final oldRank = _socketService.getRankTitle(stats['experience'] ?? 0);
-
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -444,45 +369,23 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Text(
-                'Your criminal empire has fallen.\nRank reached: $oldRank',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 20, color: Colors.white70),
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: () async {
                   _socketService.respawn();
-
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    await user.updateDisplayName(null);
-                    await user.reload();
-                  }
-
+                  await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
+                  await FirebaseAuth.instance.currentUser?.reload();
+                  await FirebaseAuth.instance.signOut();
                   _socketService.disconnect();
-
-                  if (mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
-                      (route) => false,
-                    );
-                  }
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                ),
-                child: const Text('Start New Life', style: TextStyle(fontSize: 20)),
+                child: const Text('Logout & Start New Life'),
               ),
             ],
           ),
         ),
       );
     }
-
 
     return Scaffold(
       key: _scaffoldKey,
@@ -887,9 +790,9 @@ Widget _buildDashboard() {
   void dispose() {
     cooldownTimer?.cancel();
     // _socketService.disconnect();
-    _socketService.deathNotifier.removeListener(_handleDeathChange);
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
+    _socketService.deathNotifier.removeListener(_onDeath);  // FIXED: Remove stored listener
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);

@@ -1,7 +1,5 @@
 // Handles everything related to attempting to kill another player
 
-const admin = require('firebase-admin');
-
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
 function getUpperBound(exp) {
   if (exp <= 49) return 49;
@@ -148,35 +146,26 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
     message = 'Kill successful! Target eliminated.';
 
     // === DEATH LOGIC ===
-    const targetSocket = onlineSockets.get(data.target);
-    if (targetSocket) {
-      targetSocket.emit('player-died');
-      // We can send partial update — or full current target state
-      targetSocket.emit('update-stats', {
-        ...target,
-        dead: true,
-        health: 0,
-        displayName: null,           // already prepare client
-        displayNameLower: null,
-        prisonEndTime: 0
-      });
-    }
-
     await markPlayerAsDead(db, target, targetEmail, data.target);
 
     target.dead = true;
     target.health = 0;
     target.displayName = null;
     target.displayNameLower = null;
-    target.prisonEndTime = 0;
 
     await targetDocRef.update({ 
       dead: true, 
       health: 0,
       displayName: null,
-      displayNameLower: null,
-      prisonEndTime: 0
+      displayNameLower: null 
     });
+
+    // Notify target if online
+    const targetSocket = onlineSockets.get(data.target);
+    if (targetSocket) {
+      targetSocket.emit('player-died');
+      targetSocket.emit('update-stats', target);
+    }
 
     // === BOUNTY PAYOUT ===
     const hitQuery = await db.collection('hitlist')

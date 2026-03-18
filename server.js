@@ -7,8 +7,8 @@ const server = http.createServer(app);
 
 const io = new Server(server, { 
   cors: { origin: "*" },
-  pingTimeout: 10000,  // 10 sec timeout before disconnect
-  pingInterval: 5000   // Ping every 5 sec to check alive
+  pingTimeout: 10000,  // NEW: 10 sec timeout before disconnect
+  pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
@@ -137,20 +137,8 @@ io.on('connection', (socket) => {
 
     let playerData;
 
-    if (doc.exists && doc.data().dead === true) {
-      console.log(`[SERVER] Dead player ${email} reconnected - forcing death screen`);
-
-      playerData = doc.data(); // keep the existing (dead) document
-
-      socket.emit('player-died');
-      socket.emit('update-stats', playerData); // make sure client has current (dead) stats
-
-      return;
-    }
-
     if (doc.exists) {
       playerData = doc.data();
-
       if (playerData.experience === undefined) playerData.experience = 0;
       if (playerData.intelligence === undefined) playerData.intelligence = 0;
       if (playerData.skill === undefined) playerData.skill = 0;
@@ -180,8 +168,15 @@ io.on('connection', (socket) => {
       if (playerData.displayName) {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
       }
-    }
-    else {
+
+      // If displayName is null (after death) and client sends a new one, set it
+      if (!playerData.displayName && displayName !== 'Anonymous') {
+        playerData.displayName = displayName;
+        playerData.displayNameLower = displayName.toLowerCase();
+      }
+
+      await docRef.set(playerData);
+    } else {
       const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
 
       playerData = {
@@ -221,29 +216,20 @@ io.on('connection', (socket) => {
         ownedUpgrades: {},
       };
     }
-
-    if (!playerData.displayName && displayName !== 'Anonymous') {
-      playerData.displayName = displayName;
-      playerData.displayNameLower = displayName.toLowerCase();
-    }
     
     if (playerData.displayName) {
       const name = playerData.displayName;
-
-      // Check permanent usedNames collection
+      // Check usedNames
       const usedNameDoc = await db.collection('usedNames').doc(name.toLowerCase()).get();
       if (usedNameDoc.exists) {
+        // Reject or handle - for now, log and don't save name
         console.log(`[SERVER] Attempt to reuse taken name ${name} by ${email}`);
         socket.emit('error', { message: 'Name already taken forever.' });
-        return;
+        return;  // Don't proceed
       }
-
-      // Double-check no other active player has this name
-      const playersQuery = await db.collection('players')
-        .where('displayName', '==', name)
-        .get();
-
-      if (!playersQuery.empty && playersQuery.docs[0].id !== email) {
+      // Also check players for active (though client did, server double-check)
+      const playersQuery = await db.collection('players').where('displayName', '==', name).get();
+      if (!playersQuery.empty && playersQuery.docs[0].id !== email) {  // Allow same email if respawn, but per task, block even same
         socket.emit('error', { message: 'Name already in use.' });
         return;
       }
@@ -252,12 +238,14 @@ io.on('connection', (socket) => {
     await docRef.set(playerData);
 
     socket.data.email = email;
-    socket.data.displayName = playerData.displayName || displayName;
+    socket.data.displayName = displayName;
 
-    onlinePlayers.add(playerData.displayName || displayName);
-    onlineSockets.set(playerData.displayName || displayName, socket);
+    onlinePlayers.add(displayName);
+    onlineSockets.set(displayName, socket);
 
     io.emit('online-players', Array.from(onlinePlayers));
+
+    console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
 
     socket.emit('init', {
       player: playerData,
@@ -268,7 +256,7 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-// ==================== RESPAWN HANDLER (FIXED) ====================
+// ==================== RESPAWN HANDLER ====================
 socket.on('respawn', async () => {
   const email = socket.data.email;
   if (!email) return;
@@ -277,25 +265,47 @@ socket.on('respawn', async () => {
   const doc = await docRef.get();
   if (!doc.exists) return;
 
-  let oldData = doc.data();
+  let p = doc.data();
 
-  if (oldData.dead) {
-    const oldName = oldData.displayName;
+  if (p.dead) {
+    const oldName = p.displayName;
     if (oldName) {
-      await markPlayerAsDead(db, oldData, email, oldName);
+      // NEW: Save dead profile snapshot BEFORE reset
+      const deadProfile = {
+        displayName: oldName,
+        displayNameLower: oldName.toLowerCase(),
+        experience: p.experience || 0,  // For rank
+        balance: p.balance || 0,        // For wealth title
+        headwear: p.headwear || null,
+        armor: p.armor || null,
+        footwear: p.footwear || null,
+        weapon: p.weapon || null,
+        overallPower: p.overallPower || 0,
+        deathTime: admin.firestore.FieldValue.serverTimestamp(),  // When they died
+        originalEmail: email  // Optional: Track owner
+      };
+      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
       console.log(`[SERVER] Saved dead profile for ${oldName}`);
+
+      // Add old name to usedNames
+      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+        name: oldName,
+        taken: true,
+        originalEmail: email,
+        takenAt: admin.firestore.FieldValue.serverTimestamp()
+      });
     }
 
-    // NEW: Build a completely clean new player object (no old name leakage)
+    // Reset stats to defaults
     const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
-
-    const newPlayer = {
+    p = {
+      ...p,
       balance: 0,
       health: 100,
       bullets: 0,
       lastRob: 0,
-      displayName: null,           // Force null
-      displayNameLower: null,      // Force null
+      displayName: null,
+      displayNameLower: null,
       location: randomLocation,
       experience: 0,
       intelligence: 0,
@@ -322,14 +332,11 @@ socket.on('respawn', async () => {
       showWeapon: true,
       dead: false,
       ownedUpgrades: {},
-      messages: oldData.messages || [],   // Keep chat history if you want
-      fcmTokens: oldData.fcmTokens || []
     };
 
-    await docRef.set(newPlayer);
-    socket.emit('update-stats', newPlayer);
-    socket.emit('force-respawn');
-    console.log(`[SERVER] Respawned ${email} - old name ${oldName} permanently locked`);
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+    console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
   }
 });
 
@@ -397,21 +404,6 @@ socket.on('respawn', async () => {
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
     await handleKillAttempt(db, socket, data, onlineSockets);
-
-    // Clean up prison status if the killed player was imprisoned
-    if (data.target && imprisonedPlayers.has(data.target)) {
-      imprisonedPlayers.delete(data.target);
-      console.log(`[KILL] Removed dead prisoner ${data.target} from imprisonedPlayers`);
-
-      const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
-        displayName,
-        prisonEndTime
-      }));
-      io.emit('prison-list-update', {
-        list: prisonList,
-        serverTime: Date.now()
-      });
-    }
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
@@ -425,42 +417,6 @@ socket.on('place-hit', async (data) => {
   const posterDoc = await db.collection('players').doc(posterEmail).get();
   if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
     socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
-    return;
-  }
-
-  const targetName = data.target.trim();
-
-  // 1. Cannot place bounty on yourself
-  if (targetName.toLowerCase() === posterDoc.data().displayNameLower) {
-    socket.emit('hit-result', { 
-      success: false, 
-      message: 'You cannot place a bounty on yourself.' 
-    });
-    return;
-  }
-
-  // 2. Check if target exists and is alive
-  const targetQuery = await db.collection('players')
-    .where('displayName', '==', targetName)
-    .limit(1)
-    .get();
-
-  if (targetQuery.empty) {
-    socket.emit('hit-result', { 
-      success: false, 
-      message: 'Player not found.' 
-    });
-    return;
-  }
-
-  const targetDoc = targetQuery.docs[0];
-  const targetData = targetDoc.data();
-
-  if (targetData.dead === true) {
-    socket.emit('hit-result', { 
-      success: false, 
-      message: 'You cannot place a bounty on a dead player.' 
-    });
     return;
   }
 
@@ -664,6 +620,7 @@ socket.on('place-hit', async (data) => {
         if (exp > 38214) stealChance = 0.85;
 
         // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
+
         if (Math.random() < stealChance) {
           let knifeThreshold = 30;
           let batThreshold = 55;
@@ -855,23 +812,6 @@ socket.on('place-hit', async (data) => {
     if (p.health <= 0 && !isCaught) {
       p.dead = true;  // NEW: Mark as dead
       p.health = 0;   // Ensure health is 0
-      p.prisonEndTime = 0;  // Clear prison on death from operation
-
-      if (p.displayName && imprisonedPlayers.has(p.displayName)) {
-        imprisonedPlayers.delete(p.displayName);
-        console.log(`[OPERATION] Removed dead prisoner ${p.displayName} from imprisonedPlayers`);
-
-        const prisonList = Array.from(imprisonedPlayers, ([dn, et]) => ({
-          displayName: dn,
-          prisonEndTime: et
-        }));
-        io.emit('prison-list-update', {
-          list: prisonList,
-          serverTime: Date.now()
-        });
-      }
-
-      await markPlayerAsDead(db, p, email, p.displayName);
       await docRef.set(p);  // Save changes (don't delete doc anymore)
       socket.emit('player-died');  // NEW: Notify client
       console.log(`Player ${email} died and marked as dead`);
