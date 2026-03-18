@@ -69,7 +69,6 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName) 
     weapon: targetData.weapon || null,
     overallPower: targetData.overallPower || 0,
     deathTime: admin.firestore.FieldValue.serverTimestamp(),
-    originalEmail: targetEmail
   };
   await db.collection('deadProfiles').doc(targetDisplayName.toLowerCase()).set(deadProfile);
 
@@ -77,7 +76,6 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName) 
   await db.collection('usedNames').doc(targetDisplayName.toLowerCase()).set({
     name: targetDisplayName,
     taken: true,
-    originalEmail: targetEmail,
     takenAt: admin.firestore.FieldValue.serverTimestamp()
   });
 }
@@ -130,10 +128,27 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
   const k = getUpperBound(target.experience || 0);
   let b = calculateBulletsNeeded(p, o, k);
 
+  const targetRank = getRankTitle(target.experience || 0);
+  if (targetRank === 'Beggar') {
+    const attackerRank = getRankTitle(attacker.experience || 0);
+    
+    // Hard floor for Corporal and every rank above
+    if (['Corporal', 'Sergeant', 'Sergeant First Class', 'Warrant Officer',
+        'First Lieutenant', 'Captain', 'Major', 'Lieutenant Colonel',
+        'Colonel', 'General', 'General of the Army', 'Supreme Commander']
+        .includes(attackerRank)) {
+      b = Math.max(b, 2000);
+    } 
+    // Soft floor for everyone below Corporal (if their gun makes it cheaper)
+    else if (b < 2000) {
+      b = 2000;
+    }
+  }
+
   // Special rule for high ranks vs Thug
   const attackerRank = getRankTitle(attacker.experience || 0);
-  const targetRank = getRankTitle(target.experience || 0);
-  if (['General', 'General of the Army', 'Supreme Commander'].includes(attackerRank) && targetRank === 'Thug') {
+  if (['General', 'General of the Army', 'Supreme Commander'].includes(attackerRank) 
+      && targetRank === 'Thug') {
     b = Math.max(b, 3000);
   }
 

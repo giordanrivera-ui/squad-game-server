@@ -824,12 +824,33 @@ socket.on('place-hit', async (data) => {
     socket.emit('update-stats', p);
 
     if (p.health <= 0 && !isCaught) {
-      p.dead = true;  // NEW: Mark as dead
-      p.health = 0;   // Ensure health is 0
-      await markPlayerAsDead(db, p, email, p.displayName);
-      await docRef.set(p);  // Save changes (don't delete doc anymore)
-      socket.emit('player-died');  // NEW: Notify client
-      console.log(`Player ${email} died and marked as dead`);
+      const oldName = p.displayName;
+
+      // === Make operation death 100% identical to PvP kill death ===
+      p.dead = true;
+      p.health = 0;
+      p.displayName = null;
+      p.displayNameLower = null;
+
+      // Save dead profile + permanently lock the name
+      if (oldName) {
+        await markPlayerAsDead(db, p, email, oldName);
+      }
+
+      // Remove from online list immediately (prevents ghost players)
+      if (oldName) {
+        onlinePlayers.delete(oldName);
+        onlineSockets.delete(oldName);
+        io.emit('online-players', Array.from(onlinePlayers));
+      }
+
+      // Save to Firestore
+      await docRef.set(p);
+
+      // Force client into death screen
+      socket.emit('player-died');
+
+      console.log(`[SERVER] ${email} died from operation (old name: ${oldName || 'none'})`);
     }
   });
 
