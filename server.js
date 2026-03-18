@@ -237,6 +237,20 @@ io.on('connection', (socket) => {
 
     await docRef.set(playerData);
 
+    // NEW: If player is dead, force death screen and hide from online list
+    if (playerData.dead === true) {
+      socket.emit('player-died');  // Force client to show death screen
+
+      // Remove from online list
+      if (playerData.displayName) {
+        onlinePlayers.delete(playerData.displayName);
+        onlineSockets.delete(playerData.displayName);
+        io.emit('online-players', Array.from(onlinePlayers));
+      }
+
+      console.log(`[SERVER] ${playerData.displayName || email} reconnected while dead — forcing death screen`);
+    }
+
     socket.data.email = email;
     socket.data.displayName = displayName;
 
@@ -246,6 +260,7 @@ io.on('connection', (socket) => {
     io.emit('online-players', Array.from(onlinePlayers));
 
     console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
+
 
     socket.emit('init', {
       player: playerData,

@@ -184,7 +184,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   String time = 'Loading...';
   bool cooldown = false;
-  bool isDead = false;
   Timer? cooldownTimer;
   Timer? _incomeTimer;
   Timer? _globalIncomeTimer;  // NEW: App-wide per-second checker
@@ -195,13 +194,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   OverlayEntry? _rescueOverlay;
 
   OverlayEntry? _rankUpOverlay;
-
-  // NEW: Store the death listener function (to remove in dispose)
-  void _onDeath() {
-    if (_socketService.deathNotifier.value) {
-      setState(() => isDead = true);
-    }
-  }
 
   @override
   void initState() {
@@ -247,9 +239,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         _socketService.hitExpiredNotifier.value = null;  // Reset
       }
     });
-
-    // NEW: Add death listener (stored as _onDeath)
-    _socketService.deathNotifier.addListener(_onDeath);
   }
 
   // NEW: Set up the bell for notes
@@ -351,7 +340,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   void robBank() {
-    if (cooldown || isDead) return;
+    final stats = _socketService.statsNotifier.value;
+    if (cooldown || (stats['dead'] == true) || (stats['health'] ?? 100) <= 0) {
+      return;
+    }
+
     _socketService.robBank();
     setState(() => cooldown = true);
     cooldownTimer = Timer(const Duration(seconds: GameConstants.robCooldownSeconds), () {
@@ -361,35 +354,41 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (isDead) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: () async {
-                  _socketService.respawn();
-                  await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
-                  await FirebaseAuth.instance.currentUser?.reload();
-                  await FirebaseAuth.instance.signOut();
-                  _socketService.disconnect();
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
-                },
-                child: const Text('Logout & Start New Life'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    return ValueListenableBuilder<Map<String, dynamic>>(
+      valueListenable: _socketService.statsNotifier,
+      builder: (context, stats, child) {
+        final bool isPlayerDead = (stats['dead'] == true) || (stats['health'] ?? 100) <= 0;
 
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: _currentScreen == 0 
+        if (isPlayerDead) {
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: () async {
+                      _socketService.respawn();
+                      await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
+                      await FirebaseAuth.instance.currentUser?.reload();
+                      await FirebaseAuth.instance.signOut();
+                      _socketService.disconnect();
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
+                    },
+                    child: const Text('Logout & Start New Life'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // ← Everything else (your normal Scaffold with drawer, body, etc.) stays exactly the same below this
+        return Scaffold(
+          key: _scaffoldKey,
+          appBar: _currentScreen == 0 
           ? null  // REMOVE AppBar for dashboard
           : StatusAppBar(
               title: _currentScreen == 1 
@@ -411,17 +410,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
             ),
-
-      drawer: Sidebar(
-        currentScreen: _currentScreen,
-        onScreenChanged: (screen) {
-          setState(() => _currentScreen = screen);
-        },
-        stats: _socketService.statsNotifier.value,
-        hasUnreadMessages: _socketService.hasUnreadMessages,
-      ),
-
-      body: _currentScreen == 0 
+          drawer: Sidebar(
+            currentScreen: _currentScreen,
+            onScreenChanged: (screen) {
+              setState(() => _currentScreen = screen);
+            },
+            stats: _socketService.statsNotifier.value,
+            hasUnreadMessages: _socketService.hasUnreadMessages,
+          ),
+          
+          body: _currentScreen == 0 
           ? _buildDashboard() 
           : _currentScreen == 1 
               ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
@@ -474,13 +472,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                                 ? const HallOfFameScreen()
                                                 : PropertiesScreen(initialStats: _socketService.statsNotifier.value),  // Fallback
 
-      floatingActionButton: _currentScreen == 2
+          floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(
               onPressed: () => _showNewMessageDialog(context),
               child: const Icon(Icons.add_comment),
               tooltip: 'New Message',
             )
           : null,
+        );
+      },
     );
   }
 
@@ -792,7 +792,6 @@ Widget _buildDashboard() {
     // _socketService.disconnect();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
-    _socketService.deathNotifier.removeListener(_onDeath);  // FIXED: Remove stored listener
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);

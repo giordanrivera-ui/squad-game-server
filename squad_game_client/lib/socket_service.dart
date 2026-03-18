@@ -97,6 +97,11 @@ void connect(String email, String displayName) {
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
         properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
         statsNotifier.value = Map.from(data['player'] ?? {});
+        // NEW: Force death screen on every login/reconnect
+        final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
+        if (isDeadNow) {
+          deathNotifier.value = true;
+        }
         statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
         statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
         statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
@@ -118,6 +123,12 @@ void connect(String email, String displayName) {
 
         // Update notifier
         statsNotifier.value = {...statsNotifier.value, ...data};
+
+        // NEW: Force death screen on every update
+          final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
+          if (isDeadNow) {
+            deathNotifier.value = true;
+          }
 
         // Set defaults (like old code)
         statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
