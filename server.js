@@ -382,6 +382,21 @@ socket.on('respawn', async () => {
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
     await handleKillAttempt(db, socket, data, onlineSockets);
+
+    // Clean up prison status if the killed player was imprisoned
+    if (data.target && imprisonedPlayers.has(data.target)) {
+      imprisonedPlayers.delete(data.target);
+      console.log(`[KILL] Removed dead prisoner ${data.target} from imprisonedPlayers`);
+
+      const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+        displayName,
+        prisonEndTime
+      }));
+      io.emit('prison-list-update', {
+        list: prisonList,
+        serverTime: Date.now()
+      });
+    }
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
