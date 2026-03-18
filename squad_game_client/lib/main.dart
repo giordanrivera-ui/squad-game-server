@@ -345,10 +345,28 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         }
       });
     });
+
     _socketService.socket?.on(SocketEvents.onlinePlayers, (data) {
       setState(() => onlinePlayers = List<String>.from(data));
     });
-  }
+
+    _socketService.socket?.on('force-respawn', (_) async {
+      if (mounted) {
+        // Clear the old name from Firebase Auth
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await user.updateDisplayName(null);
+          await user.reload();
+        }
+
+        // Force go to name selection screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
+        );
+      }
+    });
+      }
 
   void robBank() {
     if (cooldown || isDead) return;

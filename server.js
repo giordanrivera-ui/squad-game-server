@@ -139,6 +139,16 @@ io.on('connection', (socket) => {
 
     if (doc.exists) {
       playerData = doc.data();
+
+      // ==================== NEW: DEAD PLAYER PROTECTION ====================
+      // This stops the old name from coming back when the player just reopens the app
+      if (playerData.dead === true) {
+        console.log(`[SERVER] Dead player ${email} reconnected - forcing new name`);
+        socket.emit('force-respawn');   // Tell client to go to name selection
+        return;                         // STOP here - do NOT restore old name
+      }
+      // =================================================================
+
       if (playerData.experience === undefined) playerData.experience = 0;
       if (playerData.intelligence === undefined) playerData.intelligence = 0;
       if (playerData.skill === undefined) playerData.skill = 0;
