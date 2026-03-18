@@ -373,6 +373,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 30),
                   ElevatedButton(
                     onPressed: () async {
+                      // FIX: Clear the old death state so the new life starts clean
+                      _socketService.deathNotifier.value = false;
+
                       _socketService.respawn();
                       await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
                       await FirebaseAuth.instance.currentUser?.reload();

@@ -97,6 +97,7 @@ void connect(String email, String displayName) {
         travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
         properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
         statsNotifier.value = Map.from(data['player'] ?? {});
+        deathNotifier.value = (data['player']?['dead'] == true);
         // NEW: Force death screen on every login/reconnect
         final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
         if (isDeadNow) {
