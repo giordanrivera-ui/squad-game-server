@@ -133,64 +133,22 @@ io.on('connection', (socket) => {
     if (!email) return;
 
     const docRef = db.collection('players').doc(email);
-    let doc = await docRef.get();
+    const doc = await docRef.get();
 
     let playerData;
 
-    // === AUTO FULL RESET FOR DEAD PLAYERS ===
     if (doc.exists && doc.data().dead === true) {
-      console.log(`[SERVER] Dead player ${email} reconnected - performing FULL auto-respawn`);
+      console.log(`[SERVER] Dead player ${email} reconnected - forcing death screen`);
 
-      const oldData = doc.data();
-      const oldName = oldData.displayName;
-      if (oldName) {
-        await markPlayerAsDead(db, oldData, email, oldName);
-        console.log(`[SERVER] Old name ${oldName} permanently locked`);
-      }
+      playerData = doc.data(); // keep the existing (dead) document
 
-      // Create completely clean new profile (exact same as your respawn handler)
-      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+      socket.emit('player-died');
+      socket.emit('update-stats', playerData); // make sure client has current (dead) stats
 
-      playerData = {
-        balance: 0,
-        health: 100,
-        bullets: 0,
-        lastRob: 0,
-        displayName: null,
-        displayNameLower: null,
-        location: randomLocation,
-        experience: 0,
-        intelligence: 0,
-        skill: 0,
-        marksmanship: 0,
-        stealth: 0,
-        defense: 0,
-        kills: 0,
-        photoURL: '',
-        inventory: [],
-        headwear: null,
-        armor: null,
-        footwear: null,
-        overallPower: 0,
-        weapon: null,
-        lastLowLevelOp: 0,
-        lastMidLevelOp: 0,
-        sellBanEndTime: 0,
-        prisonEndTime: 0,
-        ownedProperties: [],
-        lastIncomeClaim: Date.now(),
-        propertyClaims: [],
-        showArmor: true,
-        showWeapon: true,
-        dead: false,
-        ownedUpgrades: {},
-        messages: oldData.messages || [],
-        fcmTokens: oldData.fcmTokens || []
-      };
-
-      await docRef.set(playerData);
+      return;
     }
-    else if (doc.exists) {
+
+    if (doc.exists) {
       playerData = doc.data();
 
       if (playerData.experience === undefined) playerData.experience = 0;
@@ -263,7 +221,7 @@ io.on('connection', (socket) => {
         ownedUpgrades: {},
       };
     }
-    
+
     if (!playerData.displayName && displayName !== 'Anonymous') {
       playerData.displayName = displayName;
       playerData.displayNameLower = displayName.toLowerCase();
@@ -271,17 +229,21 @@ io.on('connection', (socket) => {
     
     if (playerData.displayName) {
       const name = playerData.displayName;
-      // Check usedNames
+
+      // Check permanent usedNames collection
       const usedNameDoc = await db.collection('usedNames').doc(name.toLowerCase()).get();
       if (usedNameDoc.exists) {
-        // Reject or handle - for now, log and don't save name
         console.log(`[SERVER] Attempt to reuse taken name ${name} by ${email}`);
         socket.emit('error', { message: 'Name already taken forever.' });
-        return;  // Don't proceed
+        return;
       }
-      // Also check players for active (though client did, server double-check)
-      const playersQuery = await db.collection('players').where('displayName', '==', name).get();
-      if (!playersQuery.empty && playersQuery.docs[0].id !== email) {  // Allow same email if respawn, but per task, block even same
+
+      // Double-check no other active player has this name
+      const playersQuery = await db.collection('players')
+        .where('displayName', '==', name)
+        .get();
+
+      if (!playersQuery.empty && playersQuery.docs[0].id !== email) {
         socket.emit('error', { message: 'Name already in use.' });
         return;
       }
@@ -292,7 +254,7 @@ io.on('connection', (socket) => {
     socket.data.email = email;
     socket.data.displayName = playerData.displayName || displayName;
 
-    onlinePlayers.add(playerData.displayName || displayName);  // use the fresh one
+    onlinePlayers.add(playerData.displayName || displayName);
     onlineSockets.set(playerData.displayName || displayName, socket);
 
     io.emit('online-players', Array.from(onlinePlayers));
@@ -366,6 +328,7 @@ socket.on('respawn', async () => {
 
     await docRef.set(newPlayer);
     socket.emit('update-stats', newPlayer);
+    socket.emit('force-respawn');
     console.log(`[SERVER] Respawned ${email} - old name ${oldName} permanently locked`);
   }
 });

@@ -234,13 +234,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   OverlayEntry? _rankUpOverlay;
 
-  // NEW: Store the death listener function (to remove in dispose)
-  void _onDeath() {
-    if (_socketService.deathNotifier.value) {
-      setState(() => isDead = true);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -253,9 +246,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
-    _socketService.statsNotifier.addListener(() {
-      setState(() {});  // Refresh if needed, but since builder uses it, optional
-    });
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -286,8 +276,21 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
-    // NEW: Add death listener (stored as _onDeath)
-    _socketService.deathNotifier.addListener(_onDeath);
+    // Also check immediately after stats are loaded
+    _socketService.statsNotifier.addListener(() {
+      final stats = _socketService.statsNotifier.value;
+      if (stats['dead'] == true) {
+        _socketService.deathNotifier.value = true;
+      }
+      setState(() {}); // refresh UI if needed
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final stats = _socketService.statsNotifier.value;
+    if (stats['dead'] == true) {
+      _socketService.deathNotifier.value = true;
+    }
+  });
   }
 
   // NEW: Set up the bell for notes
@@ -420,9 +423,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
   }
 
+  void _handleDeathChange() {
+    if (_socketService.deathNotifier.value && mounted) {
+      setState(() {
+        isDead = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isDead) {
+      final stats = _socketService.statsNotifier.value;
+      final oldRank = _socketService.getRankTitle(stats['experience'] ?? 0);
+
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -430,34 +444,45 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
+              Text(
+                'Your criminal empire has fallen.\nRank reached: $oldRank',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 20, color: Colors.white70),
+              ),
+              const SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () async {
                   _socketService.respawn();
 
-                  // Force clear Firebase Auth name completely
                   final user = FirebaseAuth.instance.currentUser;
                   if (user != null) {
                     await user.updateDisplayName(null);
                     await user.reload();
                   }
 
-                  await FirebaseAuth.instance.signOut();
                   _socketService.disconnect();
 
-                  // Go straight to name selection screen (skip any cached name)
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
-                  );
+                  if (mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
+                      (route) => false,
+                    );
+                  }
                 },
-                child: const Text('Logout & Start New Life'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                ),
+                child: const Text('Start New Life', style: TextStyle(fontSize: 20)),
               ),
             ],
           ),
         ),
       );
     }
+
 
     return Scaffold(
       key: _scaffoldKey,
@@ -862,9 +887,9 @@ Widget _buildDashboard() {
   void dispose() {
     cooldownTimer?.cancel();
     // _socketService.disconnect();
+    _socketService.deathNotifier.removeListener(_handleDeathChange);
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
-    _socketService.deathNotifier.removeListener(_onDeath);  // FIXED: Remove stored listener
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
