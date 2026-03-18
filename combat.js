@@ -1,5 +1,7 @@
 // Handles everything related to attempting to kill another player
 
+const admin = require('firebase-admin');
+
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
 function getUpperBound(exp) {
   if (exp <= 49) return 49;
