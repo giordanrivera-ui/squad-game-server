@@ -620,7 +620,6 @@ socket.on('place-hit', async (data) => {
         if (exp > 38214) stealChance = 0.85;
 
         // Inside the if (operation === "Loot weapons store") block in the success else (!isCaught):
-
         if (Math.random() < stealChance) {
           let knifeThreshold = 30;
           let batThreshold = 55;
@@ -812,6 +811,7 @@ socket.on('place-hit', async (data) => {
     if (p.health <= 0 && !isCaught) {
       p.dead = true;  // NEW: Mark as dead
       p.health = 0;   // Ensure health is 0
+      await markPlayerAsDead(db, p, email, p.displayName);
       await docRef.set(p);  // Save changes (don't delete doc anymore)
       socket.emit('player-died');  // NEW: Notify client
       console.log(`Player ${email} died and marked as dead`);
