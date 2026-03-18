@@ -789,6 +789,22 @@ socket.on('place-hit', async (data) => {
     if (p.health <= 0 && !isCaught) {
       p.dead = true;  // NEW: Mark as dead
       p.health = 0;   // Ensure health is 0
+      p.prisonEndTime = 0;  // Clear prison on death from operation
+
+      if (p.displayName && imprisonedPlayers.has(p.displayName)) {
+        imprisonedPlayers.delete(p.displayName);
+        console.log(`[OPERATION] Removed dead prisoner ${p.displayName} from imprisonedPlayers`);
+
+        const prisonList = Array.from(imprisonedPlayers, ([dn, et]) => ({
+          displayName: dn,
+          prisonEndTime: et
+        }));
+        io.emit('prison-list-update', {
+          list: prisonList,
+          serverTime: Date.now()
+        });
+      }
+
       await markPlayerAsDead(db, p, email, p.displayName);
       await docRef.set(p);  // Save changes (don't delete doc anymore)
       socket.emit('player-died');  // NEW: Notify client
