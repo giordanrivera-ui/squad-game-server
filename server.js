@@ -256,7 +256,7 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-// ==================== RESPAWN HANDLER ====================
+// ==================== RESPAWN HANDLER (FIXED) ====================
 socket.on('respawn', async () => {
   const email = socket.data.email;
   if (!email) return;
@@ -265,25 +265,25 @@ socket.on('respawn', async () => {
   const doc = await docRef.get();
   if (!doc.exists) return;
 
-  let p = doc.data();
+  let oldData = doc.data();
 
-  if (p.dead) {
-    const oldName = p.displayName;
+  if (oldData.dead) {
+    const oldName = oldData.displayName;
     if (oldName) {
-      await markPlayerAsDead(db, p, email, oldName);
+      await markPlayerAsDead(db, oldData, email, oldName);
       console.log(`[SERVER] Saved dead profile for ${oldName}`);
     }
 
-    // Reset stats to defaults
+    // NEW: Build a completely clean new player object (no old name leakage)
     const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
-    p = {
-      ...p,
+
+    const newPlayer = {
       balance: 0,
       health: 100,
       bullets: 0,
       lastRob: 0,
-      displayName: null,
-      displayNameLower: null,
+      displayName: null,           // Force null
+      displayNameLower: null,      // Force null
       location: randomLocation,
       experience: 0,
       intelligence: 0,
@@ -310,11 +310,13 @@ socket.on('respawn', async () => {
       showWeapon: true,
       dead: false,
       ownedUpgrades: {},
+      messages: oldData.messages || [],   // Keep chat history if you want
+      fcmTokens: oldData.fcmTokens || []
     };
 
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
+    await docRef.set(newPlayer);
+    socket.emit('update-stats', newPlayer);
+    console.log(`[SERVER] Respawned ${email} - old name ${oldName} permanently locked`);
   }
 });
 

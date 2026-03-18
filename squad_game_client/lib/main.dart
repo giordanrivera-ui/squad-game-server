@@ -373,11 +373,22 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               ElevatedButton(
                 onPressed: () async {
                   _socketService.respawn();
-                  await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
-                  await FirebaseAuth.instance.currentUser?.reload();
+
+                  // Force clear Firebase Auth name completely
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await user.updateDisplayName(null);
+                    await user.reload();
+                  }
+
                   await FirebaseAuth.instance.signOut();
                   _socketService.disconnect();
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
+
+                  // Go straight to name selection screen (skip any cached name)
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => SetDisplayNameScreen()),
+                  );
                 },
                 child: const Text('Logout & Start New Life'),
               ),
