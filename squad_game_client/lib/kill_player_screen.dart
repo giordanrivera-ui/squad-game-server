@@ -20,7 +20,6 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   String _searchError = '';
   String? _selectedTarget;
   int _bullets = 0;
-  int? _targetExp;  // For calculating K
 
   // NEW: Hitlist mode
   bool _isHitlistMode = false;
@@ -112,25 +111,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
         _selectedTarget = name;
         _bullets = 0;
         _bulletsController.clear();
-        _targetExp = null;  // Reset
       });
-
-      // Fetch target's exp to calculate K
-      try {
-        final query = await FirebaseFirestore.instance
-            .collection('players')
-            .where('displayName', isEqualTo: name)
-            .limit(1)
-            .get();
-        if (query.docs.isNotEmpty) {
-          final data = query.docs.first.data();
-          setState(() => _targetExp = data['experience'] ?? 0);
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading target info: $e')),
-        );
-      }
     }
   }
 
@@ -277,7 +258,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   // NEW: Attempt kill on button click
   void _attemptKill() {
-    if (_selectedTarget == null || _targetExp == null) return;
+    if (_selectedTarget == null) return;
 
     // Emit to server (server will calculate/validate)
     SocketService().socket?.emit('attempt-kill', {
@@ -311,8 +292,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                         _bullets > 0 && 
                         _bullets <= ownBullets && 
                         balance >= 10000 && 
-                        hasWeapon &&
-                        _targetExp != null;
+                        hasWeapon;
 
         return Column(
           children: [
