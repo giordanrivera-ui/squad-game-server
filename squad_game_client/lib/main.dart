@@ -239,6 +239,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         _socketService.hitExpiredNotifier.value = null;  // Reset
       }
     });
+    _socketService.deathNotifier.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   // NEW: Set up the bell for notes
@@ -357,7 +360,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: _socketService.statsNotifier,
       builder: (context, stats, child) {
-        final bool isPlayerDead = (stats['dead'] == true) || (stats['health'] ?? 100) <= 0;
+        final bool isPlayerDead = (stats['dead'] == true) || (stats['health'] ?? 100) <= 0 || (_socketService.deathNotifier.value == true);
 
         if (isPlayerDead) {
           return Scaffold(
@@ -797,6 +800,9 @@ Widget _buildDashboard() {
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();
     _globalIncomeTimer?.cancel();  // NEW: Cancel global timer
+    _socketService.deathNotifier.removeListener(() {
+      if (mounted) setState(() {});
+    });
     super.dispose();
   }
 

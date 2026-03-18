@@ -169,8 +169,8 @@ io.on('connection', (socket) => {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
       }
 
-      // If displayName is null (after death) and client sends a new one, set it
-      if (!playerData.displayName && displayName !== 'Anonymous') {
+      // IMPORTANT: Never restore name for dead players
+      if (!playerData.displayName && playerData.dead !== true && displayName !== 'Anonymous') {
         playerData.displayName = displayName;
         playerData.displayNameLower = displayName.toLowerCase();
       }
