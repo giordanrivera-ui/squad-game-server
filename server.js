@@ -22,15 +22,21 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// ==================== HELPER: Award +3 attribute points on every rank-up ====================
-function grantAttributePointsOnRankUp(p, oldExp, newExp) {
-  const oldRank = getRankTitle(oldExp);
-  const newRank = getRankTitle(newExp);
+// ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
+async function addExperienceAndGrantPoints(docRef, playerData, amount) {
+  const oldExp = playerData.experience || 0;
+  playerData.experience = oldExp + amount;
 
-  if (newRank !== oldRank && newExp > oldExp) {
-    p.unallocatedAttributePoints = (p.unallocatedAttributePoints || 0) + 3;
-    console.log(`[SERVER] ${newRank} rank-up: +3 unallocated attribute points`);
+  const oldRank = getRankTitle(oldExp);
+  const newRank = getRankTitle(playerData.experience);
+
+  if (newRank !== oldRank && playerData.experience > oldExp) {
+    if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
+    playerData.unallocatedAttributePoints += 3;
+    console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
   }
+
+  return playerData;
 }
 
 // ==================== GLOBAL PRISON LIST ====================
@@ -379,9 +385,7 @@ socket.on('respawn', async () => {
     if (!doc.exists) return;
 
     let p = doc.data();
-    p.experience = (p.experience || 0) + amount;
-
-    grantAttributePointsOnRankUp(p, oldExp, p.experience);
+    p = await addExperienceAndGrantPoints(docRef, p, amount);
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -630,9 +634,7 @@ socket.on('place-hit', async (data) => {
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
 
-      // NEW: Grant unallocated attribute points on rank-up
-      const oldExp = p.experience - expGain;
-      grantAttributePointsOnRankUp(docRef, oldExp, p.experience);
+      p = await addExperienceAndGrantPoints(docRef, p, expGain);
 
       if (operation === "Loot weapons store") {
         // Weapon steal chance based on rank (using pre-gain exp)
