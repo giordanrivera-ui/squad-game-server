@@ -1,4 +1,4 @@
-// view_profile.dart (Complete new file)
+// view_profile.dart (UPDATED - No boxes when hidden, only clean text)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -29,20 +29,17 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     try {
       DocumentSnapshot doc;
       if (widget.isDead) {
-        // Load from deadProfiles for dead characters
         doc = await FirebaseFirestore.instance
             .collection('deadProfiles')
             .doc(widget.displayName.toLowerCase())
             .get();
       } else {
-        // Load from players for alive characters (find by displayName)
         final query = await FirebaseFirestore.instance
             .collection('players')
             .where('displayName', isEqualTo: widget.displayName)
             .limit(1)
             .get();
         if (query.docs.isEmpty) {
-          // No profile found - show error
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile not found.')),
           );
@@ -53,7 +50,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 
       if (doc.exists) {
         setState(() => _profileData = doc.data() as Map<String, dynamic>?);
-      } else {
+        } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile not found.')),
         );
@@ -85,7 +82,6 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     return 'Supreme Commander';
   }
 
-  // Helper: Get wealth title based on balance (copied from profile_screen.dart)
   String _getWealthTitle(int balance) {
     if (balance <= 800) return 'Destitute';
     if (balance <= 1600) return 'Skint';
@@ -104,7 +100,6 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     return 'Lord';
   }
 
-  // Helper: Get image for equipped slot (copied/adapted from profile_screen.dart)
   String _getEquippedImage(String slot, String emptyAsset) {
     final equipped = _profileData?[slot];
     if (equipped == null) return emptyAsset;
@@ -127,23 +122,26 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
     final rank = _getRankTitle(exp);
     final wealth = _getWealthTitle(balance);
 
+    final bool showWeapon = _profileData!['showWeapon'] ?? true;
+    final bool showArmor = _profileData!['showArmor'] ?? true;
+
+    final weaponImage = _getEquippedImage('weapon', 'assets/weapon-empty.jpg');
     final headwearImage = _getEquippedImage('headwear', 'assets/helmet-empty.jpg');
     final armorImage = _getEquippedImage('armor', 'assets/armor-empty.jpg');
     final footwearImage = _getEquippedImage('footwear', 'assets/boots-empty.jpg');
-    final weaponImage = _getEquippedImage('weapon', 'assets/weapon-empty.jpg');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           '${_profileData!['displayName']}${widget.isDead ? ' (Deceased)' : ''}',
-        ),
+          ),
       ),
       backgroundColor: Colors.grey[800],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Profile Picture + Info
+            // Profile Header
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -158,16 +156,16 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                     children: [
                       const SizedBox(height: 8),
                       Text(
-                        _profileData!['displayName'],
+                        _profileData!['displayName'], 
                         style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
                       Text(
-                        rank,
+                        rank, 
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
-                      ),
+                        ),
                       const SizedBox(height: 6),
                       Text(
-                        wealth,
+                        wealth, 
                         style: const TextStyle(fontSize: 18, color: Colors.white70),
                       ),
                       if (widget.isDead) ...[
@@ -185,77 +183,95 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 
             const SizedBox(height: 30),
 
-            // Weapon
-            Container(
-              width: 300,
-              height: 107,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  weaponImage,
-                  fit: BoxFit.cover,
+            // ==================== WEAPON SECTION ====================
+            if (showWeapon)
+              Container(
+                width: 300,
+                height: 107,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(weaponImage, fit: BoxFit.cover),
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                  child: Text("the player has hidden their weapon",
+                    style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
-            ),
 
             const SizedBox(height: 20),
 
-            // Armor Items
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                    borderRadius: BorderRadius.circular(12),
+            // ==================== ARMOR SECTION ====================
+            if (showArmor)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12), 
+                      child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                    ),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                  const SizedBox(width: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12), 
+                      child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
+                      borderRadius: BorderRadius.circular(12),
+                      ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12), 
+                      child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                      ),
+                  ),
+                ],
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                  child: Text(
+                    "The player has hidden their armor",
+                    style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
-                  ),
-                ),
-              ],
-            ),
+              ),
 
             const SizedBox(height: 20),
 
-            // Other Stats
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: Colors.black26, 
                 borderRadius: BorderRadius.circular(12),
-              ),
+                ),
               child: Column(
                 children: [
                   Text('Overall Power: ${_profileData!['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                  // Add more if needed (e.g., intelligence, but they're unused)
                 ],
               ),
             ),
