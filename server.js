@@ -36,7 +36,7 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
   }
 
-  return playerData;
+  return playerData;   // IMPORTANT: returns the updated object
 }
 
 // ==================== GLOBAL PRISON LIST ====================
@@ -632,7 +632,6 @@ socket.on('place-hit', async (data) => {
 
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
-      p.experience += expGain;
 
       p = await addExperienceAndGrantPoints(docRef, p, expGain);
 
