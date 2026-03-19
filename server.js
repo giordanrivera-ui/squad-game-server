@@ -516,41 +516,34 @@ socket.on('place-hit', async (data) => {
     let p = doc.data();
     const operation = data.operation;
 
-    const lowLevelOps = [
-      "Mug a passerby", 
-      "Loot a grocery store", 
-      "Rob a bank", 
-      "Loot weapons store"
-    ];
+  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION ====================
+  const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
+  const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
+  const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
-    const midLevelOps = [
-      "Attack military barracks", 
-      "Storm a laboratory", 
-      "Attack central issue facility"
-    ];
+  if (!lowLevelOps.includes(operation) && !midLevelOps.includes(operation) && !highLevelOps.includes(operation)) return;
 
-    const highLevelOps = [
-      "Strike an armory", 
-      "Raid a vehicle depot", 
-      "Assault an aircraft hangar", 
-      "Invade country"
-    ];
+  // Skill bonus – 0.5 seconds reduction per Skill point
+  const skill = p.skill || 0;
+  const reductionMs = Math.floor(skill * 500);
 
-    if (!lowLevelOps.includes(operation) && !midLevelOps.includes(operation) && !highLevelOps.includes(operation)) return;
+  let isHighLevel = false;
+  let cooldownTime = 60000 - reductionMs;
+  let lastOpTime = p.lastLowLevelOp || 0;
 
-    let cooldownTime = 60000; // low
-    let lastOpTime = p.lastLowLevelOp || 0;
-    let isHighLevel = false;
+  if (midLevelOps.includes(operation)) {
+    cooldownTime = 72000 - reductionMs;
+    lastOpTime = p.lastMidLevelOp || 0;
+  } else if (highLevelOps.includes(operation)) {
+    cooldownTime = 80000 - reductionMs;
+    lastOpTime = p.lastHighLevelOp || 0;
+    isHighLevel = true;
+  }
 
-    if (midLevelOps.includes(operation)) {
-      cooldownTime = 72000; // mid
-      lastOpTime = p.lastMidLevelOp || 0;
-    } else if (highLevelOps.includes(operation)) {
-      cooldownTime = 80000;           // ← 80 seconds
-      lastOpTime = p.lastHighLevelOp || 0;
-      isHighLevel = true;
-    }
-    if (Date.now() - lastOpTime < cooldownTime) return;
+  // Safety floor (never faster than 30 seconds)
+  cooldownTime = Math.max(cooldownTime, 30000);
+
+  if (Date.now() - lastOpTime < cooldownTime) return;
 
     let money = 0;
     let rawDamage = 0;
@@ -884,13 +877,13 @@ socket.on('place-hit', async (data) => {
         }
       }
 
-      if (lowLevelOps.includes(operation)) {
-        p.lastLowLevelOp = Date.now();
-      } else if (midLevelOps.includes(operation)) {
-        p.lastMidLevelOp = Date.now();
-      } else if (highLevelOps.includes(operation)) {
-        p.lastHighLevelOp = Date.now();
-      }
+        if (lowLevelOps.includes(operation)) {
+          p.lastLowLevelOp = Date.now();
+        } else if (midLevelOps.includes(operation)) {
+          p.lastMidLevelOp = Date.now();
+        } else if (highLevelOps.includes(operation)) {
+          p.lastHighLevelOp = Date.now();
+        }
     }
 
     await docRef.set(p);

@@ -11,6 +11,7 @@ class OperationsScreen extends StatefulWidget {
   final int prisonEndTime;
   final int lastMidLevelOp;
   final int lastHighLevelOp;
+  final int skill;
 
   const OperationsScreen({
     super.key,
@@ -22,6 +23,7 @@ class OperationsScreen extends StatefulWidget {
     required this.prisonEndTime,
     required this.lastMidLevelOp,
     required this.lastHighLevelOp, 
+    required this.skill,
   });
 
   @override
@@ -212,6 +214,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
         lastLowLevelOp: widget.lastLowLevelOp,
         lastMidLevelOp: widget.lastMidLevelOp,
         lastHighLevelOp: widget.lastHighLevelOp,
+        skill: widget.skill,
         onSelected: (operation) {
           setState(() => _selectedOperation = operation);
           Navigator.pop(context);
@@ -231,12 +234,14 @@ class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final int lastMidLevelOp;
   final int lastHighLevelOp;
+  final int skill;
   final Function(String) onSelected;
 
   const _BottomSheetContent({
     required this.lastLowLevelOp,
     required this.lastMidLevelOp,
     required this.lastHighLevelOp,
+    required this.skill,
     required this.onSelected,
     });
 
@@ -262,9 +267,15 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
 
   void _updateAllTimers() {
     final now = SocketService().currentServerTime;
-    _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000).clamp(0.0, 60.0);
-    _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000).clamp(0.0, 72.0);
-    _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000).clamp(0.0, 80.0);
+    final skill = widget.skill;
+    final reduction = skill * 0.5;   // 0.5s per Skill point
+
+    _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction)
+        .clamp(0.0, 60.0);
+    _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction)
+        .clamp(0.0, 72.0);
+    _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction)
+        .clamp(0.0, 80.0);
   }
 
   @override
