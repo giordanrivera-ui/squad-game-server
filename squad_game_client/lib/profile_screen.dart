@@ -443,7 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 30),
-            
+
             // Rest of stats (optional: you can keep or remove raw Experience number)
             Container(
               padding: const EdgeInsets.all(16),
@@ -453,9 +453,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
-                  Text('Intelligence: ${widget.stats['intelligence'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                  Text('Skill: ${widget.stats['skill'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                  Text('Marksmanship: ${widget.stats['marksmanship'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Overall Power: ${widget.stats['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
