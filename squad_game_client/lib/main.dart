@@ -455,6 +455,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                   lastLowLevelOp: _socketService.statsNotifier.value['lastLowLevelOp'] ?? 0,
                                   prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
                                   lastMidLevelOp: _socketService.statsNotifier.value['lastMidLevelOp'] ?? 0,
+                                  lastHighLevelOp: _socketService.statsNotifier.value['lastHighLevelOp'] ?? 0,   // ← ADD THIS
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: _socketService.statsNotifier.value)

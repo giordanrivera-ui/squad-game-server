@@ -186,6 +186,7 @@ io.on('connection', (socket) => {
       if (playerData.lastLowLevelOp === undefined) playerData.lastLowLevelOp = 0;
       if (playerData.prisonEndTime === undefined) playerData.prisonEndTime = 0;
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
+      if (playerData.lastHighLevelOp === undefined) playerData.lastHighLevelOp = 0;
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
       if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
       if (playerData.ownedUpgrades === undefined) playerData.ownedUpgrades = {};
@@ -240,6 +241,7 @@ io.on('connection', (socket) => {
         weapon: null,
         lastLowLevelOp: 0,
         lastMidLevelOp: 0,
+        lastHighLevelOp: 0,
         sellBanEndTime: 0,
         prisonEndTime: 0,
         ownedProperties: [],
@@ -374,6 +376,7 @@ socket.on('respawn', async () => {
       weapon: null,
       lastLowLevelOp: 0,
       lastMidLevelOp: 0,
+      lastHighLevelOp: 0,
       sellBanEndTime: 0,
       prisonEndTime: 0,
       ownedProperties: [],
@@ -514,25 +517,38 @@ socket.on('place-hit', async (data) => {
     const operation = data.operation;
 
     const lowLevelOps = [
-      "Mug a passerby",
-      "Loot a grocery store",
-      "Rob a bank",
+      "Mug a passerby", 
+      "Loot a grocery store", 
+      "Rob a bank", 
       "Loot weapons store"
     ];
 
     const midLevelOps = [
-      "Attack military barracks",
-      "Storm a laboratory",
+      "Attack military barracks", 
+      "Storm a laboratory", 
       "Attack central issue facility"
     ];
 
-    if (!lowLevelOps.includes(operation) && !midLevelOps.includes(operation)) return;
+    const highLevelOps = [
+      "Strike an armory", 
+      "Raid a vehicle depot", 
+      "Assault an aircraft hangar", 
+      "Invade country"
+    ];
+
+    if (!lowLevelOps.includes(operation) && !midLevelOps.includes(operation) && !highLevelOps.includes(operation)) return;
 
     let cooldownTime = 60000; // low
     let lastOpTime = p.lastLowLevelOp || 0;
+    let isHighLevel = false;
+
     if (midLevelOps.includes(operation)) {
       cooldownTime = 72000; // mid
       lastOpTime = p.lastMidLevelOp || 0;
+    } else if (highLevelOps.includes(operation)) {
+      cooldownTime = 80000;           // ← 80 seconds
+      lastOpTime = p.lastHighLevelOp || 0;
+      isHighLevel = true;
     }
     if (Date.now() - lastOpTime < cooldownTime) return;
 
@@ -551,7 +567,7 @@ socket.on('place-hit', async (data) => {
       money = Math.floor(Math.random() * 71) + 30;
       rawDamage = Math.floor(Math.random() * 21) + 15;
       expGain = 15;
-      message = `You looted the grocery store and stole $${money}!`;} 
+      message = `You looted the grocery store and stole $${money}!`;}
     else if (operation === "Rob a bank") {
       rawDamage = Math.floor(Math.random() * 41) + 15;
       expGain = 25;
@@ -575,7 +591,7 @@ socket.on('place-hit', async (data) => {
       else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
       else                     money = Math.floor(Math.random() * 401) + 600;
 
-      message = `You robbed the bank and escaped with $${money}!`;} 
+      message = `You robbed the bank and escaped with $${money}!`;}
     else if (operation === "Loot weapons store") {
       money = Math.floor(Math.random() * 41) + 10;
       rawDamage = Math.floor(Math.random() * 41) + 20;
@@ -586,12 +602,36 @@ socket.on('place-hit', async (data) => {
       rawDamage = Math.floor(Math.random() * 38) + 25;
       expGain = 35;
       message = `You attacked the military barracks and got $${money}!`;}
-    else if (operation === "Storm a laboratory") {
+    else if (operation === "Storm a laboratory") {      
       money = Math.floor(Math.random() * (160 - 60 + 1)) + 60;
       rawDamage = Math.floor(Math.random() * (52 - 20 + 1)) + 20;
       expGain = 27;
       message = `You stormed a laboratory and got $${money}!`;}
 
+    else if (operation === "Strike an armory") {
+      money = Math.floor(Math.random() * 301) + 350;
+      rawDamage = Math.floor(Math.random() * 31) + 35;
+      expGain = 45;
+      message = `You struck an armory and got $${money}!`;
+    } 
+    else if (operation === "Raid a vehicle depot") {
+      money = Math.floor(Math.random() * 351) + 500;
+      rawDamage = Math.floor(Math.random() * 26) + 40;
+      expGain = 52;
+      message = `You raided a vehicle depot and got $${money}!`;
+    } 
+    else if (operation === "Assault an aircraft hangar") {
+      money = Math.floor(Math.random() * 401) + 700;
+      rawDamage = Math.floor(Math.random() * 31) + 45;
+      expGain = 58;
+      message = `You assaulted an aircraft hangar and got $${money}!`;
+    } 
+    else if (operation === "Invade country") {
+      money = Math.floor(Math.random() * 501) + 900;
+      rawDamage = Math.floor(Math.random() * 36) + 50;
+      expGain = 65;
+      message = `You invaded a country and escaped with $${money}!`;
+    }
     let prisonChance;
     const exp = p.experience || 0;
 
@@ -613,6 +653,24 @@ socket.on('place-hit', async (data) => {
       if (exp > 25864) prisonChance = 0.14;
       if (exp > 31514) prisonChance = 0.12;
       if (exp > 38214) prisonChance = 0.10;
+    } else if (isHighLevel) {
+      prisonChance = 0.54;
+      if (exp > 49) prisonChance = 0.52;
+      if (exp > 514) prisonChance = 0.50;
+      if (exp > 1264) prisonChance = 0.45;
+      if (exp > 2314) prisonChance = 0.42;
+      if (exp > 3514) prisonChance = 0.38;
+      if (exp > 5014) prisonChance = 0.33;
+      if (exp > 6864) prisonChance = 0.30;
+      if (exp > 8864) prisonChance = 0.28;
+      if (exp > 10214) prisonChance = 0.25;
+      if (exp > 11464) prisonChance = 0.23;
+      if (exp > 14214) prisonChance = 0.21;
+      if (exp > 17414) prisonChance = 0.20;
+      if (exp > 21364) prisonChance = 0.18;
+      if (exp > 25864) prisonChance = 0.17;
+      if (exp > 31514) prisonChance = 0.16;
+      if (exp > 38214) prisonChance = 0.15;
     } else {
       prisonChance = 0.27;
       if (exp > 49) prisonChance = 0.25;
@@ -651,7 +709,7 @@ socket.on('place-hit', async (data) => {
       p.health = Math.max(0, p.health - actualDamage);
 
       p = await addExperienceAndGrantPoints(docRef, p, expGain);
-
+      
       if (operation === "Loot weapons store") {
         // Weapon steal chance based on rank (using pre-gain exp)
         let stealChance = 0.22;
@@ -830,6 +888,8 @@ socket.on('place-hit', async (data) => {
         p.lastLowLevelOp = Date.now();
       } else if (midLevelOps.includes(operation)) {
         p.lastMidLevelOp = Date.now();
+      } else if (highLevelOps.includes(operation)) {
+        p.lastHighLevelOp = Date.now();
       }
     }
 
@@ -844,7 +904,7 @@ socket.on('place-hit', async (data) => {
       list: prisonList,
       serverTime: Date.now()
     });
-
+    
     // Send result to the player who did the operation
     socket.emit('operation-result', {
       operation: operation,
