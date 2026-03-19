@@ -286,14 +286,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         wealthTitle,
                         style: const TextStyle(fontSize: 18, color: Colors.white70),
                       ),
-                      Text(
-                        'Unallocated Attribute Points: ${widget.stats['unallocatedAttributePoints'] ?? 0}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          color: Colors.amberAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -400,13 +392,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
 
             // ==================== NEW ATTRIBUTE ALLOCATION SECTION ====================
             if (unallocated > 0)
-              const Text(
-                'Attribute Points Available',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+              Text(
+                'Unallocated Attribute Points: ${widget.stats['unallocatedAttributePoints'] ?? 0}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.amberAccent,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
             const SizedBox(height: 12),

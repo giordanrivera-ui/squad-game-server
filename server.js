@@ -39,6 +39,19 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   return playerData;   // IMPORTANT: returns the updated object
 }
 
+// ==================== MARKSMANSHIP BONUS HELPER ====================
+// +1% overall power per Marksmanship point (only when weapon equipped)
+function recalculateOverallPower(p) {
+  if (!p.weapon || !p.weapon.power) {
+    p.overallPower = 0;
+    return p;
+  }
+  const marksmanship = p.marksmanship || 0;
+  const bonus = 1 + (marksmanship / 100);
+  p.overallPower = Math.round(p.weapon.power * bonus);
+  return p;
+}
+
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
@@ -182,6 +195,10 @@ io.on('connection', (socket) => {
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
       if (playerData.dead === undefined) playerData.dead = false;
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
+
+      if (playerData.weapon) {
+        playerData = recalculateOverallPower(playerData);
+      }
 
       if (playerData.displayName) {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
@@ -1126,8 +1143,9 @@ socket.on('place-hit', async (data) => {
     p[slot] = item;
     p.defense += item.defense || 0;
 
+    // NEW: Marksmanship bonus only applies to weapons
     if (slot === 'weapon') {
-      p.overallPower = item.power || 0;
+      p = recalculateOverallPower(p);
     }
 
     const index = p.inventory.findIndex(i => i.name === item.name && i.type === item.type);
@@ -1156,7 +1174,7 @@ socket.on('place-hit', async (data) => {
       p.defense -= equipped.defense || 0;
       p[slot] = null;
       if (slot === 'weapon') {
-        p.overallPower = 0;
+        p.overallPower = 0;   // Remove weapon → no bonus
       }
     }
 
@@ -1253,12 +1271,21 @@ socket.on('place-hit', async (data) => {
     let p = doc.data();
     if ((p.unallocatedAttributePoints || 0) <= 0) return;
 
+    const oldMarksmanship = p.marksmanship || 0;
+    const oldPower = p.overallPower || 0;
+
     p[attribute] = (p[attribute] || 0) + 1;
     p.unallocatedAttributePoints = (p.unallocatedAttributePoints || 0) - 1;
 
+    // FIXED: More robust check + logging so we can see exactly what happens
+    if (attribute === 'marksmanship' && p.weapon?.power != null) {
+      p = recalculateOverallPower(p);
+      console.log(`[SERVER] Marksmanship ${oldMarksmanship} → ${p.marksmanship} | Power ${oldPower} → ${p.overallPower} for ${email}`);
+    }
+
     await docRef.set(p);
     socket.emit('update-stats', p);
-    console.log(`[SERVER] Allocated 1 point to ${attribute} for ${email}`);
+    console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });
 
   // NEW: Handler for claiming income (now per-property)
@@ -1266,7 +1293,7 @@ socket.on('place-hit', async (data) => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });
 
-    // ==================== PRIVATE MESSAGES ====================
+  // ==================== PRIVATE MESSAGES ====================
   socket.on('private-message', async (data) => {
     if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
 

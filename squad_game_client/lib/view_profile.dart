@@ -1,10 +1,10 @@
-// view_profile.dart (UPDATED - No boxes when hidden, only clean text)
+// view_profile.dart (UPDATED - Combined message when BOTH weapon and armor are hidden)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ViewProfileScreen extends StatefulWidget {
   final String displayName;
-  final bool isDead;  // True if viewing a dead profile
+  final bool isDead;
 
   const ViewProfileScreen({
     super.key,
@@ -158,7 +158,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       Text(
                         _profileData!['displayName'], 
                         style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
+                        ),
                       Text(
                         rank, 
                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.orangeAccent),
@@ -167,7 +167,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
                       Text(
                         wealth, 
                         style: const TextStyle(fontSize: 18, color: Colors.white70),
-                      ),
+                        ),
                       if (widget.isDead) ...[
                         const SizedBox(height: 8),
                         const Text(
@@ -183,83 +183,98 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
 
             const SizedBox(height: 30),
 
-            // ==================== WEAPON SECTION ====================
-            if (showWeapon)
-              Container(
-                width: 300,
-                height: 107,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(weaponImage, fit: BoxFit.cover),
-                ),
-              )
-            else
+            // ==================== VISIBILITY LOGIC ====================
+            if (!showWeapon && !showArmor)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
-                child: Center(
-                  child: Text("the player has hidden their weapon",
-                    style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-
-            const SizedBox(height: 20),
-
-            // ==================== ARMOR SECTION ====================
-            if (showArmor)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12), 
-                      child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12), 
-                      child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
-                      borderRadius: BorderRadius.circular(12),
-                      ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12), 
-                      child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
-                      ),
-                  ),
-                ],
-              )
-            else
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
+                padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(
                   child: Text(
-                    "The player has hidden their armor",
-                    style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                    "The player has hidden both weapon and armor",
+                    style: TextStyle(fontSize: 17, color: Colors.grey, fontStyle: FontStyle.italic),
                     textAlign: TextAlign.center,
                   ),
                 ),
-              ),
+              )
+
+            else ...[
+              // Weapon (only shown if not both hidden)
+              if (showWeapon)
+                Container(
+                  width: 300,
+                  height: 107,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(weaponImage, fit: BoxFit.cover),
+                  ),
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(
+                    child: Text("the player has hidden their weapon",
+                      style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+
+              // ==================== ARMOR SECTION ====================
+              if (showArmor)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12), 
+                        child: Image.asset(headwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12), 
+                        child: Image.asset(armorImage, width: 100, height: 100, fit: BoxFit.cover),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1), 
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12), 
+                        child: Image.asset(footwearImage, width: 100, height: 100, fit: BoxFit.cover),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 30),
+                  child: Center(
+                    child: Text(
+                      "The player has hidden their armor",
+                      style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 20),
 
@@ -268,7 +283,7 @@ class _ViewProfileScreenState extends State<ViewProfileScreen> {
               decoration: BoxDecoration(
                 color: Colors.black26, 
                 borderRadius: BorderRadius.circular(12),
-                ),
+              ),
               child: Column(
                 children: [
                   Text('Overall Power: ${_profileData!['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
