@@ -22,15 +22,13 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// Helper to detect rank-up and award +3 points
-async function grantAttributePointsOnRankUp(docRef, oldExp, newExp) {
+// ==================== HELPER: Award +3 attribute points on every rank-up ====================
+function grantAttributePointsOnRankUp(p, oldExp, newExp) {
   const oldRank = getRankTitle(oldExp);
   const newRank = getRankTitle(newExp);
 
   if (newRank !== oldRank && newExp > oldExp) {
-    await docRef.update({
-      unallocatedAttributePoints: admin.firestore.FieldValue.increment(3)
-    });
+    p.unallocatedAttributePoints = (p.unallocatedAttributePoints || 0) + 3;
     console.log(`[SERVER] ${newRank} rank-up: +3 unallocated attribute points`);
   }
 }
@@ -383,6 +381,8 @@ socket.on('respawn', async () => {
     let p = doc.data();
     p.experience = (p.experience || 0) + amount;
 
+    grantAttributePointsOnRankUp(p, oldExp, p.experience);
+
     await docRef.set(p);
     socket.emit('update-stats', p);
   });
@@ -632,7 +632,7 @@ socket.on('place-hit', async (data) => {
 
       // NEW: Grant unallocated attribute points on rank-up
       const oldExp = p.experience - expGain;
-      await grantAttributePointsOnRankUp(docRef, oldExp, p.experience);
+      grantAttributePointsOnRankUp(docRef, oldExp, p.experience);
 
       if (operation === "Loot weapons store") {
         // Weapon steal chance based on rank (using pre-gain exp)
