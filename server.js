@@ -12,7 +12,7 @@ const io = new Server(server, {
 });
 
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
-const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
+const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -21,6 +21,19 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+
+// Helper to detect rank-up and award +3 points
+async function grantAttributePointsOnRankUp(docRef, oldExp, newExp) {
+  const oldRank = getRankTitle(oldExp);
+  const newRank = getRankTitle(newExp);
+
+  if (newRank !== oldRank && newExp > oldExp) {
+    await docRef.update({
+      unallocatedAttributePoints: admin.firestore.FieldValue.increment(3)
+    });
+    console.log(`[SERVER] ${newRank} rank-up: +3 unallocated attribute points`);
+  }
+}
 
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
@@ -164,6 +177,7 @@ io.on('connection', (socket) => {
       if (playerData.showArmor === undefined) playerData.showArmor = true;
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
       if (playerData.dead === undefined) playerData.dead = false;
+      if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
 
       if (playerData.displayName) {
         playerData.displayNameLower = playerData.displayName.toLowerCase();
@@ -214,6 +228,7 @@ io.on('connection', (socket) => {
         showWeapon: true,
         dead: false,
         ownedUpgrades: {},
+        unallocatedAttributePoints: 0,
       };
     }
     
@@ -347,6 +362,7 @@ socket.on('respawn', async () => {
       showWeapon: true,
       dead: false,
       ownedUpgrades: {},
+      unallocatedAttributePoints: 0,
     };
 
     await docRef.set(p);
@@ -613,6 +629,10 @@ socket.on('place-hit', async (data) => {
       p.balance += money;
       p.health = Math.max(0, p.health - actualDamage);
       p.experience += expGain;
+
+      // NEW: Grant unallocated attribute points on rank-up
+      const oldExp = p.experience - expGain;
+      await grantAttributePointsOnRankUp(docRef, oldExp, p.experience);
 
       if (operation === "Loot weapons store") {
         // Weapon steal chance based on rank (using pre-gain exp)

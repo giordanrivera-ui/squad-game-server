@@ -280,6 +280,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         wealthTitle,
                         style: const TextStyle(fontSize: 18, color: Colors.white70),
                       ),
+                      Text(
+                        'Unallocated Attribute Points: ${widget.stats['unallocatedAttributePoints'] ?? 0}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.amberAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                 ),
