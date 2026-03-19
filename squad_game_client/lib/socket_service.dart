@@ -485,6 +485,11 @@ void connect(String email, String displayName) {
       'upgradeName': upgradeName,
     });
   }
+
+  void allocateAttribute(String attribute) {
+    if (!['intelligence', 'skill', 'marksmanship'].contains(attribute)) return;
+    socket?.emit('allocate-attribute', { 'attribute': attribute });
+  }
   
   void claimIncome() => socket?.emit('claim-income');
 

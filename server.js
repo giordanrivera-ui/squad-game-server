@@ -1241,6 +1241,27 @@ socket.on('place-hit', async (data) => {
     await handleBuyUpgrade(db, socket, propertyName, upgradeName);
   });
 
+  // ==================== ALLOCATE ATTRIBUTE POINTS ====================
+  socket.on('allocate-attribute', async (data) => {
+    const email = socket.data.email;
+    const attribute = data.attribute;
+    if (!email || !['intelligence', 'skill', 'marksmanship'].includes(attribute)) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    if ((p.unallocatedAttributePoints || 0) <= 0) return;
+
+    p[attribute] = (p[attribute] || 0) + 1;
+    p.unallocatedAttributePoints = (p.unallocatedAttributePoints || 0) - 1;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+    console.log(`[SERVER] Allocated 1 point to ${attribute} for ${email}`);
+  });
+
   // NEW: Handler for claiming income (now per-property)
   socket.on('claim-income', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js

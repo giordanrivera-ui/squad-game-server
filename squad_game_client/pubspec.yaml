@@ -120,6 +120,9 @@ flutter:
     - assets/store_vehicles.jpg
     - assets/store_courses.jpg
     - assets/store_armor.jpg
+    - assets/icon-intelligence.png
+    - assets/icon-marksmanship.png
+    - assets/icon-skill.png
 
 
 

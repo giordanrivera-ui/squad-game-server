@@ -201,6 +201,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     SocketService().updateVisibility(_showArmor, _showWeapon);
   }
 
+  // ==================== NEW: ALLOCATE ATTRIBUTE POINTS ====================
+  void _allocatePoint(String attribute) {
+        SocketService().allocateAttribute(attribute);
+  }
+
   @override
   Widget build(BuildContext context) {
     final headwearImage = _getEquippedImage('headwear', 'assets/helmet-empty.jpg');
@@ -210,6 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final balance = widget.stats['balance'] ?? 0;
     final exp = widget.stats['experience'] ?? 0;
     final wealthTitle = _getWealthTitle(balance);
+    final unallocated = widget.stats['unallocatedAttributePoints'] ?? 0;
 
     final rankProgress = _getRankProgress(exp);
 
@@ -381,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 const Text('Show Armor to Others', style: TextStyle(fontSize: 14, color: Colors.white)),
                 Transform.scale(
-                  scale: 0.55,  // Adjust scale (0.7 = 70% size; try 0.6-0.8)
+                  scale: 0.55,
                   child: Switch(
                     value: _showArmor,
                     activeTrackColor: Colors.orange,
@@ -394,8 +400,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
 
+            // ==================== NEW ATTRIBUTE ALLOCATION SECTION ====================
+            if (unallocated > 0)
+              const Text(
+                'Attribute Points Available',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+              ),
+
+            const SizedBox(height: 12),
+
+            // Intelligence
+            _buildAttributeRow(
+              iconPath: 'assets/icon-intelligence.png',
+              label: 'Intelligence',
+              currentValue: widget.stats['intelligence'] ?? 0,
+              unallocated: unallocated,
+              onPlus: () => _allocatePoint('intelligence'),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Skill
+            _buildAttributeRow(
+              iconPath: 'assets/icon-skill.png',
+              label: 'Skill',
+              currentValue: widget.stats['skill'] ?? 0,
+              unallocated: unallocated,
+              onPlus: () => _allocatePoint('skill'),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Marksmanship
+            _buildAttributeRow(
+              iconPath: 'assets/icon-marksmanship.png',
+              label: 'Marksmanship',
+              currentValue: widget.stats['marksmanship'] ?? 0,
+              unallocated: unallocated,
+              onPlus: () => _allocatePoint('marksmanship'),
+            ),
+
+            const SizedBox(height: 30),
+            
             // Rest of stats (optional: you can keep or remove raw Experience number)
             Container(
               padding: const EdgeInsets.all(16),
@@ -434,6 +482,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+  
+  // ==================== NEW HELPER WIDGET ====================
+  Widget _buildAttributeRow({
+    required String iconPath,
+    required String label,
+    required int currentValue,
+    required int unallocated,
+    required VoidCallback onPlus,
+  }) {
+    final progress = (currentValue / 48.0).clamp(0.0, 1.0);
+
+    return Row(
+      children: [
+        Image.asset(iconPath, width: 40, height: 40),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.grey[700],
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.amberAccent),
+                minHeight: 12,
+              ),
+              const SizedBox(height: 2),
+              Text('$currentValue / 48', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ],
+          ),
+        ),
+        if (unallocated > 0)
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: Colors.amberAccent, size: 32),
+            onPressed: onPlus,
+            tooltip: 'Add 1 point',
+          ),
+      ],
     );
   }
 }
