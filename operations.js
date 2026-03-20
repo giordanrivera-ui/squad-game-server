@@ -374,6 +374,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
       if (Math.random() < boneChance) {
         p.hasBrokenBone = true;
+        p.boneBrokenAt = Date.now();
         message += ' You suffered a broken bone!';
       }
     }

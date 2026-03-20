@@ -253,6 +253,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _lowRemaining = 0.0;
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
+  double _bonePenaltyRemaining = 0.0;   // ← NEW
 
   Timer? _timer;
 
@@ -269,23 +270,25 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final now = SocketService().currentServerTime;
     final skill = widget.skill;
     final reduction = skill * 0.5;
+    final stats = SocketService().statsNotifier.value;
 
-    bool hasBrokenBone = SocketService().statsNotifier.value['hasBrokenBone'] == true;
+    final hasBrokenBone = stats['hasBrokenBone'] == true;
+    final boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
 
-    // Normal cooldown (without penalty)
+    // Bone penalty countdown (independent 10-second timer)
+    if (hasBrokenBone && boneBrokenAt > 0) {
+      _bonePenaltyRemaining = ((10000 - (now - boneBrokenAt)) / 1000).clamp(0.0, 10.0);
+    } else {
+      _bonePenaltyRemaining = 0.0;
+    }
+
+    // Normal cooldown (skill reduction only)
     _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction)
         .clamp(0.0, 60.0);
     _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction)
         .clamp(0.0, 72.0);
     _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction)
         .clamp(0.0, 80.0);
-
-        // NEW: Broken bone penalty (always 10 seconds when active)
-    if (hasBrokenBone) {
-      _lowRemaining += 10;
-      _midRemaining += 10;
-      _highRemaining += 10;
-    }
   }
 
   @override
@@ -315,10 +318,9 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     );
   }
 
-  // ==================== UPDATED _buildGroup WITH DUAL TIMERS ====================
   Widget _buildGroup(String title, List<String> ops, double remaining) {
     final hasBrokenBone = SocketService().statsNotifier.value['hasBrokenBone'] == true;
-    final isCooldown = remaining > 0.1;
+    final boneTime = _bonePenaltyRemaining;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,44 +330,33 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
         ...ops.map((op) {
-          // If broken bone is active, show two timers side-by-side
-          if (hasBrokenBone && remaining > 10) {
-            final boneTime = 10.0;                    // Fixed 10-second penalty
-            final normalTime = (remaining - 10).clamp(0.0, 80.0);
-
+          if (hasBrokenBone && boneTime > 0.1) {
+            // Red bone timer runs first
             return ListTile(
               title: Row(
                 children: [
                   Text(op, style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(width: 12),
                   Text(
-                    'Bone: ${boneTime.toStringAsFixed(1)}s',
+                    'Bone Recovery: ${boneTime.toStringAsFixed(1)}s',
                     style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                  const Text(' → ', style: TextStyle(fontSize: 13)),
-                  Text(
-                    '${normalTime.toStringAsFixed(1)}s',
-                    style: const TextStyle(fontSize: 13),
                   ),
                 ],
               ),
-              subtitle: const Text(
-                'Broken bone penalty active',
-                style: TextStyle(color: Colors.red, fontSize: 12),
-              ),
-              enabled: !isCooldown,
-              onTap: isCooldown ? null : () => widget.onSelected(op),
+              subtitle: const Text('Normal cooldown starts after recovery', style: TextStyle(color: Colors.red, fontSize: 12)),
+              enabled: false,
             );
           }
 
-          // Normal single timer (no broken bone)
-          final displayText = isCooldown
+          // Normal cooldown
+          final displayText = remaining > 0.1
               ? '$op (${remaining.toStringAsFixed(1)} s)'
               : op;
+
           return ListTile(
             title: Text(displayText),
-            enabled: !isCooldown,
-            onTap: isCooldown ? null : () => widget.onSelected(op),
+            enabled: remaining <= 0.1,
+            onTap: remaining > 0.1 ? null : () => widget.onSelected(op),
           );
         }),
         const Divider(),
