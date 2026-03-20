@@ -497,16 +497,16 @@ Widget _buildDashboard() {
     valueListenable: _socketService.statsNotifier,
     builder: (context, stats, child) {
       return Column(
-      children: [
-        // NEW: Top section for menu button, time, location, health, bullets
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[800],  // Lighter grey for contrast
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        children: [
+          // Top section (unchanged until health)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey[800],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                 children: [
                   // NEW: Menu button here (with unread dot)
                   Builder(
@@ -549,30 +549,44 @@ Widget _buildDashboard() {
               const SizedBox(height: 2),
               Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
               const SizedBox(height: 8),
-              LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
-              Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
-              // SAFE Broken Bone Icon
-    if (stats['hasBrokenBone'] == true)
-      const Padding(
-        padding: EdgeInsets.only(left: 12),
-        child: Icon(Icons.broken_image, color: Colors.orangeAccent, size: 26),
-      ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
-                  const SizedBox(width: 4),
-                  Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                  const SizedBox(width: 6),
-                  const Icon(Icons.whatshot, size: 20, color: Colors.red),  // Skull or fire icon for kills
-                  const SizedBox(width: 4),
-                  Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                ],
-              ),
-            ],
+                // ==================== UPDATED HEALTH BAR WITH BROKEN BONE ICON ====================
+                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green,
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Health: ${stats['health'] ?? 100}/100',
+                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                    if (stats['hasBrokenBone'] == true)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8),
+                        child: Icon(
+                          Icons.personal_injury,
+                          color: Colors.orangeAccent,
+                          size: 24,
+                        ),
+                      ),
+                  ],
+                ),
+                // ==================== END OF UPDATE ====================
+
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
+                    const SizedBox(width: 4),
+                    Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.whatshot, size: 20, color: Colors.red),  // Skull or fire icon for kills
+                    const SizedBox(width: 4),
+                    Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        // Black rectangle ONLY for bank balance
+          // Black rectangle ONLY for bank balance
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
@@ -588,7 +602,7 @@ Widget _buildDashboard() {
     
           child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
             style: const TextStyle(fontSize: 20, color: Colors.green)),
-        )
+          )
         ),
         Expanded(
           child: ListView.builder(
@@ -676,8 +690,8 @@ Widget _buildDashboard() {
             ],
           ),
         ),
-      ],
-    );
+        ],
+      );
 
     },
   );

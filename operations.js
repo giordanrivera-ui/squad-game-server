@@ -17,7 +17,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
   let p = doc.data();
   const operation = data.operation;
 
-  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION + BROKEN BONE PENALTY ====================
+  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION ====================
   const skill = p.skill || 0;
   const reductionMs = Math.floor(skill * 500);
 
@@ -198,7 +198,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
     
-    // ==================== EXISTING WEAPON STEALING (unchanged) ====================
+    // ==================== EXISTING WEAPON & BULLET STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
       if (exp > 49) stealChance = 0.25;
@@ -333,7 +333,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
         message += ` You also stole a ${weapon.name}!`;
       }
     }
-
+    
     // ==================== NEW: BULLET STEALING LOGIC ====================
     // Medium & High level only - runs on successful operations only
     let bulletStealChance = 0;
@@ -358,32 +358,27 @@ async function handleExecuteOperation(db, socket, data, deps) {
       p.bullets = (p.bullets || 0) + bulletsStolen;
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
-    
-    // ==================== NEW: BROKEN BONE DEBUFF ====================
-    // Only if not already broken and operation was successful
-    if (!p.hasBrokenBone) {
-      let boneChance = 0;
-      if (lowLevelOps.includes(operation)) boneChance = 0.95;
-      else if (midLevelOps.includes(operation)) boneChance = 0.10;
-      else if (highLevelOps.includes(operation)) boneChance = 0.14;
 
-      if (Math.random() < boneChance) {
-        p.hasBrokenBone = true;
-        p.boneBrokenAt = Date.now();
-        message += ' You suffered a broken bone!';
-      }
+    // ==================== BROKEN BONE DEBUFF (NEW) ====================
+    let brokenBoneChance = 0;
+    if (lowLevelOps.includes(operation)) {
+      brokenBoneChance = 0.05;   // 5% on low-level success
+    } else if (midLevelOps.includes(operation)) {
+      brokenBoneChance = 0.09;   // 9% on mid-level success
+    } else if (isHighLevel) {
+      brokenBoneChance = 0.14;   // 14% on high-level success
     }
 
-    // ==================== SET COOLDOWN TIMESTAMP (SEQUENTIAL) ====================
-    const now = Date.now();
-    let cooldownStartTime = now;
-    if (p.hasBrokenBone) {
-      cooldownStartTime = now + 10000;   // Normal cooldown starts AFTER bone recovery
+    if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
+      p.hasBrokenBone = true;
+      message += " 💥 You broke a bone during the operation!";
+      console.log(`[SERVER] ${p.displayName} broke a bone during ${operation}`);
     }
 
-    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = cooldownStartTime;
-    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = cooldownStartTime;
-    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = cooldownStartTime;
+    // Set cooldown timestamp
+    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
+    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
+    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
   }
 
   await docRef.set(p);

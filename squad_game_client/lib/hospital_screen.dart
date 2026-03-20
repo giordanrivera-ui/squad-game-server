@@ -34,6 +34,17 @@ class _HospitalScreenState extends State<HospitalScreen> {
     );
   }
 
+  // NEW: Orthopedic Surgeon handler (currently does nothing except a placeholder message)
+  void _seeOrthopedicSurgeon() {
+    // TODO: Future implementation here (special bone healing, new costs, animations, etc.)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🦴 The Orthopedic Surgeon is not available yet...'),
+        backgroundColor: Colors.blueGrey,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -60,6 +71,8 @@ class _HospitalScreenState extends State<HospitalScreen> {
                 const SizedBox(height: 30),
                 Text('Heal to full health for $healCost?', style: const TextStyle(fontSize: 18)),
                 const SizedBox(height: 20),
+
+                // Normal heal button (unchanged)
                 SizedBox(
                   width: double.infinity,
                   child: Padding(
@@ -77,7 +90,31 @@ class _HospitalScreenState extends State<HospitalScreen> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 12),
+
+                // NEW: Extra button - ONLY appears in "Lónghǎi"
+                if (widget.currentLocation == "Lónghǎi")
+                  SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ElevatedButton(
+                        onPressed: _seeOrthopedicSurgeon,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueGrey[700],
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                        ),
+                        child: const Text(
+                          '🦴 See Orthopedic Surgeon',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
                 if (widget.currentHealth == 100)
                   const Text('You are already at full health!', style: TextStyle(color: Colors.green, fontSize: 16))
                 else if (widget.currentBalance < healCost)
