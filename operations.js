@@ -36,11 +36,6 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   cooldownTime = Math.max(cooldownTime, 30000);
 
-  // NEW: Broken bone adds +10 seconds to EVERY cooldown while active (server-controlled)
-  if (p.hasBrokenBone === true) {
-    cooldownTime += 10000;
-  }
-
   if (Date.now() - lastOpTime < cooldownTime) return;
 
   let money = 0;
@@ -381,11 +376,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     // Set cooldown timestamp
     if (lowLevelOps.includes(operation)) {
-      p.lastLowLevelOp = Date.now() + 10000;
+      p.lastLowLevelOp = Date.now();
     } else if (midLevelOps.includes(operation)) {
-      p.lastMidLevelOp = Date.now() + 10000;
+      p.lastMidLevelOp = Date.now();
     } else if (highLevelOps.includes(operation)) {
-      p.lastHighLevelOp = Date.now() + 10000;
+      p.lastHighLevelOp = Date.now();
     }
   }
 

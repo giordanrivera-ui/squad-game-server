@@ -250,10 +250,10 @@ class _BottomSheetContent extends StatefulWidget {
 }
 
 class _BottomSheetContentState extends State<_BottomSheetContent> {
+  double _boneRemaining = 0.0;
   double _lowRemaining = 0.0;
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
-  double _bonePenaltyRemaining = 0.0;   // ← NEW
 
   Timer? _timer;
 
@@ -272,25 +272,29 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final reduction = skill * 0.5;
     final stats = SocketService().statsNotifier.value;
 
-    final hasBrokenBone = stats['hasBrokenBone'] == true;
-    final boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
+    final bool hasBrokenBone = stats['hasBrokenBone'] == true;
+    int boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
 
-    // Bone penalty countdown (independent 10-second timer)
-    if (hasBrokenBone && boneBrokenAt > 0) {
-      _bonePenaltyRemaining = ((10000 - (now - boneBrokenAt)) / 1000).clamp(0.0, 10.0);
-    } else {
-      _bonePenaltyRemaining = 0.0;
+    // Fallback: if boneBrokenAt is missing but flag is true, use latest op time
+    if (hasBrokenBone && boneBrokenAt == 0) {
+      final lastOps = [widget.lastLowLevelOp, widget.lastMidLevelOp, widget.lastHighLevelOp];
+      boneBrokenAt = lastOps.reduce((a, b) => a > b ? a : b);
     }
 
-    final boneDelay = _bonePenaltyRemaining > 0.1 ? _bonePenaltyRemaining : 0.0;
+    if (hasBrokenBone && boneBrokenAt > 0) {
+      _boneRemaining = ((10000 - (now - boneBrokenAt)) / 1000).clamp(0.0, 10.0);
+    } else {
+      _boneRemaining = 0.0;
+    }
 
-    // Normal cooldown (skill reduction only)
-    _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction - boneDelay)
-        .clamp(0.0, 60.0);
-    _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction - boneDelay)
-        .clamp(0.0, 72.0);
-    _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction - boneDelay)
-        .clamp(0.0, 80.0);
+    // Normal timers stay frozen while bone is active
+    final lowFull = 60.0 - reduction;
+    final midFull = 72.0 - reduction;
+    final highFull = 80.0 - reduction;
+
+    _lowRemaining = _boneRemaining > 0.1 ? lowFull : ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, lowFull);
+    _midRemaining = _boneRemaining > 0.1 ? midFull : ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, midFull);
+    _highRemaining = _boneRemaining > 0.1 ? highFull : ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, highFull);
   }
 
   @override
@@ -310,8 +314,24 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          // BIG BANNER (always visible when bone is active)
+          if (_boneRemaining > 0.1)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orangeAccent),
+              ),
+              child: Text(
+                '🦴 Broken Bone – Recovery: ${_boneRemaining.toStringAsFixed(1)}s',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                textAlign: TextAlign.center,
+              ),
+            ),
           const SizedBox(height: 16),
+
           _buildGroup('Low Level', lowLevelOps, _lowRemaining),
           _buildGroup('Medium Level', midLevelOps, _midRemaining),
           _buildGroup('High Level', highLevelOps, _highRemaining),
@@ -320,10 +340,8 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     );
   }
 
-  Widget _buildGroup(String title, List<String> ops, double remaining) {
-    final hasBrokenBone = SocketService().statsNotifier.value['hasBrokenBone'] == true;
-    final boneTime = _bonePenaltyRemaining;
-
+  Widget _buildGroup(String title, List<String> ops, double normalRemaining) {
+    final boneTime = _boneRemaining;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -332,34 +350,26 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
         ...ops.map((op) {
-          if (hasBrokenBone && boneTime > 0.1) {
-            // Red bone timer runs first
+          if (boneTime > 0.1) {
             return ListTile(
-              title: Row(
+              title: Text(op, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Row(
                 children: [
-                  Text(op, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Bone Recovery: ${boneTime.toStringAsFixed(1)}s',
-                    style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
+                  Text('Bone Recovery: ${boneTime.toStringAsFixed(1)}s', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
+                  const Text('   |   ', style: TextStyle(color: Colors.grey)),
+                  Text('Cooldown: ${normalRemaining.toStringAsFixed(1)}s', style: const TextStyle(color: Colors.white70)),
                 ],
               ),
-              subtitle: const Text('Normal cooldown starts after recovery', style: TextStyle(color: Colors.red, fontSize: 12)),
               enabled: false,
             );
+          } else {
+            final displayText = normalRemaining > 0.1 ? '$op (${normalRemaining.toStringAsFixed(1)}s)' : op;
+            return ListTile(
+              title: Text(displayText),
+              enabled: normalRemaining <= 0.1,
+              onTap: normalRemaining > 0.1 ? null : () => widget.onSelected(op),
+            );
           }
-
-          // Normal cooldown
-          final displayText = remaining > 0.1
-              ? '$op (${remaining.toStringAsFixed(1)} s)'
-              : op;
-
-          return ListTile(
-            title: Text(displayText),
-            enabled: remaining <= 0.1,
-            onTap: remaining > 0.1 ? null : () => widget.onSelected(op),
-          );
         }),
         const Divider(),
       ],
