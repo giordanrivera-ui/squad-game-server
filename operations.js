@@ -375,16 +375,15 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
 
     // ==================== SET COOLDOWN TIMESTAMP (SEQUENTIAL) ====================
-    // Normal cooldown only starts AFTER bone recovery finishes
-    const cooldownDelay = (p.hasBrokenBone && !isCaught) ? 10000 : 0;
-
-    if (lowLevelOps.includes(operation)) {
-      p.lastLowLevelOp = Date.now();
-    } else if (midLevelOps.includes(operation)) {
-      p.lastMidLevelOp = Date.now();
-    } else if (highLevelOps.includes(operation)) {
-      p.lastHighLevelOp = Date.now();
+    const now = Date.now();
+    let cooldownStartTime = now;
+    if (p.hasBrokenBone) {
+      cooldownStartTime = now + 10000;   // Normal cooldown starts AFTER bone recovery
     }
+
+    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = cooldownStartTime;
+    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = cooldownStartTime;
+    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = cooldownStartTime;
   }
 
   await docRef.set(p);
