@@ -17,30 +17,26 @@ async function handleExecuteOperation(db, socket, data, deps) {
   let p = doc.data();
   const operation = data.operation;
 
-  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION + BROKEN BONE PENALTY ====================
+  // ==================== COOLDOWN LOGIC WITH SKILL + BROKEN BONE PENALTY ====================
   const skill = p.skill || 0;
   const reductionMs = Math.floor(skill * 500);
-  const hasBrokenBone = p.brokenBone === true;
+  const hasBrokenBone = !!(p.brokenBoneUntil && Date.now() < p.brokenBoneUntil);
+  const extraCooldownMs = hasBrokenBone ? 10000 : 0;
 
   let isHighLevel = false;
-  let cooldownTime = 60000 - reductionMs;
+  let cooldownTime = 60000 - reductionMs + extraCooldownMs;
   let lastOpTime = p.lastLowLevelOp || 0;
 
   if (midLevelOps.includes(operation)) {
-    cooldownTime = 72000 - reductionMs;
+    cooldownTime = 72000 - reductionMs + extraCooldownMs;
     lastOpTime = p.lastMidLevelOp || 0;
   } else if (highLevelOps.includes(operation)) {
-    cooldownTime = 80000 - reductionMs;
+    cooldownTime = 80000 - reductionMs + extraCooldownMs;
     lastOpTime = p.lastHighLevelOp || 0;
     isHighLevel = true;
   }
 
   cooldownTime = Math.max(cooldownTime, 30000);
-
-  // NEW: Broken Bone adds +10 seconds to ALL operation cooldowns (server-enforced)
-  if (hasBrokenBone) {
-    cooldownTime += 10000;
-  }
 
   if (Date.now() - lastOpTime < cooldownTime) return;
 
@@ -52,7 +48,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   const exp = p.experience || 0;
 
-if (operation === "Mug a passerby") {
+  if (operation === "Mug a passerby") {
     money = Math.floor(Math.random() * 91) + 10;
     rawDamage = Math.floor(Math.random() * 26) + 5;
     expGain = 10;
@@ -100,7 +96,7 @@ if (operation === "Mug a passerby") {
     rawDamage = Math.floor(Math.random() * (52 - 20 + 1)) + 20;
     expGain = 27;
     message = `You stormed a laboratory and got $${money}!`;
-  } else if (operation === "Strike an armory") {
+    } else if (operation === "Strike an armory") {
     money = Math.floor(Math.random() * 301) + 350;
     rawDamage = Math.floor(Math.random() * 31) + 35;
     expGain = 45;
@@ -127,7 +123,7 @@ if (operation === "Mug a passerby") {
     message = `You invaded a country and escaped with $${money}!`;
   }
 
-  // Prison chance (exact same scaling as original)
+  // Prison chance (unchanged)
   let prisonChance;
   if (midLevelOps.includes(operation)) {
     prisonChance = 0.47;
@@ -203,7 +199,7 @@ if (operation === "Mug a passerby") {
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
-
+    
     // ==================== EXISTING WEAPON STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
@@ -365,18 +361,18 @@ if (operation === "Mug a passerby") {
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
 
-          // ==================== NEW: BROKEN BONE ROLL (only on successful ops) ====================
+    // ==================== NEW: BROKEN BONE MECHANIC ====================
     let brokenBoneChance = 0;
-      if (lowLevelOps.includes(operation)) brokenBoneChance = 0.95;
-      else if (midLevelOps.includes(operation)) brokenBoneChance = 0.90;
-      else if (highLevelOps.includes(operation)) brokenBoneChance = 0.14;
+    if (lowLevelOps.includes(operation)) brokenBoneChance = 0.05;
+    else if (midLevelOps.includes(operation)) brokenBoneChance = 0.10;
+    else if (isHighLevel) brokenBoneChance = 0.14;
 
-      if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
-        p.brokenBone = true;
-        message += ` You suffered a broken bone!`;
+    if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
+      p.brokenBoneUntil = Date.now() + 10000; // 10 seconds
+      message += " You suffered a broken bone during the operation!";
     }
 
-    // Set cooldown timestamp
+    // Set cooldown timestamps
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
     else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
     else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
@@ -388,7 +384,7 @@ if (operation === "Mug a passerby") {
   const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({ displayName, prisonEndTime }));
   io.emit('prison-list-update', { list: prisonList, serverTime: Date.now() });
   
-  socket.emit('operation-result', { 
+  socket.emit('operation-result', {
     operation,
     money,
     rawDamage,
@@ -396,7 +392,8 @@ if (operation === "Mug a passerby") {
     totalDefense: isCaught ? 0 : ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
     message,
     isCaught,
-    prisonEndTime: p.prisonEndTime || 0
+    prisonEndTime: p.prisonEndTime || 0,
+    brokenBoneUntil: p.brokenBoneUntil || 0   // NEW - for client timers
   });
 
   socket.emit('update-stats', p);
@@ -408,13 +405,9 @@ if (operation === "Mug a passerby") {
     p.displayName = null;
     p.displayNameLower = null;
 
-    if (oldName) {
-        removeFromOnlineList(oldName);
-    }
+    if (oldName) removeFromOnlineList(oldName);
 
-    if (oldName) {
-      await markPlayerAsDead(db, p, email, oldName);
-    }
+    if (oldName) await markPlayerAsDead(db, p, email, oldName);
 
     await docRef.set(p);
     socket.emit('player-died');

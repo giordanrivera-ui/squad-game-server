@@ -253,7 +253,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _lowRemaining = 0.0;
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
-  bool _hasBrokenBone = false;   // NEW: Tracks broken bone for UI
+  double _brokenBoneRemaining = 0.0;  // NEW
 
   Timer? _timer;
 
@@ -264,30 +264,31 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (mounted) setState(_updateAllTimers);
     });
-
-    SocketService().statsNotifier.addListener(_updateAllTimers);
   }
 
   void _updateAllTimers() {
     final now = SocketService().currentServerTime;
     final skill = widget.skill;
     final reduction = skill * 0.5;
-    final bool hasBrokenBone = SocketService().statsNotifier.value['brokenBone'] == true;
 
+    // NEW: Broken bone timer (always 10s max)
+    final brokenUntil = SocketService().statsNotifier.value['brokenBoneUntil'] ?? 0;
+    _brokenBoneRemaining = (brokenUntil > now)
+        ? ((brokenUntil - now) / 1000).clamp(0.0, 10.0)
+        : 0.0;
+
+    // Normal cooldowns (unchanged)
     _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction)
         .clamp(0.0, 60.0);
     _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction)
         .clamp(0.0, 72.0);
     _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction)
         .clamp(0.0, 80.0);
-
-    _hasBrokenBone = hasBrokenBone;
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    SocketService().statsNotifier.addListener(_updateAllTimers);
     super.dispose();
   }
 
@@ -312,10 +313,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     );
   }
 
-  Widget _buildGroup(String title, List<String> ops, double remaining) {
-    final isCooldown = remaining > 0.1;
-    final bool showPenalty = _hasBrokenBone && isCooldown;
-
+  Widget _buildGroup(String title, List<String> ops, double normalRemaining) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -324,26 +322,27 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
         ...ops.map((op) {
-          String displayText;
-          if (isCooldown) {
-            if (showPenalty) {
-              displayText = '$op (Broken Bone: 10s → Normal: ${remaining.toStringAsFixed(1)} s)';
-            } else {
-              displayText = '$op (${remaining.toStringAsFixed(1)} s)';
-            }
-          } else {
-            displayText = op;
+          final isBrokenBoneActive = _brokenBoneRemaining > 0.1;
+
+          String displayText = op;
+
+          if (isBrokenBoneActive) {
+            displayText += ' (🦴 ${_brokenBoneRemaining.toStringAsFixed(1)}s)';
+          } else if (normalRemaining > 0.1) {
+            displayText += ' (${normalRemaining.toStringAsFixed(1)}s)';
           }
 
+          final bool isOnCooldown = normalRemaining > 0.1 || isBrokenBoneActive;
+
           return ListTile(
-            title: Text(
-              displayText,
-              style: showPenalty 
-                  ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) 
-                  : null,
+            title: Text(displayText,
+              style: TextStyle(
+                color: isBrokenBoneActive ? Colors.red : null,
+                fontWeight: isBrokenBoneActive ? FontWeight.bold : null,
+              ),
             ),
-            enabled: !isCooldown,
-            onTap: isCooldown ? null : () => widget.onSelected(op),
+            enabled: !isOnCooldown,
+            onTap: isOnCooldown ? null : () => widget.onSelected(op),
           );
         }),
         const Divider(),

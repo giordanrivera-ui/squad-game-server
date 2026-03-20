@@ -551,11 +551,25 @@ Widget _buildDashboard() {
               const SizedBox(height: 8),
               LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
               Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
-              if (stats['brokenBone'] == true)
-              const Padding(
-                padding: EdgeInsets.only(left: 8),
-                child: Text('🦴', style: TextStyle(fontSize: 24, color: Colors.red)),
-              ),
+              if ((stats['brokenBoneUntil'] ?? 0) > SocketService().currentServerTime)
+  Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      children: [
+        const Icon(Icons.broken_image, color: Colors.red, size: 18),
+        const SizedBox(width: 6),
+        const Text(
+          'Broken Bone',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '(${((stats['brokenBoneUntil'] - SocketService().currentServerTime) / 1000).ceil()}s)',
+          style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+        ),
+      ],
+    ),
+  ),
               const SizedBox(height: 8),
               Row(
                 children: [
