@@ -266,45 +266,35 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     });
   }
 
-    void _updateAllTimers() {
+  void _updateAllTimers() {
     final now = SocketService().currentServerTime;
     final skill = widget.skill;
     final reduction = skill * 0.5;
     final stats = SocketService().statsNotifier.value;
 
     final bool hasBrokenBone = stats['hasBrokenBone'] == true;
-    final int boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
+    int boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
 
-    // Bone recovery timer (always starts immediately)
+    // Fallback: if boneBrokenAt is missing but flag is true, use latest op time
+    if (hasBrokenBone && boneBrokenAt == 0) {
+      final lastOps = [widget.lastLowLevelOp, widget.lastMidLevelOp, widget.lastHighLevelOp];
+      boneBrokenAt = lastOps.reduce((a, b) => a > b ? a : b);
+    }
+
     if (hasBrokenBone && boneBrokenAt > 0) {
       _boneRemaining = ((10000 - (now - boneBrokenAt)) / 1000).clamp(0.0, 10.0);
     } else {
       _boneRemaining = 0.0;
     }
 
-    // VIRTUAL NORMAL COOLDOWN START TIME
-    // When bone is active, we pretend the cooldown only started at boneBrokenAt + 10s
-    final int normalStartTime = (hasBrokenBone && boneBrokenAt > 0)
-        ? boneBrokenAt + 10000
-        : widget.lastLowLevelOp;   // fallback for low level
-
-    // Low-level (use the virtual time)
+    // Normal timers stay frozen while bone is active
     final lowFull = 60.0 - reduction;
-    _lowRemaining = _boneRemaining > 0.1
-        ? lowFull
-        : ((60000 - (now - normalStartTime)) / 1000 - reduction).clamp(0.0, lowFull);
-
-    // Mid-level
     final midFull = 72.0 - reduction;
-    _midRemaining = _boneRemaining > 0.1
-        ? midFull
-        : ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, midFull);
-
-    // High-level
     final highFull = 80.0 - reduction;
-    _highRemaining = _boneRemaining > 0.1
-        ? highFull
-        : ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, highFull);
+
+    _lowRemaining = _boneRemaining > 0.1 ? lowFull : ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, lowFull);
+    _midRemaining = _boneRemaining > 0.1 ? midFull : ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, midFull);
+    _highRemaining = _boneRemaining > 0.1 ? highFull : ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, highFull);
   }
 
   @override

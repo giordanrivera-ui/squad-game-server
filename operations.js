@@ -379,11 +379,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
     const cooldownDelay = (p.hasBrokenBone && !isCaught) ? 10000 : 0;
 
     if (lowLevelOps.includes(operation)) {
-      p.lastLowLevelOp = Date.now();
+      p.lastLowLevelOp = Date.now() + cooldownDelay;
     } else if (midLevelOps.includes(operation)) {
-      p.lastMidLevelOp = Date.now();
+      p.lastMidLevelOp = Date.now() + cooldownDelay;
     } else if (highLevelOps.includes(operation)) {
-      p.lastHighLevelOp = Date.now();
+      p.lastHighLevelOp = Date.now() + cooldownDelay;
     }
   }
 
