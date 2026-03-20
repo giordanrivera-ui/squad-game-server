@@ -380,9 +380,13 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
 
     // Set cooldown timestamp
-    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
-    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
-    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
+    if (lowLevelOps.includes(operation)) {
+      p.lastLowLevelOp = Date.now() + 10000;
+    } else if (midLevelOps.includes(operation)) {
+      p.lastMidLevelOp = Date.now() + 10000;
+    } else if (highLevelOps.includes(operation)) {
+      p.lastHighLevelOp = Date.now() + 10000;
+    }
   }
 
   await docRef.set(p);

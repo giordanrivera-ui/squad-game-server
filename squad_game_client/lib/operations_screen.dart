@@ -282,12 +282,14 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
       _bonePenaltyRemaining = 0.0;
     }
 
+    final boneDelay = _bonePenaltyRemaining > 0.1 ? _bonePenaltyRemaining : 0.0;
+
     // Normal cooldown (skill reduction only)
-    _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction)
+    _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction - boneDelay)
         .clamp(0.0, 60.0);
-    _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction)
+    _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction - boneDelay)
         .clamp(0.0, 72.0);
-    _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction)
+    _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction - boneDelay)
         .clamp(0.0, 80.0);
   }
 
