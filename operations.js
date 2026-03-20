@@ -198,7 +198,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
     
-    // Weapon stealing logic (exact same as original)
+    // ==================== EXISTING WEAPON STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
       if (exp > 49) stealChance = 0.25;
@@ -292,7 +292,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 1264) stealChance = 0.07;
       if (exp > 2314) stealChance = 0.09;
       if (exp > 3514) stealChance = 0.10;
-      if (exp > 5014) stealChance = 0.97;
+      if (exp > 5014) stealChance = 0.12;
       if (exp > 6864) stealChance = 0.14;
       if (exp > 8864) stealChance = 0.15;
       if (exp > 10214) stealChance = 0.16;
@@ -334,6 +334,32 @@ async function handleExecuteOperation(db, socket, data, deps) {
       }
     }
 
+    // ==================== NEW: BULLET STEALING LOGIC ====================
+    // Medium & High level only - runs on successful operations only
+    let bulletStealChance = 0;
+    if (midLevelOps.includes(operation)) {
+      bulletStealChance = 0.95;
+    } else if (isHighLevel) {
+      bulletStealChance = 0.90;
+    }
+
+    if (bulletStealChance > 0 && Math.random() < bulletStealChance) {
+      let bulletsStolen = 1;
+      const rand = Math.random();
+
+      if (midLevelOps.includes(operation)) {
+        bulletsStolen = (rand < 0.65) ? 1 : 2;
+      } else if (isHighLevel) {
+        if (rand < 0.50) bulletsStolen = 1;
+        else if (rand < 0.90) bulletsStolen = 2;
+        else bulletsStolen = 3;
+      }
+
+      p.bullets = (p.bullets || 0) + bulletsStolen;
+      message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
+    }
+
+    // Set cooldown timestamp
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
     else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
     else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
@@ -366,7 +392,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     p.displayNameLower = null;
 
     if (oldName) {
-        removeFromOnlineList(oldName);   // ← ADD THIS LINE
+        removeFromOnlineList(oldName);
     }
 
     if (oldName) {
