@@ -368,7 +368,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     // Only if not already broken and operation was successful
     if (!p.hasBrokenBone) {
       let boneChance = 0;
-      if (lowLevelOps.includes(operation)) boneChance = 0.05;
+      if (lowLevelOps.includes(operation)) boneChance = 0.95;
       else if (midLevelOps.includes(operation)) boneChance = 0.10;
       else if (highLevelOps.includes(operation)) boneChance = 0.14;
 
