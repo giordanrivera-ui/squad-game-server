@@ -362,7 +362,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     // ==================== BROKEN BONE DEBUFF (NEW) ====================
     let brokenBoneChance = 0;
     if (lowLevelOps.includes(operation)) {
-      brokenBoneChance = 0.05;   // 5% on low-level success
+      brokenBoneChance = 0.95;   // 5% on low-level success
     } else if (midLevelOps.includes(operation)) {
       brokenBoneChance = 0.09;   // 9% on mid-level success
     } else if (isHighLevel) {
