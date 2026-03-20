@@ -53,6 +53,15 @@ function recalculateOverallPower(p) {
   return p;
 }
 
+// ==================== ONLINE LIST HELPER (NEW) ====================
+function removeFromOnlineList(displayName) {
+  if (!displayName) return;
+  onlinePlayers.delete(displayName);
+  onlineSockets.delete(displayName);
+  io.emit('online-players', Array.from(onlinePlayers));
+  console.log(`[SERVER] ${displayName} removed from online list (death or cleanup)`);
+}
+
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
@@ -255,7 +264,7 @@ io.on('connection', (socket) => {
         unallocatedAttributePoints: 0,
       };
     }
-    
+
     if (playerData.displayName) {
       const name = playerData.displayName;
       // Check usedNames
@@ -276,29 +285,23 @@ io.on('connection', (socket) => {
 
     await docRef.set(playerData);
 
-    // NEW: If player is dead, force death screen and hide from online list
-    if (playerData.dead === true) {
-      socket.emit('player-died');  // Force client to show death screen
-
-      // Remove from online list
-      if (playerData.displayName) {
-        onlinePlayers.delete(playerData.displayName);
-        onlineSockets.delete(playerData.displayName);
-        io.emit('online-players', Array.from(onlinePlayers));
-      }
-
-      console.log(`[SERVER] ${playerData.displayName || email} reconnected while dead — forcing death screen`);
-    }
-
+    // ==================== Handle dead players FIRST ====================
     socket.data.email = email;
-    socket.data.displayName = displayName;
+    socket.data.displayName = playerData.displayName || displayName;
 
-    onlinePlayers.add(displayName);
-    onlineSockets.set(displayName, socket);
+    if (playerData.dead === true || (playerData.health ?? 100) <= 0) {
+      // Force death screen and REMOVE from online list
+      socket.emit('player-died');
+      removeFromOnlineList(playerData.displayName || displayName);
+      console.log(`[SERVER] ${playerData.displayName || email} reconnected while dead — forcing death screen`);
+      return;  // IMPORTANT: Do NOT add them back to online list
+    }
+    onlinePlayers.add(socket.data.displayName);
+    onlineSockets.set(socket.data.displayName, socket);
 
     io.emit('online-players', Array.from(onlinePlayers));
 
-    console.log(`[SERVER] ${displayName} joined - online now: ${onlinePlayers.size}`);
+    console.log(`[SERVER] ${socket.data.displayName} joined - online now: ${onlinePlayers.size}`);
 
 
     socket.emit('init', {
@@ -310,91 +313,91 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-// ==================== RESPAWN HANDLER ====================
-socket.on('respawn', async () => {
-  const email = socket.data.email;
-  if (!email) return;
+  // ==================== RESPAWN HANDLER ====================
+  socket.on('respawn', async () => {
+    const email = socket.data.email;
+    if (!email) return;
 
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
 
-  let p = doc.data();
+    let p = doc.data();
 
-  if (p.dead) {
-    const oldName = p.displayName;
-    if (oldName) {
-      // NEW: Save dead profile snapshot BEFORE reset
-      const deadProfile = {
-        displayName: oldName,
-        displayNameLower: oldName.toLowerCase(),
-        experience: p.experience || 0,  // For rank
-        balance: p.balance || 0,        // For wealth title
-        headwear: p.headwear || null,
-        armor: p.armor || null,
-        footwear: p.footwear || null,
-        weapon: p.weapon || null,
-        overallPower: p.overallPower || 0,
-        deathTime: admin.firestore.FieldValue.serverTimestamp(),  // When they died
-        originalEmail: email  // Optional: Track owner
+    if (p.dead) {
+      const oldName = p.displayName;
+      if (oldName) {
+        // NEW: Save dead profile snapshot BEFORE reset
+        const deadProfile = {
+          displayName: oldName,
+          displayNameLower: oldName.toLowerCase(),
+          experience: p.experience || 0,  // For rank
+          balance: p.balance || 0,        // For wealth title
+          headwear: p.headwear || null,
+          armor: p.armor || null,
+          footwear: p.footwear || null,
+          weapon: p.weapon || null,
+          overallPower: p.overallPower || 0,
+          deathTime: admin.firestore.FieldValue.serverTimestamp(),  // When they died
+          originalEmail: email  // Optional: Track owner
+        };
+        await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
+        console.log(`[SERVER] Saved dead profile for ${oldName}`);
+
+        // Add old name to usedNames
+        await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+          name: oldName,
+          taken: true,
+          originalEmail: email,
+          takenAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      // Reset stats to defaults
+      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+      p = {
+        ...p,
+        balance: 0,
+        health: 100,
+        bullets: 0,
+        lastRob: 0,
+        displayName: null,
+        displayNameLower: null,
+        location: randomLocation,
+        experience: 0,
+        intelligence: 0,
+        skill: 0,
+        marksmanship: 0,
+        stealth: 0,
+        defense: 0,
+        kills: 0,
+        photoURL: '',
+        inventory: [],
+        headwear: null,
+        armor: null,
+        footwear: null,
+        overallPower: 0,
+        weapon: null,
+        lastLowLevelOp: 0,
+        lastMidLevelOp: 0,
+        lastHighLevelOp: 0,
+        sellBanEndTime: 0,
+        prisonEndTime: 0,
+        ownedProperties: [],
+        lastIncomeClaim: Date.now(),
+        propertyClaims: [],
+        showArmor: true,
+        showWeapon: true,
+        dead: false,
+        ownedUpgrades: {},
+        unallocatedAttributePoints: 0,
       };
-      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
-      console.log(`[SERVER] Saved dead profile for ${oldName}`);
 
-      // Add old name to usedNames
-      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
-        name: oldName,
-        taken: true,
-        originalEmail: email,
-        takenAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+      console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
     }
-
-    // Reset stats to defaults
-    const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
-    p = {
-      ...p,
-      balance: 0,
-      health: 100,
-      bullets: 0,
-      lastRob: 0,
-      displayName: null,
-      displayNameLower: null,
-      location: randomLocation,
-      experience: 0,
-      intelligence: 0,
-      skill: 0,
-      marksmanship: 0,
-      stealth: 0,
-      defense: 0,
-      kills: 0,
-      photoURL: '',
-      inventory: [],
-      headwear: null,
-      armor: null,
-      footwear: null,
-      overallPower: 0,
-      weapon: null,
-      lastLowLevelOp: 0,
-      lastMidLevelOp: 0,
-      lastHighLevelOp: 0,
-      sellBanEndTime: 0,
-      prisonEndTime: 0,
-      ownedProperties: [],
-      lastIncomeClaim: Date.now(),
-      propertyClaims: [],
-      showArmor: true,
-      showWeapon: true,
-      dead: false,
-      ownedUpgrades: {},
-      unallocatedAttributePoints: 0,
-    };
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
-  }
-});
+  });
 
   // ==================== TEST BUTTONS ====================
   socket.on('add-test-exp', async (amount) => {
@@ -459,55 +462,67 @@ socket.on('respawn', async () => {
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
-    await handleKillAttempt(db, socket, data, onlineSockets);
+    await handleKillAttempt(db, socket, data, { 
+      onlineSockets, 
+      onlinePlayers, 
+      io,
+      removeFromOnlineList
+    });
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
-socket.on('place-hit', async (data) => {
-  const posterEmail = socket.data.email;
-  if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
-    socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
-    return;
-  }
+  socket.on('place-hit', async (data) => {
+    const posterEmail = socket.data.email;
+    if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
+      socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
+      return;
+    }
 
-  const posterDoc = await db.collection('players').doc(posterEmail).get();
-  if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
-    socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
-    return;
-  }
+    const posterDoc = await db.collection('players').doc(posterEmail).get();
+    if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
+      socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
+      return;
+    }
 
-  const durationMinutes = data.durationDays || 5;  // NEW: Now called durationMinutes (accepts minutes from client)
-  const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);  // NEW: Minutes × 60 seconds
+    const durationMinutes = data.durationDays || 5;  // NEW: Now called durationMinutes (accepts minutes from client)
+    const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);  // NEW: Minutes × 60 seconds
 
-  const endTime = Date.now() + durationMs;
+    const endTime = Date.now() + durationMs;
 
-  const hitId = `${posterEmail}-${Date.now()}`;
+    const hitId = `${posterEmail}-${Date.now()}`;
 
-  await db.collection('hitlist').doc(hitId).set({
-    target: data.target,
-    posterEmail,
-    reward: data.reward,
-    endTime,
-    active: true
+    await db.collection('hitlist').doc(hitId).set({
+      target: data.target,
+      posterEmail,
+      reward: data.reward,
+      endTime,
+      active: true
+    });
+
+    // Deduct from poster
+    await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+
+    const updatedPoster = await posterDoc.ref.get();
+    socket.emit('update-stats', updatedPoster.data());
+
+    socket.emit('hit-result', { 
+      success: true, 
+      message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
+    });
+
+    io.emit('hitlist-update');
   });
-
-  // Deduct from poster
-  await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-
-  const updatedPoster = await posterDoc.ref.get();
-  socket.emit('update-stats', updatedPoster.data());
-
-  socket.emit('hit-result', { 
-    success: true, 
-    message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
-  });
-
-  io.emit('hitlist-update');
-});
 
   // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {
-    await handleExecuteOperation(db, socket, data, { io, imprisonedPlayers, addExperienceAndGrantPoints });
+    await handleExecuteOperation(db, socket, data, { 
+      io, 
+      imprisonedPlayers, 
+      addExperienceAndGrantPoints,
+      onlinePlayers, 
+      onlineSockets,
+      removeFromOnlineList
+    });
   });
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
@@ -548,7 +563,7 @@ socket.on('place-hit', async (data) => {
 
     const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
 
-  if (isSuccess) {
+    if (isSuccess) {
       // SUCCESS: Free the target
       imprisonedPlayers.delete(targetDisplayName);
 
@@ -603,8 +618,7 @@ socket.on('place-hit', async (data) => {
           message: 'You have been rescued from prison!'
         });
       }
-
-  } else {
+    } else {
       // FAILURE: Imprison the saver
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;
@@ -1041,6 +1055,7 @@ socket.on('place-hit', async (data) => {
   socket.on('disconnect', () => {
     if (socket.data.displayName) {
       const name = socket.data.displayName;
+      removeFromOnlineList(name);
       onlinePlayers.delete(name);
       onlineSockets.delete(name);
       io.emit('online-players', Array.from(onlinePlayers));

@@ -81,7 +81,9 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName) 
 }
 
 // ==================== MAIN HANDLER ====================
-async function handleKillAttempt(db, socket, data, onlineSockets) {
+async function handleKillAttempt(db, socket, data, deps) {
+  const { onlineSockets, removeFromOnlineList } = deps;
+
   const attackerEmail = socket.data.email;
   if (!attackerEmail || typeof data.target !== 'string' || typeof data.bullets !== 'number' || data.bullets <= 0) {
     socket.emit('kill-result', { success: false, message: 'Invalid kill attempt.' });
@@ -169,6 +171,8 @@ async function handleKillAttempt(db, socket, data, onlineSockets) {
     target.health = 0;
     target.displayName = null;
     target.displayNameLower = null;
+
+    removeFromOnlineList(data.target);
 
     await targetDocRef.update({ 
       dead: true, 

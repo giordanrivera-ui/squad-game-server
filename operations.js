@@ -5,7 +5,7 @@ const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack c
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
 async function handleExecuteOperation(db, socket, data, deps) {
-  const { io, imprisonedPlayers, addExperienceAndGrantPoints } = deps;
+  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
 
   const email = socket.data.email;
   if (!email || typeof data.operation !== 'string') return;
@@ -298,6 +298,10 @@ async function handleExecuteOperation(db, socket, data, deps) {
     p.health = 0;
     p.displayName = null;
     p.displayNameLower = null;
+
+    if (oldName) {
+        removeFromOnlineList(oldName);   // ← ADD THIS LINE
+    }
 
     if (oldName) {
       await markPlayerAsDead(db, p, email, oldName);
