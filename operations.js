@@ -364,11 +364,11 @@ if (operation === "Mug a passerby") {
       p.bullets = (p.bullets || 0) + bulletsStolen;
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
-    
+
           // ==================== NEW: BROKEN BONE ROLL (only on successful ops) ====================
     let brokenBoneChance = 0;
-      if (lowLevelOps.includes(operation)) brokenBoneChance = 0.05;
-      else if (midLevelOps.includes(operation)) brokenBoneChance = 0.10;
+      if (lowLevelOps.includes(operation)) brokenBoneChance = 0.95;
+      else if (midLevelOps.includes(operation)) brokenBoneChance = 0.90;
       else if (highLevelOps.includes(operation)) brokenBoneChance = 0.14;
 
       if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
