@@ -273,28 +273,31 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final stats = SocketService().statsNotifier.value;
 
     final bool hasBrokenBone = stats['hasBrokenBone'] == true;
-    int boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
+    final int boneBrokenAt = stats['boneBrokenAt'] as int? ?? 0;
 
-    // Fallback: if boneBrokenAt is missing but flag is true, use latest op time
-    if (hasBrokenBone && boneBrokenAt == 0) {
-      final lastOps = [widget.lastLowLevelOp, widget.lastMidLevelOp, widget.lastHighLevelOp];
-      boneBrokenAt = lastOps.reduce((a, b) => a > b ? a : b);
-    }
-
+    // Bone Recovery Timer (10s)
     if (hasBrokenBone && boneBrokenAt > 0) {
       _boneRemaining = ((10000 - (now - boneBrokenAt)) / 1000).clamp(0.0, 10.0);
     } else {
       _boneRemaining = 0.0;
     }
 
-    // Normal timers stay frozen while bone is active
+    // === NORMAL TIMERS (full value while bone is active) ===
     final lowFull = 60.0 - reduction;
     final midFull = 72.0 - reduction;
     final highFull = 80.0 - reduction;
 
-    _lowRemaining = _boneRemaining > 0.1 ? lowFull : ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, lowFull);
-    _midRemaining = _boneRemaining > 0.1 ? midFull : ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, midFull);
-    _highRemaining = _boneRemaining > 0.1 ? highFull : ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, highFull);
+    if (_boneRemaining > 0.1) {
+      // Bone active → freeze normal timer at FULL value
+      _lowRemaining = lowFull;
+      _midRemaining = midFull;
+      _highRemaining = highFull;
+    } else {
+      // Bone finished → start normal countdown from full
+      _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, lowFull);
+      _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, midFull);
+      _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, highFull);
+    }
   }
 
   @override
@@ -314,7 +317,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // BIG BANNER (always visible when bone is active)
+          // Big visible banner
           if (_boneRemaining > 0.1)
             Container(
               width: double.infinity,
