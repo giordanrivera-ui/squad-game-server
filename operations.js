@@ -17,26 +17,29 @@ async function handleExecuteOperation(db, socket, data, deps) {
   let p = doc.data();
   const operation = data.operation;
 
-  // ==================== COOLDOWN LOGIC WITH SKILL + BROKEN BONE PENALTY ====================
+  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION + BROKEN BONE PENALTY ====================
   const skill = p.skill || 0;
   const reductionMs = Math.floor(skill * 500);
-  const hasBrokenBone = !!(p.brokenBoneUntil && Date.now() < p.brokenBoneUntil);
-  const extraCooldownMs = hasBrokenBone ? 10000 : 0;
 
   let isHighLevel = false;
-  let cooldownTime = 60000 - reductionMs + extraCooldownMs;
+  let cooldownTime = 60000 - reductionMs;
   let lastOpTime = p.lastLowLevelOp || 0;
 
   if (midLevelOps.includes(operation)) {
-    cooldownTime = 72000 - reductionMs + extraCooldownMs;
+    cooldownTime = 72000 - reductionMs;
     lastOpTime = p.lastMidLevelOp || 0;
   } else if (highLevelOps.includes(operation)) {
-    cooldownTime = 80000 - reductionMs + extraCooldownMs;
+    cooldownTime = 80000 - reductionMs;
     lastOpTime = p.lastHighLevelOp || 0;
     isHighLevel = true;
   }
 
   cooldownTime = Math.max(cooldownTime, 30000);
+
+  // NEW: Broken bone adds +10 seconds to EVERY cooldown while active (server-controlled)
+  if (p.hasBrokenBone === true) {
+    cooldownTime += 10000;
+  }
 
   if (Date.now() - lastOpTime < cooldownTime) return;
 
@@ -96,7 +99,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     rawDamage = Math.floor(Math.random() * (52 - 20 + 1)) + 20;
     expGain = 27;
     message = `You stormed a laboratory and got $${money}!`;
-    } else if (operation === "Strike an armory") {
+  } else if (operation === "Strike an armory") {
     money = Math.floor(Math.random() * 301) + 350;
     rawDamage = Math.floor(Math.random() * 31) + 35;
     expGain = 45;
@@ -123,7 +126,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     message = `You invaded a country and escaped with $${money}!`;
   }
 
-  // Prison chance (unchanged)
+  // Prison chance (exact same scaling as original)
   let prisonChance;
   if (midLevelOps.includes(operation)) {
     prisonChance = 0.47;
@@ -360,19 +363,22 @@ async function handleExecuteOperation(db, socket, data, deps) {
       p.bullets = (p.bullets || 0) + bulletsStolen;
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
+    
+    // ==================== NEW: BROKEN BONE DEBUFF ====================
+    // Only if not already broken and operation was successful
+    if (!p.hasBrokenBone) {
+      let boneChance = 0;
+      if (lowLevelOps.includes(operation)) boneChance = 0.05;
+      else if (midLevelOps.includes(operation)) boneChance = 0.10;
+      else if (highLevelOps.includes(operation)) boneChance = 0.14;
 
-    // ==================== NEW: BROKEN BONE MECHANIC ====================
-    let brokenBoneChance = 0;
-    if (lowLevelOps.includes(operation)) brokenBoneChance = 0.05;
-    else if (midLevelOps.includes(operation)) brokenBoneChance = 0.10;
-    else if (isHighLevel) brokenBoneChance = 0.14;
-
-    if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
-      p.brokenBoneUntil = Date.now() + 10000; // 10 seconds
-      message += " You suffered a broken bone during the operation!";
+      if (Math.random() < boneChance) {
+        p.hasBrokenBone = true;
+        message += ' You suffered a broken bone!';
+      }
     }
 
-    // Set cooldown timestamps
+    // Set cooldown timestamp
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
     else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
     else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
@@ -392,8 +398,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     totalDefense: isCaught ? 0 : ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
     message,
     isCaught,
-    prisonEndTime: p.prisonEndTime || 0,
-    brokenBoneUntil: p.brokenBoneUntil || 0   // NEW - for client timers
+    prisonEndTime: p.prisonEndTime || 0
   });
 
   socket.emit('update-stats', p);
@@ -405,9 +410,13 @@ async function handleExecuteOperation(db, socket, data, deps) {
     p.displayName = null;
     p.displayNameLower = null;
 
-    if (oldName) removeFromOnlineList(oldName);
+    if (oldName) {
+        removeFromOnlineList(oldName);
+    }
 
-    if (oldName) await markPlayerAsDead(db, p, email, oldName);
+    if (oldName) {
+      await markPlayerAsDead(db, p, email, oldName);
+    }
 
     await docRef.set(p);
     socket.emit('player-died');

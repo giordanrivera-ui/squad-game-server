@@ -253,7 +253,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _lowRemaining = 0.0;
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
-  double _brokenBoneRemaining = 0.0;  // NEW
 
   Timer? _timer;
 
@@ -271,19 +270,22 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final skill = widget.skill;
     final reduction = skill * 0.5;
 
-    // NEW: Broken bone timer (always 10s max)
-    final brokenUntil = SocketService().statsNotifier.value['brokenBoneUntil'] ?? 0;
-    _brokenBoneRemaining = (brokenUntil > now)
-        ? ((brokenUntil - now) / 1000).clamp(0.0, 10.0)
-        : 0.0;
+    bool hasBrokenBone = SocketService().statsNotifier.value['hasBrokenBone'] == true;
 
-    // Normal cooldowns (unchanged)
+    // Normal cooldown (without penalty)
     _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction)
         .clamp(0.0, 60.0);
     _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction)
         .clamp(0.0, 72.0);
     _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction)
         .clamp(0.0, 80.0);
+
+        // NEW: Broken bone penalty (always 10 seconds when active)
+    if (hasBrokenBone) {
+      _lowRemaining += 10;
+      _midRemaining += 10;
+      _highRemaining += 10;
+    }
   }
 
   @override
@@ -313,7 +315,11 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     );
   }
 
-  Widget _buildGroup(String title, List<String> ops, double normalRemaining) {
+  // ==================== UPDATED _buildGroup WITH DUAL TIMERS ====================
+  Widget _buildGroup(String title, List<String> ops, double remaining) {
+    final hasBrokenBone = SocketService().statsNotifier.value['hasBrokenBone'] == true;
+    final isCooldown = remaining > 0.1;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -322,27 +328,44 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
         ),
         ...ops.map((op) {
-          final isBrokenBoneActive = _brokenBoneRemaining > 0.1;
+          // If broken bone is active, show two timers side-by-side
+          if (hasBrokenBone && remaining > 10) {
+            final boneTime = 10.0;                    // Fixed 10-second penalty
+            final normalTime = (remaining - 10).clamp(0.0, 80.0);
 
-          String displayText = op;
-
-          if (isBrokenBoneActive) {
-            displayText += ' (🦴 ${_brokenBoneRemaining.toStringAsFixed(1)}s)';
-          } else if (normalRemaining > 0.1) {
-            displayText += ' (${normalRemaining.toStringAsFixed(1)}s)';
+            return ListTile(
+              title: Row(
+                children: [
+                  Text(op, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Bone: ${boneTime.toStringAsFixed(1)}s',
+                    style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const Text(' → ', style: TextStyle(fontSize: 13)),
+                  Text(
+                    '${normalTime.toStringAsFixed(1)}s',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+              subtitle: const Text(
+                'Broken bone penalty active',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+              enabled: !isCooldown,
+              onTap: isCooldown ? null : () => widget.onSelected(op),
+            );
           }
 
-          final bool isOnCooldown = normalRemaining > 0.1 || isBrokenBoneActive;
-
+          // Normal single timer (no broken bone)
+          final displayText = isCooldown
+              ? '$op (${remaining.toStringAsFixed(1)} s)'
+              : op;
           return ListTile(
-            title: Text(displayText,
-              style: TextStyle(
-                color: isBrokenBoneActive ? Colors.red : null,
-                fontWeight: isBrokenBoneActive ? FontWeight.bold : null,
-              ),
-            ),
-            enabled: !isOnCooldown,
-            onTap: isOnCooldown ? null : () => widget.onSelected(op),
+            title: Text(displayText),
+            enabled: !isCooldown,
+            onTap: isCooldown ? null : () => widget.onSelected(op),
           );
         }),
         const Divider(),

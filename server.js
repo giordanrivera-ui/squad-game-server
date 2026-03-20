@@ -204,7 +204,6 @@ io.on('connection', (socket) => {
       if (playerData.propertyClaims === undefined) playerData.propertyClaims = [];
       if (playerData.showArmor === undefined) playerData.showArmor = true;
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
-      if (playerData.brokenBoneUntil === undefined) playerData.brokenBoneUntil = false;
       if (playerData.dead === undefined) playerData.dead = false;
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
 
@@ -260,7 +259,6 @@ io.on('connection', (socket) => {
         propertyClaims: [],
         showArmor: true,
         showWeapon: true,
-        brokenBoneUntil: 0,
         dead: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
@@ -390,7 +388,6 @@ io.on('connection', (socket) => {
         propertyClaims: [],
         showArmor: true,
         showWeapon: true,
-        brokenBoneUntil: 0,
         dead: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,

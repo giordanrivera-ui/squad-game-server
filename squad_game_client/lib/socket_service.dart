@@ -98,19 +98,15 @@ void connect(String email, String displayName) {
         properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
         statsNotifier.value = Map.from(data['player'] ?? {});
         deathNotifier.value = (data['player']?['dead'] == true);
-
-
         // NEW: Force death screen on every login/reconnect
         final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
         if (isDeadNow) {
           deathNotifier.value = true;
         }
-
         statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
         statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
         statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
         statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-        statsNotifier.value['brokenBoneUntil'] = data['player']?['brokenBoneUntil'] ?? 0;
 
         loadMessages();
         if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
@@ -141,7 +137,6 @@ void connect(String email, String displayName) {
         statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
         statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
         statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
-        statsNotifier.value['brokenBoneUntil'] = data['brokenBoneUntil'] ?? statsNotifier.value['brokenBoneUntil'] ?? 0;
 
         // Detect rank up
         final newExp = statsNotifier.value['experience'] ?? oldExp;
