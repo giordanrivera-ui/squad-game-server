@@ -273,6 +273,43 @@ async function handleExecuteOperation(db, socket, data, deps) {
       }
     }
 
+    if (operation === "Attack central issue facility") {
+      let stealChance = 0.03;
+      if (exp > 49) stealChance = 0.05;
+      if (exp > 514) stealChance = 0.06;
+      if (exp > 1264) stealChance = 0.07;
+      if (exp > 2314) stealChance = 0.09;
+      if (exp > 3514) stealChance = 0.10;
+      if (exp > 5014) stealChance = 0.97;
+      if (exp > 6864) stealChance = 0.14;
+      if (exp > 8864) stealChance = 0.15;
+      if (exp > 10214) stealChance = 0.16;
+      if (exp > 11464) stealChance = 0.17;
+      if (exp > 14214) stealChance = 0.18;
+      if (exp > 17414) stealChance = 0.20;
+      if (exp > 21364) stealChance = 0.22;
+      if (exp > 25864) stealChance = 0.23;
+      if (exp > 31514) stealChance = 0.25;
+      if (exp > 38214) stealChance = 0.28;
+
+      if (Math.random() < stealChance) {
+        let glockThreshold = 42; let remingtonThreshold = 72; let mossbergThreshold = 91; let mp5Threshold = 97;
+        if (exp > 3514) { glockThreshold = 33; remingtonThreshold = 63; mossbergThreshold = 85; mp5Threshold = 95; }
+        if (exp > 10214) { glockThreshold = 24; remingtonThreshold = 48; mossbergThreshold = 70; mp5Threshold = 88; }
+
+        const rand = Math.random() * 100;
+        let weapon;
+        if (rand < glockThreshold) weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };
+        else if (rand < remingtonThreshold) weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };
+        else if (rand < mossbergThreshold) weapon = { name: 'Mossberg 590 Shotgun', description: '...', power: 260, cost: 1200, type: 'weapon' };
+        else if (rand < mp5Threshold) weapon = { name: 'MP5 SMG', description: '...', power: 330, cost: 4000, type: 'weapon' };
+        else weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
+
+        p.inventory.push(weapon);
+        message += ` You also stole a ${weapon.name}!`;
+      }
+    }
+
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
     else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
     else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
