@@ -256,11 +256,23 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 38214) stealChance = 0.85;
 
       if (Math.random() < stealChance) {
-        let glockThreshold = 42; let remingtonThreshold = 72; let mossbergThreshold = 91; let mp5Threshold = 97;
-        if (exp > 3514) { glockThreshold = 33; remingtonThreshold = 63; mossbergThreshold = 85; mp5Threshold = 95; }
-        if (exp > 10214) { glockThreshold = 24; remingtonThreshold = 48; mossbergThreshold = 70; mp5Threshold = 88; }
+        let glockThreshold = 42; 
+        let remingtonThreshold = 72; 
+        let mossbergThreshold = 91; 
+        let mp5Threshold = 97;
+        if (exp > 3514) { 
+          glockThreshold = 33; 
+          remingtonThreshold = 63; 
+          mossbergThreshold = 85; 
+          mp5Threshold = 95; }
+        if (exp > 10214) { 
+          glockThreshold = 24; 
+          remingtonThreshold = 48; 
+          mossbergThreshold = 70; 
+          mp5Threshold = 88; }
 
         const rand = Math.random() * 100;
+
         let weapon;
         if (rand < glockThreshold) weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };
         else if (rand < remingtonThreshold) weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };
@@ -293,17 +305,29 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 38214) stealChance = 0.28;
 
       if (Math.random() < stealChance) {
-        let glockThreshold = 42; let remingtonThreshold = 72; let mossbergThreshold = 91; let mp5Threshold = 97;
-        if (exp > 3514) { glockThreshold = 33; remingtonThreshold = 63; mossbergThreshold = 85; mp5Threshold = 95; }
-        if (exp > 10214) { glockThreshold = 24; remingtonThreshold = 48; mossbergThreshold = 70; mp5Threshold = 88; }
+        let ump5Threshold = 48; 
+        let ak74Threshold = 74; 
+        let carbineThreshold = 92; 
+        let scarThreshold = 98;
+        if (exp > 3514) { 
+          ump5Threshold = 38; 
+          ak74Threshold = 68; 
+          carbineThreshold = 88; 
+          scarThreshold = 96; }
+        if (exp > 10214) { 
+          ump5Threshold = 31; 
+          ak74Threshold = 62; 
+          carbineThreshold = 82; 
+          scarThreshold = 94; }
 
         const rand = Math.random() * 100;
+
         let weapon;
-        if (rand < glockThreshold) weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };
-        else if (rand < remingtonThreshold) weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };
-        else if (rand < mossbergThreshold) weapon = { name: 'Mossberg 590 Shotgun', description: '...', power: 260, cost: 1200, type: 'weapon' };
-        else if (rand < mp5Threshold) weapon = { name: 'MP5 SMG', description: '...', power: 330, cost: 4000, type: 'weapon' };
-        else weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
+        if (rand < ump5Threshold) weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
+        else if (rand < ak74Threshold) weapon = { name: 'SLR104 AK-74', description: '...', power: 425, cost: 7500, type: 'weapon' };
+        else if (rand < carbineThreshold) weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
+        else if (rand < scarThreshold) weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
+        else weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
