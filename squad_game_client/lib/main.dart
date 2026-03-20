@@ -492,7 +492,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  // In main.dart, update the _buildDashboard() method in GameScreen
 Widget _buildDashboard() {
   return ValueListenableBuilder<Map<String, dynamic>>(
     valueListenable: _socketService.statsNotifier,
@@ -552,6 +551,11 @@ Widget _buildDashboard() {
               const SizedBox(height: 8),
               LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green),
               Text('Health: ${stats['health'] ?? 100}/100', style: const TextStyle(fontSize: 16, color: Colors.white)),
+              if (stats['brokenBone'] == true)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Text('🦴', style: TextStyle(fontSize: 24, color: Colors.red)),
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [

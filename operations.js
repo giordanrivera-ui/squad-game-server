@@ -17,9 +17,10 @@ async function handleExecuteOperation(db, socket, data, deps) {
   let p = doc.data();
   const operation = data.operation;
 
-  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION ====================
+  // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION + BROKEN BONE PENALTY ====================
   const skill = p.skill || 0;
   const reductionMs = Math.floor(skill * 500);
+  const hasBrokenBone = p.brokenBone === true;
 
   let isHighLevel = false;
   let cooldownTime = 60000 - reductionMs;
@@ -36,6 +37,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   cooldownTime = Math.max(cooldownTime, 30000);
 
+  // NEW: Broken Bone adds +10 seconds to ALL operation cooldowns (server-enforced)
+  if (hasBrokenBone) {
+    cooldownTime += 10000;
+  }
+
   if (Date.now() - lastOpTime < cooldownTime) return;
 
   let money = 0;
@@ -46,7 +52,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   const exp = p.experience || 0;
 
-  if (operation === "Mug a passerby") {
+if (operation === "Mug a passerby") {
     money = Math.floor(Math.random() * 91) + 10;
     rawDamage = Math.floor(Math.random() * 26) + 5;
     expGain = 10;
@@ -197,7 +203,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
-    
+
     // ==================== EXISTING WEAPON STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
@@ -284,7 +290,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
         message += ` You also stole a ${weapon.name}!`;
       }
     }
-
+    
     if (operation === "Attack central issue facility") {
       let stealChance = 0.03;
       if (exp > 49) stealChance = 0.05;
@@ -338,9 +344,9 @@ async function handleExecuteOperation(db, socket, data, deps) {
     // Medium & High level only - runs on successful operations only
     let bulletStealChance = 0;
     if (midLevelOps.includes(operation)) {
-      bulletStealChance = 0.95;
+      bulletStealChance = 0.35;
     } else if (isHighLevel) {
-      bulletStealChance = 0.90;
+      bulletStealChance = 0.40;
     }
 
     if (bulletStealChance > 0 && Math.random() < bulletStealChance) {
@@ -358,6 +364,17 @@ async function handleExecuteOperation(db, socket, data, deps) {
       p.bullets = (p.bullets || 0) + bulletsStolen;
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
+    
+          // ==================== NEW: BROKEN BONE ROLL (only on successful ops) ====================
+    let brokenBoneChance = 0;
+      if (lowLevelOps.includes(operation)) brokenBoneChance = 0.05;
+      else if (midLevelOps.includes(operation)) brokenBoneChance = 0.10;
+      else if (highLevelOps.includes(operation)) brokenBoneChance = 0.14;
+
+      if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
+        p.brokenBone = true;
+        message += ` You suffered a broken bone!`;
+    }
 
     // Set cooldown timestamp
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
@@ -371,7 +388,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
   const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({ displayName, prisonEndTime }));
   io.emit('prison-list-update', { list: prisonList, serverTime: Date.now() });
   
-  socket.emit('operation-result', {
+  socket.emit('operation-result', { 
     operation,
     money,
     rawDamage,
