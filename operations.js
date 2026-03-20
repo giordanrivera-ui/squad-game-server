@@ -99,6 +99,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
     rawDamage = Math.floor(Math.random() * 31) + 35;
     expGain = 45;
     message = `You struck an armory and got $${money}!`;
+  } else if (operation === "Attack central issue facility") {
+    money = Math.floor(Math.random() * 121) + 80;
+    rawDamage = Math.floor(Math.random() * 41) + 25;
+    expGain = 32;
+    message = `You attacked the central issue facility and got $${money}!`; 
   } else if (operation === "Raid a vehicle depot") {
     money = Math.floor(Math.random() * 351) + 500;
     rawDamage = Math.floor(Math.random() * 26) + 40;
