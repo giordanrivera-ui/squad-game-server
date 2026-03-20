@@ -359,7 +359,8 @@ async function handleExecuteOperation(db, socket, data, deps) {
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
     
-        // ==================== BROKEN BONE DEBUFF ====================
+    // ==================== NEW: BROKEN BONE DEBUFF ====================
+    // Only if not already broken and operation was successful
     if (!p.hasBrokenBone) {
       let boneChance = 0;
       if (lowLevelOps.includes(operation)) boneChance = 0.95;
@@ -368,17 +369,22 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
       if (Math.random() < boneChance) {
         p.hasBrokenBone = true;
-        p.boneBrokenAt = Date.now();           // ← Bone timer starts IMMEDIATELY
+        p.boneBrokenAt = Date.now();
         message += ' You suffered a broken bone!';
       }
     }
 
-    // ==================== SET COOLDOWN TIMESTAMP (same moment) ====================
-    // Both bone and normal cooldown start at the EXACT same time
-    // (we freeze the normal timer VISUALLY on the client)
-    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
-    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
-    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
+    // ==================== SET COOLDOWN TIMESTAMP (SEQUENTIAL) ====================
+    // Normal cooldown only starts AFTER bone recovery finishes
+    const cooldownDelay = (p.hasBrokenBone && !isCaught) ? 10000 : 0;
+
+    if (lowLevelOps.includes(operation)) {
+      p.lastLowLevelOp = Date.now();
+    } else if (midLevelOps.includes(operation)) {
+      p.lastMidLevelOp = Date.now();
+    } else if (highLevelOps.includes(operation)) {
+      p.lastHighLevelOp = Date.now();
+    }
   }
 
   await docRef.set(p);
