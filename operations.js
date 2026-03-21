@@ -369,7 +369,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       brokenBoneChance = 0.14;   // 14% on high-level success
     }
 
-    if (brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
+    if (!p.hasBrokenBone && brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
       p.hasBrokenBone = true;
       message += " 💥 You broke a bone during the operation!";
       console.log(`[SERVER] ${p.displayName} broke a bone during ${operation}`);
