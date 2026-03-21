@@ -37,8 +37,6 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
 
-  static final ValueNotifier<Map<String, dynamic>> mainTransactionNotifier = ValueNotifier<Map<String, dynamic>>({});
-
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
     if (exp <= 514) return 'Thug';
@@ -87,7 +85,6 @@ void connect(String email, String displayName) {
     socket?.onConnect((_) {
       isConnected.value = true;
       print('✅ Connected to server!');
-      _setupTransactionListener();
       socket?.emit(SocketEvents.register, {
         'email': email,
         'displayName': displayName,
@@ -512,21 +509,6 @@ void connect(String email, String displayName) {
     isConnected.value = false;
   }
 
-  // NEW: Listen for transaction logs from server
-  void _setupTransactionListener() {
-    socket?.on('transaction-log', (data) {
-      if (data is Map<String, dynamic>) {
-        final description = data['description'] as String? ?? 'Balance updated';
-        final amount = data['amount'] as int? ?? 0;
-
-        mainTransactionNotifier.value = {
-          'description': description,
-          'amount': amount,
-        };
-      }
-    });
-  }
-
   // ← ADD THIS NEW METHOD HERE
   void placeHit(String target, int reward, int durationDays) {
     if (target.isNotEmpty && reward >= 1000) {
@@ -538,4 +520,3 @@ void connect(String email, String displayName) {
     }
   }
 }
-

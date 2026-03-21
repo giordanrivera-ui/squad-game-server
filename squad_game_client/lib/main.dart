@@ -213,24 +213,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _socketService.statsNotifier.addListener(() {
       setState(() {});  // Refresh if needed, but since builder uses it, optional
     });
+
+    // Transaction history listener
     _socketService.statsNotifier.addListener(() {
       final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
       if (currentBalance != _lastKnownBalance && _lastKnownBalance != 0) {
-        // The server now sends the exact label — we just wait for the event
+        final diff = currentBalance - _lastKnownBalance;
+        _addTransaction('Balance updated', diff); // Will be improved with specific labels later
       }
       _lastKnownBalance = currentBalance;
-    });
-
-    SocketService.mainTransactionNotifier.addListener(() {
-      final data = SocketService.mainTransactionNotifier.value;
-      if (data.isNotEmpty) {
-        _addTransaction(
-          data['description'] as String,
-          data['amount'] as int,
-        );
-        // Clear it so we don't process the same transaction twice
-        SocketService.mainTransactionNotifier.value = {};
-      }
     });
 
     // NEW: Start global per-second income checker (only if owned props)
@@ -608,24 +599,26 @@ Widget _buildDashboard() {
               ],
             ),
           ),
-          // Black rectangle ONLY for bank balance
+                // ==================== BANK BALANCE (unchanged) ====================
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,
-            constraints: BoxConstraints(
-            minHeight: 120,
+            constraints: BoxConstraints(minHeight: 120),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}',
+              style: const TextStyle(fontSize: 20, color: Colors.green),
+            ),
           ),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(20)
-          ),
-          padding: const EdgeInsets.all(16),
-    
-          child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
-            style: const TextStyle(fontSize: 20, color: Colors.green)),
-          )
         ),
+
+        // ==================== TRANSACTION HISTORY (new rectangle) ====================
+        // Same width, slightly taller, dark slate color, scrollable list
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
@@ -802,6 +795,7 @@ Widget _buildDashboard() {
       'balanceAfter': currentBalance,
     });
 
+    // Keep only last 25
     if (_transactionHistory.length > 25) {
       _transactionHistory.removeLast();
     }
