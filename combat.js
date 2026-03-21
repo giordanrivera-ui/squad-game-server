@@ -156,7 +156,7 @@ async function handleKillAttempt(db, socket, data, deps) {
 
   // Pay mobilizing cost
   attacker.balance -= 10000;
-  logTransaction(socket, `-10000 Mobilizing for Kill`, -10000);
+  recordTransaction(socket, 'Kill mobilizing cost', -10000);
 
   let success = false;
   let message = '';
@@ -200,7 +200,7 @@ async function handleKillAttempt(db, socket, data, deps) {
       const hitDoc = hitQuery.docs[0];
       const hitData = hitDoc.data();
       attacker.balance += hitData.reward;
-      logTransaction(socket, `+${hitData.reward} Bounty Claimed`, hitData.reward);
+      recordTransaction(socket, 'Bounty claimed', hitData.reward);
       await hitDoc.ref.update({ active: false });
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }

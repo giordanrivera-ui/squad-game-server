@@ -8,8 +8,6 @@ class SocketService {
   factory SocketService() => _instance;
   SocketService._internal();
 
-    static final ValueNotifier<Map<String, dynamic>> mainTransactionNotifier = ValueNotifier({});
-
   IO.Socket? socket;
   final ValueNotifier<bool> isConnected = ValueNotifier(false);
 
@@ -38,6 +36,9 @@ class SocketService {
   final ValueNotifier<Map<String, dynamic>?> hitClaimedNotifier = ValueNotifier(null);
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
+
+    // Transaction history (specific labels for all 19 types)
+  final ValueNotifier<Map<String, dynamic>?> transactionNotifier = ValueNotifier(null);
 
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
@@ -86,7 +87,6 @@ void connect(String email, String displayName) {
 
     socket?.onConnect((_) {
       isConnected.value = true;
-      _setupTransactionListener();
       print('✅ Connected to server!');
       socket?.emit(SocketEvents.register, {
         'email': email,
@@ -259,6 +259,13 @@ void connect(String email, String displayName) {
           'target': data['target'] ?? '',
           'reward': data['reward'] ?? 0
         };
+      }
+    });
+
+    // NEW: Transaction history with specific labels
+    socket?.on('transaction-update', (data) {
+      if (data is Map<String, dynamic>) {
+        transactionNotifier.value = data;
       }
     });
 
@@ -512,6 +519,7 @@ void connect(String email, String displayName) {
     isConnected.value = false;
   }
 
+  // ← ADD THIS NEW METHOD HERE
   void placeHit(String target, int reward, int durationDays) {
     if (target.isNotEmpty && reward >= 1000) {
       socket?.emit('place-hit', {
@@ -520,17 +528,5 @@ void connect(String email, String displayName) {
         'durationDays': durationDays
       });
     }
-  }
-
-  // NEW: Listen for transaction logs from server
-  void _setupTransactionListener() {
-    socket?.on('transaction-log', (data) {
-      if (data is Map<String, dynamic>) {
-        final description = data['description'] as String? ?? 'Balance updated';
-        final amount = data['amount'] as int? ?? 0;
-        
-        mainTransactionNotifier.value = {'description': description, 'amount': amount};
-      }
-    });
   }
 }

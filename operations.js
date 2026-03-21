@@ -194,7 +194,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     const actualDamage = Math.max(0, rawDamage - totalDefense);
 
     p.balance += money;
-    logTransaction(socket, `+${money} from ${operation}`, money);
+    recordTransaction(socket, `${operation} received`, money);
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
@@ -362,7 +362,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     // ==================== BROKEN BONE DEBUFF (unchanged) ====================
     let brokenBoneChance = 0;
     if (lowLevelOps.includes(operation)) {
-      brokenBoneChance = 0.05;
+      brokenBoneChance = 0.95;
     } else if (midLevelOps.includes(operation)) {
       brokenBoneChance = 0.09;
     } else if (isHighLevel) {
