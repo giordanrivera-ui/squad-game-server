@@ -62,6 +62,12 @@ function removeFromOnlineList(displayName) {
   console.log(`[SERVER] ${displayName} removed from online list (death or cleanup)`);
 }
 
+// ==================== TRANSACTION LOGGER (NEW) ====================
+function logTransaction(socket, description, amount) {
+  if (!socket) return;
+  socket.emit('transaction-log', { description, amount });
+}
+
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
@@ -112,6 +118,7 @@ setInterval(async () => {
       const posterDoc = await posterDocRef.get();  // Initial fetch (optional, but keep for exists check)
       if (posterDoc.exists) {
         await posterDocRef.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });  // Update using ref
+        logTransaction(posterSocket, `+${hitData.reward} Refund (Expired Hit)`, hitData.reward);
         console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
 
         // NEW: Re-fetch fresh data after update
@@ -438,6 +445,8 @@ io.on('connection', (socket) => {
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
 
+    logTransaction(socket, amount > 0 ? `+${amount} Test Money` : `${amount} Test Money`, amount);
+
     await docRef.set(p);
     socket.emit('update-stats', p);
   });
@@ -513,6 +522,7 @@ io.on('connection', (socket) => {
 
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+    logTransaction(socket, `-${data.reward} Bounty Placed`, -data.reward);
 
     const updatedPoster = await posterDoc.ref.get();
     socket.emit('update-stats', updatedPoster.data());
@@ -678,6 +688,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
+    logTransaction(socket, `-${cost} Travel to ${destination}`, -cost);
     p.location = destination;
 
     await docRef.set(p);
@@ -699,6 +710,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
+    logTransaction(socket, `-50 Hospital Healing`, -50);
     p.health = 100;
 
     await docRef.set(p);
@@ -743,6 +755,7 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
+    logTransaction(socket, `-110 Bone Healing`, -110);
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
@@ -812,6 +825,7 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
+    logTransaction(socket, `-${data.totalCost} Gear Purchase`, -data.totalCost);
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -938,6 +952,7 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
+    logTransaction(socket, `+${data.totalSellValue} from Selling Items`, data.totalSellValue);
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });

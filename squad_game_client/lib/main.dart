@@ -183,7 +183,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   TextEditingController _controller = TextEditingController();
 
   List<Map<String, dynamic>> _transactionHistory = [];
-  int _lastKnownBalance = 0;
 
   String time = 'Loading...';
   bool cooldown = false;
@@ -214,14 +213,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Refresh if needed, but since builder uses it, optional
     });
 
-    // Transaction history listener
-    _socketService.statsNotifier.addListener(() {
-      final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
-      if (currentBalance != _lastKnownBalance && _lastKnownBalance != 0) {
-        final diff = currentBalance - _lastKnownBalance;
-        _addTransaction('Balance updated', diff); // Will be improved with specific labels later
+        // Transaction history from server (now fixed)
+    SocketService.mainTransactionNotifier.addListener(() {
+      final data = SocketService.mainTransactionNotifier.value;
+      if (data.isNotEmpty) {
+        _addTransaction(data['description'] as String, data['amount'] as int);
+        SocketService.mainTransactionNotifier.value = {}; // clear
       }
-      _lastKnownBalance = currentBalance;
     });
 
     // NEW: Start global per-second income checker (only if owned props)
@@ -366,6 +364,23 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     cooldownTimer = Timer(const Duration(seconds: GameConstants.robCooldownSeconds), () {
       if (mounted) setState(() => cooldown = false);
     });
+  }
+
+    // ==================== TRANSACTION HANDLER ====================
+  void _addTransaction(String description, int amount) {
+    final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+
+    _transactionHistory.insert(0, {
+      'description': description,
+      'amount': amount,
+      'balanceAfter': currentBalance,
+    });
+
+    if (_transactionHistory.length > 25) {
+      _transactionHistory.removeLast();
+    }
+
+    setState(() {});
   }
 
   @override
@@ -785,23 +800,6 @@ Widget _buildDashboard() {
     },
   );
 }
-
-  void _addTransaction(String description, int amount) {
-    final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
-
-    _transactionHistory.insert(0, {
-      'description': description,
-      'amount': amount,
-      'balanceAfter': currentBalance,
-    });
-
-    // Keep only last 25
-    if (_transactionHistory.length > 25) {
-      _transactionHistory.removeLast();
-    }
-
-    setState(() {});
-  }
 
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();

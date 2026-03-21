@@ -8,6 +8,8 @@ class SocketService {
   factory SocketService() => _instance;
   SocketService._internal();
 
+    static final ValueNotifier<Map<String, dynamic>> mainTransactionNotifier = ValueNotifier({});
+
   IO.Socket? socket;
   final ValueNotifier<bool> isConnected = ValueNotifier(false);
 
@@ -84,6 +86,7 @@ void connect(String email, String displayName) {
 
     socket?.onConnect((_) {
       isConnected.value = true;
+      _setupTransactionListener();
       print('✅ Connected to server!');
       socket?.emit(SocketEvents.register, {
         'email': email,
@@ -509,7 +512,6 @@ void connect(String email, String displayName) {
     isConnected.value = false;
   }
 
-  // ← ADD THIS NEW METHOD HERE
   void placeHit(String target, int reward, int durationDays) {
     if (target.isNotEmpty && reward >= 1000) {
       socket?.emit('place-hit', {
@@ -518,5 +520,17 @@ void connect(String email, String displayName) {
         'durationDays': durationDays
       });
     }
+  }
+
+  // NEW: Listen for transaction logs from server
+  void _setupTransactionListener() {
+    socket?.on('transaction-log', (data) {
+      if (data is Map<String, dynamic>) {
+        final description = data['description'] as String? ?? 'Balance updated';
+        final amount = data['amount'] as int? ?? 0;
+        
+        mainTransactionNotifier.value = {'description': description, 'amount': amount};
+      }
+    });
   }
 }
