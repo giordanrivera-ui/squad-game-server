@@ -54,9 +54,13 @@ function recalculateOverallPower(p) {
 }
 
 // ==================== TRANSACTION HISTORY HELPER (for dashboard) ====================
+// ==================== SAFE TRANSACTION HELPER ====================
 function recordTransaction(socket, description, amount) {
   if (!socket || typeof amount !== 'number') return;
-  socket.emit('transaction-update', { description, amount });
+  socket.emit('transaction-update', { 
+    description: description, 
+    amount: amount 
+  });
 }
 
 // ==================== ONLINE LIST HELPER (NEW) ====================
@@ -706,7 +710,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    recordTransaction(socket, `Travel to ${destination}`, -cost);
+    recordTransaction(socket, 'Hospital healing', -cost);
     p.health = 100;
 
     await docRef.set(p);
@@ -751,7 +755,7 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
-    recordTransaction(socket, `Travel to ${destination}`, -cost);
+    recordTransaction(socket, 'Broken bone healing', -cost);
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
