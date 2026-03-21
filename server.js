@@ -696,6 +696,55 @@ io.on('connection', (socket) => {
     socket.emit('update-stats', p);
   });
 
+  socket.on('heal-broken-bone', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Strict location check
+    if (p.location !== "Lónghǎi") {
+      socket.emit('heal-broken-bone-result', { 
+        success: false, 
+        message: 'Orthopedic Surgeon is only available in Lónghǎi.' 
+      });
+      return;
+    }
+
+    if (!p.hasBrokenBone) {
+      socket.emit('heal-broken-bone-result', { 
+        success: false, 
+        message: 'You do not have a broken bone to heal.' 
+      });
+      return;
+    }
+
+    const cost = 110;
+    if (p.balance < cost) {
+      socket.emit('heal-broken-bone-result', { 
+        success: false, 
+        message: 'Not enough money ($110 required).' 
+      });
+      return;
+    }
+
+    // Heal the debuff
+    p.balance -= cost;
+    p.hasBrokenBone = false;
+
+    await docRef.set(p);
+
+    socket.emit('heal-broken-bone-result', { 
+      success: true, 
+      message: '🦴 Bone healed! You feel much better.' 
+    });
+    socket.emit('update-stats', p);
+  });
+
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.photoURL !== 'string') return;

@@ -426,6 +426,8 @@ void connect(String email, String displayName) {
 
   void heal() => socket?.emit('heal');
 
+  void healBrokenBone() => socket?.emit('heal-broken-bone');
+
   void updatePhotoURL(String url) => socket?.emit('update-profile', {'photoURL': url});
 
   void purchaseArmor(List<Map<String, dynamic>> items, int totalCost) {

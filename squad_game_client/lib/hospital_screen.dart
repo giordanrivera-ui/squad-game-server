@@ -20,29 +20,39 @@ class HospitalScreen extends StatefulWidget {
 }
 
 class _HospitalScreenState extends State<HospitalScreen> {
-  static const int healCost = 50;  // Cost to heal
+  static const int healCost = 50;
+  static const int boneHealCost = 110;
 
   bool get canHeal => widget.currentHealth < 100 && widget.currentBalance >= healCost;
 
   void _heal() {
     if (!canHeal) return;
-
-    SocketService().heal();  // Emit heal event to server
-
+    SocketService().heal();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Healing... You feel better!')),
     );
   }
 
-  // NEW: Orthopedic Surgeon handler (currently does nothing except a placeholder message)
+  // NEW: Orthopedic Surgeon logic
   void _seeOrthopedicSurgeon() {
-    // TODO: Future implementation here (special bone healing, new costs, animations, etc.)
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🦴 The Orthopedic Surgeon is not available yet...'),
-        backgroundColor: Colors.blueGrey,
-      ),
-    );
+    final stats = SocketService().statsNotifier.value;
+    final hasBrokenBone = stats['hasBrokenBone'] == true;
+    final balance = stats['balance'] ?? 0;
+
+    if (!hasBrokenBone) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have a broken bone.')),
+      );
+      return;
+    }
+    if (balance < boneHealCost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Not enough money (\$$boneHealCost required).')),
+      );
+      return;
+    }
+
+    SocketService().healBrokenBone();
   }
 
   @override
@@ -72,7 +82,7 @@ class _HospitalScreenState extends State<HospitalScreen> {
                 Text('Heal to full health for $healCost?', style: const TextStyle(fontSize: 18)),
                 const SizedBox(height: 20),
 
-                // Normal heal button (unchanged)
+                // Normal heal button
                 SizedBox(
                   width: double.infinity,
                   child: Padding(
@@ -93,24 +103,35 @@ class _HospitalScreenState extends State<HospitalScreen> {
 
                 const SizedBox(height: 12),
 
-                // NEW: Extra button - ONLY appears in "Lónghǎi"
+                // Orthopedic Surgeon button - ONLY in Lónghǎi (already filtered by widget)
                 if (widget.currentLocation == "Lónghǎi")
-                  SizedBox(
-                    width: double.infinity,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ElevatedButton(
-                        onPressed: _seeOrthopedicSurgeon,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueGrey[700],
-                          padding: const EdgeInsets.symmetric(vertical: 18),
+                  ValueListenableBuilder<Map<String, dynamic>>(
+                    valueListenable: SocketService().statsNotifier,
+                    builder: (context, stats, child) {
+                      final hasBrokenBone = stats['hasBrokenBone'] == true;
+                      final balance = stats['balance'] ?? 0;
+                      final canHealBone = hasBrokenBone && balance >= boneHealCost;
+
+                      return SizedBox(
+                        width: double.infinity,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: ElevatedButton(
+                            onPressed: canHealBone ? _seeOrthopedicSurgeon : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: canHealBone ? Colors.blueGrey[700] : Colors.grey,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                            ),
+                            child: Text(
+                              hasBrokenBone 
+                                ? '🦴 See Orthopedic Surgeon (\$$boneHealCost)'
+                                : '🦴 See Orthopedic Surgeon',
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
-                        child: const Text(
-                          '🦴 See Orthopedic Surgeon',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
 
                 const SizedBox(height: 12),
