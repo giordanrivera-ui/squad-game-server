@@ -63,6 +63,18 @@ const properties = [
   }
 ];
 
+// ==================== TRANSACTION LOGGER (needed in this file) ====================
+function logTransaction(socket, amount, description) {
+  if (!socket || typeof amount !== 'number') return;
+  const tx = {
+    amount: amount,
+    description: description,
+    timestamp: Date.now()
+  };
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
+}
+
 const upgradeCosts = {
   "Fiber Optic": {
     "Micropod": 540,

@@ -4,6 +4,18 @@ const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Lo
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
+// ==================== TRANSACTION LOGGER (needed in this file) ====================
+function logTransaction(socket, amount, description) {
+  if (!socket || typeof amount !== 'number') return;
+  const tx = {
+    amount: amount,
+    description: description,
+    timestamp: Date.now()
+  };
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
+}
+
 async function handleExecuteOperation(db, socket, data, deps) {
   const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
 

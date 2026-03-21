@@ -183,7 +183,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   TextEditingController _controller = TextEditingController();
 
     List<Map<String, dynamic>> _transactionHistory = [];
-  int _lastKnownBalance = 0;
 
   String time = 'Loading...';
   bool cooldown = false;
@@ -758,23 +757,6 @@ Widget _buildDashboard() {
     },
   );
 }
-
-  void _addTransaction(String description, int amount) {
-    final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
-
-    _transactionHistory.insert(0, {
-      'description': description,
-      'amount': amount,
-      'balanceAfter': currentBalance,
-    });
-
-    // Keep only last 25
-    if (_transactionHistory.length > 25) {
-      _transactionHistory.removeLast();
-    }
-
-    setState(() {});
-  }
 
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();

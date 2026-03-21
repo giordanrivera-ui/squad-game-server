@@ -2,6 +2,18 @@
 
 const admin = require('firebase-admin');
 
+// ==================== TRANSACTION LOGGER (needed in this file) ====================
+function logTransaction(socket, amount, description) {
+  if (!socket || typeof amount !== 'number') return;
+  const tx = {
+    amount: amount,
+    description: description,
+    timestamp: Date.now()
+  };
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
+}
+
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
 function getUpperBound(exp) {
   if (exp <= 49) return 49;
