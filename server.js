@@ -205,6 +205,7 @@ io.on('connection', (socket) => {
       if (playerData.showArmor === undefined) playerData.showArmor = true;
       if (playerData.showWeapon === undefined) playerData.showWeapon = true;
       if (playerData.hasBrokenBone === undefined) playerData.hasBrokenBone = false;
+      if (playerData.bonePenaltyEndTime === undefined) playerData.bonePenaltyEndTime = 0;
       if (playerData.dead === undefined) playerData.dead = false;
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
 
@@ -261,6 +262,7 @@ io.on('connection', (socket) => {
         showArmor: true,
         showWeapon: true,
         hasBrokenBone: false,
+        bonePenaltyEndTime: 0,
         dead: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
@@ -391,6 +393,7 @@ io.on('connection', (socket) => {
         showArmor: true,
         showWeapon: true,
         hasBrokenBone: false,
+        bonePenaltyEndTime: 0,
         dead: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
@@ -735,6 +738,7 @@ io.on('connection', (socket) => {
     // Heal the debuff
     p.balance -= cost;
     p.hasBrokenBone = false;
+    p.bonePenaltyEndTime = 0;
 
     await docRef.set(p);
 

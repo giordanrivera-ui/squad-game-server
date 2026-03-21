@@ -375,15 +375,18 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
 
     // ==================== SET COOLDOWN WITH 10-SECOND BROKEN BONE PENALTY ====================
+        // ==================== SEPARATE BROKEN BONE PENALTY (exactly as requested) ====================
     const now = Date.now();
-    const cooldownDelay = p.hasBrokenBone ? 10000 : 0;   // +10 seconds penalty
 
-    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = now + cooldownDelay;
-    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = now + cooldownDelay;
-    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = now + cooldownDelay;
+    // Normal cooldown starts immediately — Skill reduction will apply normally on client
+    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = now;
+    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = now;
+    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = now;
 
+    // Broken bone has its own completely independent 10-second timer
     if (p.hasBrokenBone) {
-      message += " ⏳ Broken bone penalty applied (+10s cooldown).";
+      p.bonePenaltyEndTime = now + 10000;
+      message += " ⏳ Broken bone recovery (10s) started. Normal cooldown begins afterwards.";
     }
   }
 
