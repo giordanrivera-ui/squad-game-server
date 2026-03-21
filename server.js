@@ -449,6 +449,7 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
+    logTransaction(socket, amount, 'Test Money Added');
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -525,6 +526,7 @@ io.on('connection', (socket) => {
 
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+    logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`);
 
     const updatedPoster = await posterDoc.ref.get();
     socket.emit('update-stats', updatedPoster.data());
@@ -954,7 +956,7 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
-    logTransaction(socket, data.totalSellValue, 'Items Sold');p.balance += data.totalSellValue;
+    logTransaction(socket, data.totalSellValue, 'Items Sold');
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
