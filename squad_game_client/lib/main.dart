@@ -215,10 +215,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
+        final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
         setState(() {
           _transactionHistory.insert(0, {
             'description': data['description'] ?? 'Unknown',
             'amount': data['amount'] ?? 0,
+            'balanceAfter': currentBalance,   // ← This restores the rolling balance
           });
           if (_transactionHistory.length > 25) _transactionHistory.removeLast();
         });
@@ -618,7 +620,7 @@ Widget _buildDashboard() {
             style: const TextStyle(fontSize: 20, color: Colors.green)),
           )
         ),
-        Padding(
+                Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,
@@ -643,6 +645,8 @@ Widget _buildDashboard() {
                             final tx = _transactionHistory[index];
                             final amount = tx['amount'] as int;
                             final isPositive = amount > 0;
+                            final balanceAfter = tx['balanceAfter'] ?? 0;
+
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               child: Row(
@@ -654,6 +658,10 @@ Widget _buildDashboard() {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(tx['description'] as String, style: const TextStyle(color: Colors.white70)),
+                                  ),
+                                  Text(
+                                    '→ \$${NumberFormat("#,###").format(balanceAfter)}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                                   ),
                                 ],
                               ),
