@@ -66,221 +66,221 @@ class SocketService {
   int serverTimeOffset = 0;
   int get currentServerTime => DateTime.now().millisecondsSinceEpoch + serverTimeOffset;
 
-void connect(String email, String displayName) {
-  if (socket != null && socket!.connected) return;
+  void connect(String email, String displayName) {
+    if (socket != null && socket!.connected) return;
 
-    _currentEmail = email;
+      _currentEmail = email;
 
-    socket = IO.io(
-      GameConstants.serverUrl,
-      IO.OptionBuilder()
-        .setTransports(['websocket'])
-        .setReconnectionAttempts(5)  // NEW: Try 5 times before giving up
-        .setReconnectionDelay(1000)  // NEW: Start with 1 sec delay between tries
-        .setReconnectionDelayMax(5000)  // NEW: Max 5 sec delay
-        .setTimeout(20000)  // NEW: Ping timeout 20 sec (adjust if needed)
-        .build(),
-    );
+      socket = IO.io(
+        GameConstants.serverUrl,
+        IO.OptionBuilder()
+          .setTransports(['websocket'])
+          .setReconnectionAttempts(5)  // NEW: Try 5 times before giving up
+          .setReconnectionDelay(1000)  // NEW: Start with 1 sec delay between tries
+          .setReconnectionDelayMax(5000)  // NEW: Max 5 sec delay
+          .setTimeout(20000)  // NEW: Ping timeout 20 sec (adjust if needed)
+          .build(),
+      );
 
-    socket?.onConnect((_) {
-      isConnected.value = true;
-      print('✅ Connected to server!');
-      socket?.emit(SocketEvents.register, {
-        'email': email,
-        'displayName': displayName,
+      socket?.onConnect((_) {
+        isConnected.value = true;
+        print('✅ Connected to server!');
+        socket?.emit(SocketEvents.register, {
+          'email': email,
+          'displayName': displayName,
+        });
       });
-    });
 
-    socket?.on(SocketEvents.init, (data) {
-      if (data is Map) {
-        normalLocations = List<String>.from(data['locations'] ?? []);
-        travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
-        properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
-        statsNotifier.value = Map.from(data['player'] ?? {});
-        deathNotifier.value = (data['player']?['dead'] == true);
-        // NEW: Force death screen on every login/reconnect
-        final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
-        if (isDeadNow) {
-          deathNotifier.value = true;
-        }
-        statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
-        statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
-        statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
-        statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-
-        loadMessages();
-        if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
-
-        print('Got locations from server: $normalLocations');
-      }
-    });
-    
-    // NEW: Handle update-stats (update the notifier)
-    socket?.on(SocketEvents.updateStats, (data) {
-      if (data is Map<String, dynamic>) {
-        // Capture old values BEFORE update
-        final oldExp = statsNotifier.value['experience'] ?? 0;
-        final oldRank = _getRankTitle(oldExp);  // Use helper below
-
-        // Update notifier
-        statsNotifier.value = {...statsNotifier.value, ...data};
-
-        // NEW: Force death screen on every update
-          final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
+      socket?.on(SocketEvents.init, (data) {
+        if (data is Map) {
+          normalLocations = List<String>.from(data['locations'] ?? []);
+          travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
+          properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
+          statsNotifier.value = Map.from(data['player'] ?? {});
+          deathNotifier.value = (data['player']?['dead'] == true);
+          // NEW: Force death screen on every login/reconnect
+          final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
           if (isDeadNow) {
             deathNotifier.value = true;
           }
+          statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
+          statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
+          statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
+          statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
 
-        // Set defaults (like old code)
-        statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
-        statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
-        statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
-        statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-        statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
+          loadMessages();
+          loadTransactions();  // ← Loads saved history on every login
+          if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
 
-        // Detect rank up
-        final newExp = statsNotifier.value['experience'] ?? oldExp;
-        final newRank = _getRankTitle(newExp);
-        if (newRank != oldRank && newExp > oldExp) {
-          rankUpNotifier.value = {
-            'oldRank': oldRank,
-            'newRank': newRank,
+          print('Got locations from server: $normalLocations');
+        }
+      });
+      
+      // NEW: Handle update-stats (update the notifier)
+      socket?.on(SocketEvents.updateStats, (data) {
+        if (data is Map<String, dynamic>) {
+          // Capture old values BEFORE update
+          final oldExp = statsNotifier.value['experience'] ?? 0;
+          final oldRank = _getRankTitle(oldExp);  // Use helper below
+
+          // Update notifier
+          statsNotifier.value = {...statsNotifier.value, ...data};
+
+          // NEW: Force death screen on every update
+            final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
+            if (isDeadNow) {
+              deathNotifier.value = true;
+            }
+
+          // Set defaults (like old code)
+          statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
+          statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
+          statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
+          statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
+          statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
+
+          // Detect rank up
+          final newExp = statsNotifier.value['experience'] ?? oldExp;
+          final newRank = _getRankTitle(newExp);
+          if (newRank != oldRank && newExp > oldExp) {
+            rankUpNotifier.value = {
+              'oldRank': oldRank,
+              'newRank': newRank,
+            };
+          }
+
+          // Check death
+          if ((statsNotifier.value['health'] ?? 100) <= 0) {
+            deathNotifier.value = true;
+          }
+        }
+      });
+
+      // Private message received
+      socket?.on(SocketEvents.privateMessage, (data) {
+        if (data is Map<String, dynamic>) {
+          final normalized = Map<String, dynamic>.from(data);
+          if (!normalized.containsKey('isFromMe')) normalized['isFromMe'] = false;
+          if (!normalized.containsKey('id')) {
+            normalized['id'] = DateTime.now().millisecondsSinceEpoch.toString();
+          }
+
+          // NEW: Check if already have this message (no duplicates)
+          if (inboxNotifier.value.any((m) => m['data']?['id'] == normalized['id'])) return;
+
+          final newItem = <String, dynamic>{
+            'type': 'private',
+            'data': normalized,
+            'timestamp': DateTime.now().toIso8601String(),
+            'isRead': false,
+          };
+
+          inboxNotifier.value = [newItem, ...inboxNotifier.value];
+          _saveMessagesToFirestore();
+          _updateUnreadStatus();
+        }
+      });
+
+      // Announcement from mods
+      socket?.on(SocketEvents.announcement, (data) {
+        if (data is Map && data['text'] is String && data['text'].isNotEmpty && data['id'] is String) {
+          // NEW: Check if already have this announcement
+          if (inboxNotifier.value.any((m) => m['id'] == data['id'])) return;
+
+          final newItem = <String, dynamic>{
+            'type': 'announcement',
+            'text': data['text'],
+            'id': data['id'],
+            'timestamp': DateTime.now().toIso8601String(),
+            'isRead': false,
+          };
+
+          inboxNotifier.value = [newItem, ...inboxNotifier.value];
+          _saveMessagesToFirestore();
+          _updateUnreadStatus();
+        }
+      });
+
+      // Prison list updates with server time sync (fixes clock drift)
+      socket?.on('prison-list-update', (payload) {
+        if (payload is Map<String, dynamic>) {
+          final list = payload['list'] as List<dynamic>? ?? [];
+          final serverTime = payload['serverTime'] as int? ?? DateTime.now().millisecondsSinceEpoch;
+
+          final localNow = DateTime.now().millisecondsSinceEpoch;
+          serverTimeOffset = serverTime - localNow;
+
+          imprisonedPlayersNotifier.value = List<Map<String, dynamic>>.from(
+            list.map((e) => Map<String, dynamic>.from(e as Map))
+          );
+        }
+      });
+
+      // NEW: Rescue celebration animation trigger
+      socket?.on('player-rescued', (data) {
+        if (data is Map<String, dynamic>) {
+          rescueNotifier.value = {
+            'rescuer': data['rescuer']?.toString() ?? 'Someone',
+            'message': data['message']?.toString() ?? 'You have been rescued!'
           };
         }
-
-        // Check death
-        if ((statsNotifier.value['health'] ?? 100) <= 0) {
-          deathNotifier.value = true;
-        }
-      }
-    });
-
-    // Private message received
-    socket?.on(SocketEvents.privateMessage, (data) {
-      if (data is Map<String, dynamic>) {
-        final normalized = Map<String, dynamic>.from(data);
-        if (!normalized.containsKey('isFromMe')) normalized['isFromMe'] = false;
-        if (!normalized.containsKey('id')) {
-          normalized['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-        }
-
-        // NEW: Check if already have this message (no duplicates)
-        if (inboxNotifier.value.any((m) => m['data']?['id'] == normalized['id'])) return;
-
-        final newItem = <String, dynamic>{
-          'type': 'private',
-          'data': normalized,
-          'timestamp': DateTime.now().toIso8601String(),
-          'isRead': false,
-        };
-
-        inboxNotifier.value = [newItem, ...inboxNotifier.value];
-        _saveMessagesToFirestore();
-        _updateUnreadStatus();
-      }
-    });
-
-    // Announcement from mods
-    socket?.on(SocketEvents.announcement, (data) {
-      if (data is Map && data['text'] is String && data['text'].isNotEmpty && data['id'] is String) {
-        // NEW: Check if already have this announcement
-        if (inboxNotifier.value.any((m) => m['id'] == data['id'])) return;
-
-        final newItem = <String, dynamic>{
-          'type': 'announcement',
-          'text': data['text'],
-          'id': data['id'],
-          'timestamp': DateTime.now().toIso8601String(),
-          'isRead': false,
-        };
-
-        inboxNotifier.value = [newItem, ...inboxNotifier.value];
-        _saveMessagesToFirestore();
-        _updateUnreadStatus();
-      }
-    });
-
-    // Prison list updates with server time sync (fixes clock drift)
-    socket?.on('prison-list-update', (payload) {
-      if (payload is Map<String, dynamic>) {
-        final list = payload['list'] as List<dynamic>? ?? [];
-        final serverTime = payload['serverTime'] as int? ?? DateTime.now().millisecondsSinceEpoch;
-
-        final localNow = DateTime.now().millisecondsSinceEpoch;
-        serverTimeOffset = serverTime - localNow;
-
-        imprisonedPlayersNotifier.value = List<Map<String, dynamic>>.from(
-          list.map((e) => Map<String, dynamic>.from(e as Map))
-        );
-      }
-    });
-
-    // NEW: Rescue celebration animation trigger
-    socket?.on('player-rescued', (data) {
-      if (data is Map<String, dynamic>) {
-        rescueNotifier.value = {
-          'rescuer': data['rescuer']?.toString() ?? 'Someone',
-          'message': data['message']?.toString() ?? 'You have been rescued!'
-        };
-      }
-    });
-
-    socket?.on('income-claimed', (data) {
-      if (data is Map && data['amount'] is int) {
-        incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
-      }
-    });
-
-    
-
-    socket?.on('player-died', (_) {
-      deathNotifier.value = true;  // Trigger death UI
-    });
-
-    // NEW: Hitlist updates (screen will refresh automatically via StreamBuilder)
-    socket?.on('hitlist-update', (data) {});
-
-    // NEW: Hit claimed notification
-    socket?.on('hit-claimed', (data) {
-      if (data is Map<String, dynamic>) {
-        hitClaimedNotifier.value = {
-          'target': data['target'] ?? '',
-          'reward': data['reward'] ?? 0
-        };
-      }
-    });
-
-    socket?.on('hit-expired', (data) {
-      if (data is Map<String, dynamic>) {
-        hitExpiredNotifier.value = {
-          'target': data['target'] ?? '',
-          'reward': data['reward'] ?? 0
-        };
-      }
-    });
-
-    // NEW: Listen for nice transaction labels
-    socket?.on('new-transaction', (data) {
-      if (data is Map<String, dynamic>) {
-        // We will send it to main.dart in the next step
-        // (this just makes sure the message arrives)
-      }
-    });
-
-    socket?.onReconnect((_) {
-      print('🔄 Reconnected to server!');
-      // Re-register on reconnect to ensure online list updates
-      socket?.emit(SocketEvents.register, {
-        'email': email,
-        'displayName': displayName,
       });
-    });
 
-    socket?.onDisconnect((_) {
-      isConnected.value = false;
-      print('❌ Disconnected from server');
-    });
-  }
+      socket?.on('income-claimed', (data) {
+        if (data is Map && data['amount'] is int) {
+          incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
+        }
+      });
+
+      
+
+      socket?.on('player-died', (_) {
+        deathNotifier.value = true;  // Trigger death UI
+      });
+
+      // NEW: Hitlist updates (screen will refresh automatically via StreamBuilder)
+      socket?.on('hitlist-update', (data) {});
+
+      // NEW: Hit claimed notification
+      socket?.on('hit-claimed', (data) {
+        if (data is Map<String, dynamic>) {
+          hitClaimedNotifier.value = {
+            'target': data['target'] ?? '',
+            'reward': data['reward'] ?? 0
+          };
+        }
+      });
+
+      socket?.on('hit-expired', (data) {
+        if (data is Map<String, dynamic>) {
+          hitExpiredNotifier.value = {
+            'target': data['target'] ?? '',
+            'reward': data['reward'] ?? 0
+          };
+        }
+      });
+
+      // NEW: Listen for nice transaction labels + save permanently
+      socket?.on('new-transaction', (data) {
+        if (data is Map<String, dynamic>) {
+          saveTransaction(data);  // ← Saves to Firestore
+        }
+      });
+
+      socket?.onReconnect((_) {
+        print('🔄 Reconnected to server!');
+        // Re-register on reconnect to ensure online list updates
+        socket?.emit(SocketEvents.register, {
+          'email': email,
+          'displayName': displayName,
+        });
+      });
+
+      socket?.onDisconnect((_) {
+        isConnected.value = false;
+        print('❌ Disconnected from server');
+      });
+    }
 
   // Load old messages from your cloud box
   Future<void> loadMessages() async {
@@ -525,6 +525,52 @@ void connect(String email, String displayName) {
         'reward': reward,
         'durationDays': durationDays
       });
+    }
+  }
+
+    // ==================== TRANSACTION PERSISTENCE ====================
+  Future<void> loadTransactions() async {
+    if (_currentEmail == null) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('players')
+          .doc(_currentEmail)
+          .collection('transactions')
+          .orderBy('timestamp', descending: true)
+          .limit(25)
+          .get();
+
+      final loaded = snap.docs.map((doc) => {
+        'description': doc.data()['description'] ?? 'Unknown',
+        'amount': (doc.data()['amount'] as num?)?.toInt() ?? 0,
+        'balanceAfter': (doc.data()['balanceAfter'] as num?)?.toInt() ?? 0,
+      }).toList();
+
+      // Send to main.dart so the UI updates
+      // (We use a broadcast via the same event for simplicity)
+      socket?.emit('transactions-loaded', loaded);
+    } catch (e) {
+      print('Error loading transactions: $e');
+    }
+  }
+
+  Future<void> saveTransaction(Map<String, dynamic> tx) async {
+    if (_currentEmail == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('players')
+          .doc(_currentEmail)
+          .collection('transactions')
+          .add({
+        'description': tx['description'],
+        'amount': tx['amount'],
+        'balanceAfter': tx['balanceAfter'],
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error saving transaction: $e');
     }
   }
 }

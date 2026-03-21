@@ -206,17 +206,25 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
     WidgetsBinding.instance.addObserver(this);
     _connectToServer();
+
+    // Initialize rolling balance from the REAL bank balance when app starts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _lastKnownBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+    });
+
     _setupPushNotifications();
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
     _socketService.statsNotifier.addListener(() {
+      final balance = _socketService.statsNotifier.value['balance'] ?? 0;
+      _lastKnownBalance = balance;
       setState(() {});  // Refresh if needed, but since builder uses it, optional
     });
 
-    _socketService.socket?.on('new-transaction', (data) {
+        _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
-        final amount = (data['amount'] as num?)?.toInt() ?? 0;   // ← Safe cast to int
+        final amount = (data['amount'] as num?)?.toInt() ?? 0;
         final newBalance = _lastKnownBalance + amount;
 
         setState(() {
@@ -229,6 +237,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         });
 
         _lastKnownBalance = newBalance;
+      }
+    });
+
+    // NEW: Load saved transactions from Firestore on startup
+    _socketService.socket?.on('transactions-loaded', (data) {
+      if (data is List) {
+        setState(() {
+          _transactionHistory = List<Map<String, dynamic>>.from(data);
+          if (_transactionHistory.isNotEmpty) {
+            _lastKnownBalance = _transactionHistory.first['balanceAfter'] ?? 0;
+          } else {
+            _lastKnownBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+          }
+        });
       }
     });
 
