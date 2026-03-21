@@ -254,7 +254,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
 
-  // NEW: per-level bone penalty timers
+  // Per-level bone penalty timers
   double _boneLow = 0.0;
   double _boneMid = 0.0;
   double _boneHigh = 0.0;
@@ -326,48 +326,42 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Per-level bone recovery banners
-          if (_boneLow > 0.1)
-            _buildBoneBanner('Low-level ops locked for ${_boneLow.toStringAsFixed(1)} s (bone recovery)'),
-          if (_boneMid > 0.1)
-            _buildBoneBanner('Mid-level ops locked for ${_boneMid.toStringAsFixed(1)} s (bone recovery)'),
-          if (_boneHigh > 0.1)
-            _buildBoneBanner('High-level ops locked for ${_boneHigh.toStringAsFixed(1)} s (bone recovery)'),
-
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _buildGroup('Low Level', lowLevelOps, _lowRemaining),
-          _buildGroup('Medium Level', midLevelOps, _midRemaining),
-          _buildGroup('High Level', highLevelOps, _highRemaining),
+          _buildGroup('Low Level', lowLevelOps, _lowRemaining, _boneLow),
+          _buildGroup('Medium Level', midLevelOps, _midRemaining, _boneMid),
+          _buildGroup('High Level', highLevelOps, _highRemaining, _boneHigh),
         ],
       ),
     );
   }
 
-  Widget _buildBoneBanner(String text) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.orange[900],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
-  Widget _buildGroup(String title, List<String> ops, double remaining) {
+  Widget _buildGroup(String title, List<String> ops, double remaining, double boneRemaining) {
     final bool isOnCooldown = remaining > 0.1;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Group title + red bone timer (clean & compact)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          child: Row(
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+              if (boneRemaining > 0.1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Text(
+                    '🦴 ${boneRemaining.toStringAsFixed(1)} s',
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         ...ops.map((op) {
           String displayText = op;

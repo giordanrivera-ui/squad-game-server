@@ -604,6 +604,25 @@ Widget _buildDashboard() {
             style: const TextStyle(fontSize: 20, color: Colors.green)),
           )
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              minHeight: 140,           // ← slightly taller as requested
+            ),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],  // ← different color (dark slate)
+              borderRadius: BorderRadius.circular(20)
+            ),
+            padding: const EdgeInsets.all(16),
+      
+            child: Text(
+              'Overall Power: ${stats['overallPower'] ?? 0}',
+              style: const TextStyle(fontSize: 20, color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+            ),
+          )
+        ),
         Expanded(
           child: ListView.builder(
             itemCount: messages.length,
