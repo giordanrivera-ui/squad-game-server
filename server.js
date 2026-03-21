@@ -66,16 +66,29 @@ function removeFromOnlineList(displayName) {
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
 // ==================== NEW: TRANSACTION LOGGER (this sends nice labels) ====================
-function logTransaction(socket, amount, description) {
+async function logTransaction(socket, docRef, amount, description, p) {
   if (!socket || typeof amount !== 'number') return;
-  const tx = {
-    amount: amount,
+
+  const newTx = {
     description: description,
-    timestamp: Date.now(),
-    balanceAfter: null   // will be filled by caller below
+    amount: amount,
+    balanceAfter: p.balance,          // ← server knows the real new balance
+    timestamp: Date.now()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  socket.emit('new-transaction', newTx);
+
+  // Add to main player document (exactly like messages)
+  await docRef.update({
+    transactionHistory: admin.firestore.FieldValue.arrayUnion(newTx)
+  });
+
+  // Trim to last 25 (keeps Firestore cheap)
+  const snap = await docRef.get();
+  let history = snap.data()?.transactionHistory || [];
+  if (history.length > 25) {
+    await docRef.update({ transactionHistory: history.slice(-25) });
+  }
 }
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
@@ -450,7 +463,7 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
-    logTransaction(socket, amount, 'Test Money Added');
+    await logTransaction(socket, docRef, amount, 'Test Money Added', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -533,7 +546,7 @@ io.on('connection', (socket) => {
 
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-    logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`);
+    await logTransaction(socket, docRef, -data.reward, `Bounty Placed on ${data.target}`, p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -705,13 +718,14 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    logTransaction(socket, -cost, `Travel to ${destination}`);
+    await logTransaction(socket, docRef, -cost, `Travel to ${destination}`, p);
+
     socket.emit('new-transaction', {   // ← ADD this right after
-  amount: amount,
-  description: 'Something',
-  timestamp: Date.now(),
-  balanceAfter: p.balance   // ← the updated balance
-});
+      amount: amount,
+      description: 'Something',
+      timestamp: Date.now(),
+      balanceAfter: p.balance   // ← the updated balance
+    });
     p.location = destination;
 
     await docRef.set(p);
@@ -733,7 +747,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    logTransaction(socket, -cost, 'Healing ($50)');
+    await logTransaction(socket, docRef, -cost, 'Healing ($50)', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -784,7 +798,7 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
-    logTransaction(socket, -cost, 'Broken Bone Healing ($110)');
+    await logTransaction(socket, docRef, -cost, 'Broken Bone Healing ($110)', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -860,7 +874,7 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
-    logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)');
+    await logTransaction(socket, docRef, -data.totalCost, 'Gear Purchased (Armor/Weapons)', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -993,7 +1007,7 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
-    logTransaction(socket, data.totalSellValue, 'Items Sold');
+    await logTransaction(socket, docRef, data.totalSellValue, 'Items Sold', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',

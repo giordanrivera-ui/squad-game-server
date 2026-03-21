@@ -97,6 +97,10 @@ class SocketService {
           travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
           properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
           statsNotifier.value = Map.from(data['player'] ?? {});
+          // Load transaction history exactly like messages
+          if (data['player']?['transactionHistory'] != null) {
+            transactionHistoryNotifier.value = List<Map<String, dynamic>>.from(data['player']['transactionHistory']);
+          }
           deathNotifier.value = (data['player']?['dead'] == true);
           // NEW: Force death screen on every login/reconnect
           final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
@@ -260,18 +264,14 @@ class SocketService {
         }
       });
 
-      // NEW: Improved live transaction handler (inside connect())
-      // NEW: Final reliable transaction handler
       socket?.on('new-transaction', (data) {
         if (data is Map<String, dynamic>) {
-          final txToSave = {
+          final tx = {
             'description': data['description'] ?? 'Unknown',
             'amount': (data['amount'] as num?)?.toInt() ?? 0,
             'balanceAfter': (data['balanceAfter'] as num?)?.toInt() ?? 0,
           };
-
-          _saveTransaction(txToSave);
-          _updateTransactionNotifier(txToSave);
+          _updateTransactionNotifier(tx);
         }
       });
 

@@ -64,16 +64,29 @@ const properties = [
 ];
 
 // ==================== TRANSACTION LOGGER (needed in this file) ====================
-function logTransaction(socket, amount, description) {
+async function logTransaction(socket, docRef, amount, description, p) {
   if (!socket || typeof amount !== 'number') return;
-  const tx = {
-    amount: amount,
+
+  const newTx = {
     description: description,
-    timestamp: Date.now(),
-    balanceAfter: null   // will be filled by caller below
+    amount: amount,
+    balanceAfter: p.balance,          // ← server knows the real new balance
+    timestamp: Date.now()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  socket.emit('new-transaction', newTx);
+
+  // Add to main player document (exactly like messages)
+  await docRef.update({
+    transactionHistory: admin.firestore.FieldValue.arrayUnion(newTx)
+  });
+
+  // Trim to last 25 (keeps Firestore cheap)
+  const snap = await docRef.get();
+  let history = snap.data()?.transactionHistory || [];
+  if (history.length > 25) {
+    await docRef.update({ transactionHistory: history.slice(-25) });
+  }
 }
 
 const upgradeCosts = {
@@ -201,7 +214,7 @@ async function handleBuyProperty(db, socket, propertyName) {
 
   const now = Date.now();
   p.balance -= prop.cost;
-  logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`);
+  await logTransaction(socket, docRef, -prop.cost, `Property Purchased: ${propertyName}`, p);
   socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -242,7 +255,7 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
   if (p.balance < cost) return;
 
   p.balance -= cost;
-  logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`);
+  await logTransaction(socket, docRef, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`, p);
   socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
@@ -312,7 +325,7 @@ async function handleClaimIncome(db, socket) {
 
   if (totalAward > 0) {
     p.balance += totalAward;
-    logTransaction(socket, totalAward, 'Property Income');
+    await logTransaction(socket, docRef, totalAward, 'Property Income', p);
     socket.emit('new-transaction', {   // ← ADD this right after
   amount: amount,
   description: 'Something',
