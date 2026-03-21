@@ -182,7 +182,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
-    List<Map<String, dynamic>> _transactionHistory = [];
+  List<Map<String, dynamic>> _transactionHistory = [];
+  int _lastKnownBalance = 0;
 
   String time = 'Loading...';
   bool cooldown = false;
@@ -215,15 +216,19 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
-        final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+        final amount = (data['amount'] as num?)?.toInt() ?? 0;   // ← Safe cast to int
+        final newBalance = _lastKnownBalance + amount;
+
         setState(() {
           _transactionHistory.insert(0, {
             'description': data['description'] ?? 'Unknown',
-            'amount': data['amount'] ?? 0,
-            'balanceAfter': currentBalance,   // ← This restores the rolling balance
+            'amount': amount,
+            'balanceAfter': newBalance,
           });
           if (_transactionHistory.length > 25) _transactionHistory.removeLast();
         });
+
+        _lastKnownBalance = newBalance;
       }
     });
 
