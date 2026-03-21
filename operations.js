@@ -198,7 +198,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
     
-    // ==================== EXISTING WEAPON & BULLET STEALING (unchanged) ====================
+    // ==================== EXISTING WEAPON STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
       if (exp > 49) stealChance = 0.25;
@@ -335,7 +335,6 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
     
     // ==================== NEW: BULLET STEALING LOGIC ====================
-    // Medium & High level only - runs on successful operations only
     let bulletStealChance = 0;
     if (midLevelOps.includes(operation)) {
       bulletStealChance = 0.35;
@@ -359,14 +358,14 @@ async function handleExecuteOperation(db, socket, data, deps) {
       message += ` You also stole ${bulletsStolen} bullet${bulletsStolen > 1 ? 's' : ''}!`;
     }
 
-    // ==================== BROKEN BONE DEBUFF (NEW) ====================
+    // ==================== BROKEN BONE DEBUFF (unchanged) ====================
     let brokenBoneChance = 0;
     if (lowLevelOps.includes(operation)) {
-      brokenBoneChance = 0.95;   // 5% on low-level success
+      brokenBoneChance = 0.95;
     } else if (midLevelOps.includes(operation)) {
-      brokenBoneChance = 0.09;   // 9% on mid-level success
+      brokenBoneChance = 0.09;
     } else if (isHighLevel) {
-      brokenBoneChance = 0.14;   // 14% on high-level success
+      brokenBoneChance = 0.14;
     }
 
     if (!p.hasBrokenBone && brokenBoneChance > 0 && Math.random() < brokenBoneChance) {
@@ -375,10 +374,17 @@ async function handleExecuteOperation(db, socket, data, deps) {
       console.log(`[SERVER] ${p.displayName} broke a bone during ${operation}`);
     }
 
-    // Set cooldown timestamp
-    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = Date.now();
-    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = Date.now();
-    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = Date.now();
+    // ==================== SET COOLDOWN WITH 10-SECOND BROKEN BONE PENALTY ====================
+    const now = Date.now();
+    const cooldownDelay = p.hasBrokenBone ? 10000 : 0;   // +10 seconds penalty
+
+    if (lowLevelOps.includes(operation)) p.lastLowLevelOp = now + cooldownDelay;
+    else if (midLevelOps.includes(operation)) p.lastMidLevelOp = now + cooldownDelay;
+    else if (highLevelOps.includes(operation)) p.lastHighLevelOp = now + cooldownDelay;
+
+    if (p.hasBrokenBone) {
+      message += " ⏳ Broken bone penalty applied (+10s cooldown).";
+    }
   }
 
   await docRef.set(p);
