@@ -194,6 +194,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     const actualDamage = Math.max(0, rawDamage - totalDefense);
 
     p.balance += money;
+    logTransaction(socket, `+${money} from ${operation}`, money);
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);

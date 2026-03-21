@@ -284,6 +284,7 @@ async function handleClaimIncome(db, socket) {
 
   if (totalAward > 0) {
     p.balance += totalAward;
+    logTransaction(socket, `+${totalAward} from Property Income`, totalAward);
     p.propertyClaims = updatedClaims;  // Save updated per-property claims
     await docRef.set(p);
     socket.emit('update-stats', p);

@@ -203,6 +203,8 @@ async function handleKillAttempt(db, socket, data, deps) {
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }
 
+    logTransaction(socket, `+${hitData.reward} Bounty Claimed`, hitData.reward);
+
     // Deduct bullets
     attacker.bullets -= data.bullets;
 

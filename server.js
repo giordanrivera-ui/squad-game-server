@@ -40,6 +40,12 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   return playerData;   // IMPORTANT: returns the updated object
 }
 
+// ==================== TRANSACTION LOGGER (NEW) ====================
+function logTransaction(socket, description, amount) {
+  if (!socket) return;
+  socket.emit('transaction-log', { description, amount });
+}
+
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
 function recalculateOverallPower(p) {
@@ -113,6 +119,7 @@ setInterval(async () => {
       if (posterDoc.exists) {
         await posterDocRef.update({ balance: admin.firestore.FieldValue.increment(hitData.reward) });  // Update using ref
         console.log(`[SERVER] Refunded $${hitData.reward} to ${hitData.posterEmail} for expired hit on ${hitData.target}`);
+        logTransaction(posterSocket, `+${hitData.reward} Refund (Expired Hit)`, hitData.reward);
 
         // NEW: Re-fetch fresh data after update
         const updatedPosterDoc = await posterDocRef.get();
@@ -437,6 +444,8 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
+
+    logTransaction(socket, amount > 0 ? `+${amount} Test Money` : `${amount} Test Money`, amount);
 
     await docRef.set(p);
     socket.emit('update-stats', p);

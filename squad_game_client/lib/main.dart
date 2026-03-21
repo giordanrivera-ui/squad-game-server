@@ -182,6 +182,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
+  List<Map<String, dynamic>> _transactionHistory = [];
+  int _lastKnownBalance = 0;
+
   String time = 'Loading...';
   bool cooldown = false;
   Timer? cooldownTimer;
@@ -209,6 +212,25 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
     _socketService.statsNotifier.addListener(() {
       setState(() {});  // Refresh if needed, but since builder uses it, optional
+    });
+    _socketService.statsNotifier.addListener(() {
+      final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+      if (currentBalance != _lastKnownBalance && _lastKnownBalance != 0) {
+        // The server now sends the exact label — we just wait for the event
+      }
+      _lastKnownBalance = currentBalance;
+    });
+
+    SocketService.mainTransactionNotifier.addListener(() {
+      final data = SocketService.mainTransactionNotifier.value;
+      if (data.isNotEmpty) {
+        _addTransaction(
+          data['description'] as String,
+          data['amount'] as int,
+        );
+        // Clear it so we don't process the same transaction twice
+        SocketService.mainTransactionNotifier.value = {};
+      }
     });
 
     // NEW: Start global per-second income checker (only if owned props)
@@ -605,23 +627,78 @@ Widget _buildDashboard() {
           )
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,
-            constraints: BoxConstraints(
-              minHeight: 140,           // ← slightly taller as requested
-            ),
+            constraints: BoxConstraints(minHeight: 140),
             decoration: BoxDecoration(
-              color: Colors.grey[800],  // ← different color (dark slate)
-              borderRadius: BorderRadius.circular(20)
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(20),
             ),
             padding: const EdgeInsets.all(16),
-      
-            child: Text(
-              'Overall Power: ${stats['overallPower'] ?? 0}',
-              style: const TextStyle(fontSize: 20, color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Transaction History',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 95, // Scrollable area inside the box
+                  child: _transactionHistory.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No transactions yet',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _transactionHistory.length,
+                          itemBuilder: (context, index) {
+                            final tx = _transactionHistory[index];
+                            final amount = tx['amount'] as int;
+                            final isPositive = amount > 0;
+                            final desc = tx['description'] as String;
+                            final balanceAfter = tx['balanceAfter'] as int;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    isPositive ? '+$amount' : '$amount',
+                                    style: TextStyle(
+                                      color: isPositive ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      desc,
+                                      style: const TextStyle(fontSize: 13, color: Colors.white70),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    '→ \$$balanceAfter',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          )
+          ),
         ),
         Expanded(
           child: ListView.builder(
@@ -715,6 +792,22 @@ Widget _buildDashboard() {
     },
   );
 }
+
+  void _addTransaction(String description, int amount) {
+    final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+
+    _transactionHistory.insert(0, {
+      'description': description,
+      'amount': amount,
+      'balanceAfter': currentBalance,
+    });
+
+    if (_transactionHistory.length > 25) {
+      _transactionHistory.removeLast();
+    }
+
+    setState(() {});
+  }
 
   void _showNewMessageDialog(BuildContext context) {
     final toController = TextEditingController();
