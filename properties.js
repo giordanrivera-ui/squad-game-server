@@ -69,7 +69,8 @@ function logTransaction(socket, amount, description) {
   const tx = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    balanceAfter: null   // will be filled by caller below
   };
   socket.emit('new-transaction', tx);
   console.log(`[TX] ${description} | $${amount}`);
@@ -201,6 +202,12 @@ async function handleBuyProperty(db, socket, propertyName) {
   const now = Date.now();
   p.balance -= prop.cost;
   logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`);
+  socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
   p.ownedProperties = [...owned, propertyName];
   p.propertyClaims = [...(p.propertyClaims || []), {name: propertyName, lastClaim: now}];  // Add per-property entry
@@ -236,6 +243,12 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
 
   p.balance -= cost;
   logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`);
+  socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
   if (!p.ownedUpgrades) p.ownedUpgrades = {};
   if (!p.ownedUpgrades[propertyName]) p.ownedUpgrades[propertyName] = [];
@@ -300,6 +313,12 @@ async function handleClaimIncome(db, socket) {
   if (totalAward > 0) {
     p.balance += totalAward;
     logTransaction(socket, totalAward, 'Property Income');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
     p.propertyClaims = updatedClaims;  // Save updated per-property claims
     await docRef.set(p);
     socket.emit('update-stats', p);

@@ -10,7 +10,8 @@ function logTransaction(socket, amount, description) {
   const tx = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    balanceAfter: null   // will be filled by caller below
   };
   socket.emit('new-transaction', tx);
   console.log(`[TX] ${description} | $${amount}`);
@@ -207,6 +208,12 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     p.balance += money;
     logTransaction(socket, money, `${operation}`);
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);

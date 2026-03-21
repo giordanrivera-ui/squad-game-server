@@ -107,9 +107,9 @@ class SocketService {
           statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
           statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
           statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-
-          loadMessages();
           loadTransactions();  // ← Loads saved history on every login
+          loadMessages();
+          
           if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
 
           print('Got locations from server: $normalLocations');
@@ -260,10 +260,18 @@ class SocketService {
         }
       });
 
-      // NEW: Listen for nice transaction labels + save permanently
+      // NEW: Improved live transaction handler (inside connect())
+      // NEW: Final reliable transaction handler
       socket?.on('new-transaction', (data) {
         if (data is Map<String, dynamic>) {
-          saveTransaction(data);  // ← Saves to Firestore
+          final txToSave = {
+            'description': data['description'] ?? 'Unknown',
+            'amount': (data['amount'] as num?)?.toInt() ?? 0,
+            'balanceAfter': (data['balanceAfter'] as num?)?.toInt() ?? 0,
+          };
+
+          _saveTransaction(txToSave);
+          _updateTransactionNotifier(txToSave);
         }
       });
 
@@ -533,7 +541,6 @@ class SocketService {
 
   Future<void> loadTransactions() async {
     if (_currentEmail == null) return;
-
     try {
       final snap = await FirebaseFirestore.instance
           .collection('players')
@@ -552,15 +559,15 @@ class SocketService {
         };
       }).toList();
 
-      transactionHistoryNotifier.value = loaded;  // Update notifier
+      transactionHistoryNotifier.value = loaded;
     } catch (e) {
       print('Error loading transactions: $e');
+      transactionHistoryNotifier.value = [];
     }
   }
 
-  Future<void> saveTransaction(Map<String, dynamic> tx) async {
+  Future<void> _saveTransaction(Map<String, dynamic> tx) async {
     if (_currentEmail == null) return;
-
     try {
       await FirebaseFirestore.instance
           .collection('players')
@@ -575,5 +582,12 @@ class SocketService {
     } catch (e) {
       print('Error saving transaction: $e');
     }
+  }
+
+  void _updateTransactionNotifier(Map<String, dynamic> tx) {
+    final newList = List<Map<String, dynamic>>.from(transactionHistoryNotifier.value);
+    newList.insert(0, tx);
+    if (newList.length > 25) newList.removeLast();
+    transactionHistoryNotifier.value = newList;
   }
 }

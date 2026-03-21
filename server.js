@@ -71,7 +71,8 @@ function logTransaction(socket, amount, description) {
   const tx = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    balanceAfter: null   // will be filled by caller below
   };
   socket.emit('new-transaction', tx);
   console.log(`[TX] ${description} | $${amount}`);
@@ -450,6 +451,12 @@ io.on('connection', (socket) => {
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
     logTransaction(socket, amount, 'Test Money Added');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -527,6 +534,12 @@ io.on('connection', (socket) => {
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
     logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`);
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
     const updatedPoster = await posterDoc.ref.get();
     socket.emit('update-stats', updatedPoster.data());
@@ -693,6 +706,12 @@ io.on('connection', (socket) => {
 
     p.balance -= cost;
     logTransaction(socket, -cost, `Travel to ${destination}`);
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
     p.location = destination;
 
     await docRef.set(p);
@@ -715,6 +734,12 @@ io.on('connection', (socket) => {
 
     p.balance -= cost;
     logTransaction(socket, -cost, 'Healing ($50)');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
     p.health = 100;
 
     await docRef.set(p);
@@ -760,6 +785,12 @@ io.on('connection', (socket) => {
     // Heal the debuff
     p.balance -= cost;
     logTransaction(socket, -cost, 'Broken Bone Healing ($110)');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
@@ -830,6 +861,12 @@ io.on('connection', (socket) => {
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
     logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -957,6 +994,12 @@ io.on('connection', (socket) => {
 
     p.balance += data.totalSellValue;
     logTransaction(socket, data.totalSellValue, 'Items Sold');
+    socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });

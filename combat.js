@@ -8,7 +8,8 @@ function logTransaction(socket, amount, description) {
   const tx = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    balanceAfter: null   // will be filled by caller below
   };
   socket.emit('new-transaction', tx);
   console.log(`[TX] ${description} | $${amount}`);
@@ -169,6 +170,12 @@ async function handleKillAttempt(db, socket, data, deps) {
   // Pay mobilizing cost
   attacker.balance -= 10000;
   logTransaction(socket, -10000, 'Mobilizing for Kill');
+  socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
 
   let success = false;
   let message = '';
@@ -213,6 +220,12 @@ async function handleKillAttempt(db, socket, data, deps) {
       const hitData = hitDoc.data();
       attacker.balance += hitData.reward;
       logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`);
+      socket.emit('new-transaction', {   // ← ADD this right after
+  amount: amount,
+  description: 'Something',
+  timestamp: Date.now(),
+  balanceAfter: p.balance   // ← the updated balance
+});
       await hitDoc.ref.update({ active: false });
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }
