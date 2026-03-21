@@ -528,7 +528,9 @@ class SocketService {
     }
   }
 
-    // ==================== TRANSACTION PERSISTENCE ====================
+    // ==================== FULL TRANSACTION PERSISTENCE (survives restarts + works across devices) ====================
+  final ValueNotifier<List<Map<String, dynamic>>> transactionHistoryNotifier = ValueNotifier([]);
+
   Future<void> loadTransactions() async {
     if (_currentEmail == null) return;
 
@@ -541,15 +543,16 @@ class SocketService {
           .limit(25)
           .get();
 
-      final loaded = snap.docs.map((doc) => {
-        'description': doc.data()['description'] ?? 'Unknown',
-        'amount': (doc.data()['amount'] as num?)?.toInt() ?? 0,
-        'balanceAfter': (doc.data()['balanceAfter'] as num?)?.toInt() ?? 0,
+      final loaded = snap.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'description': data['description'] ?? 'Unknown',
+          'amount': (data['amount'] as num?)?.toInt() ?? 0,
+          'balanceAfter': (data['balanceAfter'] as num?)?.toInt() ?? 0,
+        };
       }).toList();
 
-      // Send to main.dart so the UI updates
-      // (We use a broadcast via the same event for simplicity)
-      socket?.emit('transactions-loaded', loaded);
+      transactionHistoryNotifier.value = loaded;  // Update notifier
     } catch (e) {
       print('Error loading transactions: $e');
     }

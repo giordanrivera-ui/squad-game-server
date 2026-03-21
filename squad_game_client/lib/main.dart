@@ -222,7 +222,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Refresh if needed, but since builder uses it, optional
     });
 
-        _socketService.socket?.on('new-transaction', (data) {
+          // Live new transaction + rolling balance
+    _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
         final amount = (data['amount'] as num?)?.toInt() ?? 0;
         final newBalance = _lastKnownBalance + amount;
@@ -238,6 +239,18 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
         _lastKnownBalance = newBalance;
       }
+    });
+
+    // Load saved history from Firestore on startup/reconnect
+    _socketService.transactionHistoryNotifier.addListener(() {
+      setState(() {
+        _transactionHistory = List<Map<String, dynamic>>.from(_socketService.transactionHistoryNotifier.value);
+        if (_transactionHistory.isNotEmpty) {
+          _lastKnownBalance = _transactionHistory.first['balanceAfter'] ?? 0;
+        } else {
+          _lastKnownBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+        }
+      });
     });
 
     // NEW: Load saved transactions from Firestore on startup
