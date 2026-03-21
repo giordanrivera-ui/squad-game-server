@@ -65,6 +65,18 @@ function removeFromOnlineList(displayName) {
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
+// ==================== NEW: TRANSACTION LOGGER (this sends nice labels) ====================
+function logTransaction(socket, amount, description) {
+  if (!socket || typeof amount !== 'number') return;
+  const tx = {
+    amount: amount,
+    description: description,
+    timestamp: Date.now()
+  };
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
+}
+
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
 // Runs every second and removes anyone whose time is up.
 // This keeps the global list clean and enables future rescue mechanics.
@@ -678,6 +690,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
+    logTransaction(socket, -cost, `Travel to ${destination}`);
     p.location = destination;
 
     await docRef.set(p);
@@ -699,6 +712,7 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
+    logTransaction(socket, -cost, 'Healing ($50)');
     p.health = 100;
 
     await docRef.set(p);
@@ -743,6 +757,7 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
+    logTransaction(socket, -cost, 'Broken Bone Healing ($110)');
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
@@ -812,6 +827,7 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
+    logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)');
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -938,6 +954,7 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
+    logTransaction(socket, data.totalSellValue, 'Items Sold');p.balance += data.totalSellValue;
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });

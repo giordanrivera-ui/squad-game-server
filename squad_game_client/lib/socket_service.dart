@@ -259,6 +259,14 @@ void connect(String email, String displayName) {
       }
     });
 
+    // NEW: Listen for nice transaction labels
+    socket?.on('new-transaction', (data) {
+      if (data is Map<String, dynamic>) {
+        // We will send it to main.dart in the next step
+        // (this just makes sure the message arrives)
+      }
+    });
+
     socket?.onReconnect((_) {
       print('🔄 Reconnected to server!');
       // Re-register on reconnect to ensure online list updates
