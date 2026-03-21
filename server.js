@@ -53,16 +53,6 @@ function recalculateOverallPower(p) {
   return p;
 }
 
-// ==================== TRANSACTION HISTORY HELPER (for dashboard) ====================
-// ==================== SAFE TRANSACTION HELPER ====================
-function recordTransaction(socket, description, amount) {
-  if (!socket || typeof amount !== 'number') return;
-  socket.emit('transaction-update', { 
-    description: description, 
-    amount: amount 
-  });
-}
-
 // ==================== ONLINE LIST HELPER (NEW) ====================
 function removeFromOnlineList(displayName) {
   if (!displayName) return;
@@ -688,7 +678,6 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-     recordTransaction(socket, `Travel to ${destination}`, -cost);
     p.location = destination;
 
     await docRef.set(p);
@@ -710,7 +699,6 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    recordTransaction(socket, 'Hospital healing', -cost);
     p.health = 100;
 
     await docRef.set(p);
@@ -755,7 +743,6 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
-    recordTransaction(socket, 'Broken bone healing', -cost);
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
@@ -825,7 +812,6 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
-    recordTransaction(socket, 'Purchased items', -data.totalCost || -prop.cost || -cost);
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -952,7 +938,6 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
-    recordTransaction(socket, 'Selling inventory items', data.totalSellValue);
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });

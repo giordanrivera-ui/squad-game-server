@@ -182,7 +182,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
-  List<Map<String, dynamic>> _transactionHistory = [];
+    List<Map<String, dynamic>> _transactionHistory = [];
   int _lastKnownBalance = 0;
 
   String time = 'Loading...';
@@ -215,13 +215,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
 
     // Transaction history listener
-    _socketService.transactionNotifier.addListener(() {
-    final tx = _socketService.transactionNotifier.value;
-    if (tx != null) {
-      _addTransaction(tx['description'] ?? 'Transaction', tx['amount'] ?? 0);
-      _socketService.transactionNotifier.value = null; // clear
-    }
-  });
+    _socketService.statsNotifier.addListener(() {
+      final currentBalance = _socketService.statsNotifier.value['balance'] ?? 0;
+      if (currentBalance != _lastKnownBalance && _lastKnownBalance != 0) {
+        final diff = currentBalance - _lastKnownBalance;
+        _addTransaction('Balance updated', diff); // Will be improved with specific labels later
+      }
+      _lastKnownBalance = currentBalance;
+    });
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -616,7 +617,6 @@ Widget _buildDashboard() {
             style: const TextStyle(fontSize: 20, color: Colors.green)),
           )
         ),
-        // ==================== TRANSACTION HISTORY (new rectangle) ====================
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
@@ -630,30 +630,57 @@ Widget _buildDashboard() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Transaction History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                const Text(
+                  'Transaction History',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 95,
+                  height: 95, // Scrollable area inside the box
                   child: _transactionHistory.isEmpty
-                      ? const Center(child: Text('No transactions yet', style: TextStyle(color: Colors.grey)))
+                      ? const Center(
+                          child: Text(
+                            'No transactions yet',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
                       : ListView.builder(
                           itemCount: _transactionHistory.length,
                           itemBuilder: (context, index) {
                             final tx = _transactionHistory[index];
                             final amount = tx['amount'] as int;
                             final isPositive = amount > 0;
+                            final desc = tx['description'] as String;
+                            final balanceAfter = tx['balanceAfter'] as int;
+
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              padding: const EdgeInsets.symmetric(vertical: 2),
                               child: Row(
                                 children: [
-                                  Text(isPositive ? '+$amount' : '$amount',
-                                      style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontSize: 13)),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(tx['description'] as String,
-                                        style: const TextStyle(fontSize: 13, color: Colors.white70), overflow: TextOverflow.ellipsis),
+                                  Text(
+                                    isPositive ? '+$amount' : '$amount',
+                                    style: TextStyle(
+                                      color: isPositive ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
                                   ),
-                                  Text('→ \$${tx['balanceAfter']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      desc,
+                                      style: const TextStyle(fontSize: 13, color: Colors.white70),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Text(
+                                    '→ \$$balanceAfter',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
                                 ],
                               ),
                             );
@@ -692,7 +719,6 @@ Widget _buildDashboard() {
                 child: ElevatedButton(
                   onPressed: () {
                     SocketService().addTestMoney(200);
-                    _addTransaction('Test money (\$200)', 200);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Test: +\$200')),
                     );
@@ -705,7 +731,6 @@ Widget _buildDashboard() {
                 child: ElevatedButton(
                   onPressed: () {
                     SocketService().addTestMoney(500000);
-                    _addTransaction('Test money (\$500000)', 500000);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Test: +\$500,000')),
                     );
@@ -768,9 +793,11 @@ Widget _buildDashboard() {
       'balanceAfter': currentBalance,
     });
 
+    // Keep only last 25
     if (_transactionHistory.length > 25) {
       _transactionHistory.removeLast();
     }
+
     setState(() {});
   }
 

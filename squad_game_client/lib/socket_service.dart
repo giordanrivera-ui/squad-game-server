@@ -37,9 +37,6 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
 
-    // Transaction history (specific labels for all 19 types)
-  final ValueNotifier<Map<String, dynamic>?> transactionNotifier = ValueNotifier(null);
-
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
     if (exp <= 514) return 'Thug';
@@ -259,13 +256,6 @@ void connect(String email, String displayName) {
           'target': data['target'] ?? '',
           'reward': data['reward'] ?? 0
         };
-      }
-    });
-
-    // NEW: Transaction history with specific labels
-    socket?.on('transaction-update', (data) {
-      if (data is Map<String, dynamic>) {
-        transactionNotifier.value = data;
       }
     });
 
