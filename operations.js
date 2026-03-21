@@ -374,22 +374,32 @@ async function handleExecuteOperation(db, socket, data, deps) {
       console.log(`[SERVER] ${p.displayName} broke a bone during ${operation}`);
     }
 
-    // ==================== SET COOLDOWN WITH 10-SECOND BROKEN BONE PENALTY ====================
-        // ==================== SEPARATE BROKEN BONE PENALTY (exactly as requested) ====================
+    // ==================== PER-LEVEL BROKEN BONE PENALTY (exactly as requested) ====================
     const now = Date.now();
 
-    // NEW: Normal cooldown starts ONLY when bone penalty ends (Skill reduction preserved)
-    const normalCooldownStartTime = p.hasBrokenBone ? (now + 10000) : now;
+    // Normal cooldown for this level starts ONLY after its own bone penalty ends
+    let normalCooldownStartTime = now;
 
+    if (p.hasBrokenBone) {
+      if (lowLevelOps.includes(operation)) {
+        p.bonePenaltyEndTimeLow = now + 10000;
+        normalCooldownStartTime = now + 10000;
+        message += " ⏳ Low-level ops locked for 10s (bone recovery).";
+      } else if (midLevelOps.includes(operation)) {
+        p.bonePenaltyEndTimeMid = now + 10000;
+        normalCooldownStartTime = now + 10000;
+        message += " ⏳ Mid-level ops locked for 10s (bone recovery).";
+      } else if (isHighLevel) {
+        p.bonePenaltyEndTimeHigh = now + 10000;
+        normalCooldownStartTime = now + 10000;
+        message += " ⏳ High-level ops locked for 10s (bone recovery).";
+      }
+    }
+
+    // Apply the (possibly delayed) normal cooldown start time
     if (lowLevelOps.includes(operation)) p.lastLowLevelOp = normalCooldownStartTime;
     else if (midLevelOps.includes(operation)) p.lastMidLevelOp = normalCooldownStartTime;
     else if (highLevelOps.includes(operation)) p.lastHighLevelOp = normalCooldownStartTime;
-
-    // Broken bone has its own independent 10-second timer
-    if (p.hasBrokenBone) {
-      p.bonePenaltyEndTime = now + 10000;
-      message += " ⏳ Broken bone recovery (10s) started. Normal cooldown begins afterwards.";
-    }
   }
 
   await docRef.set(p);

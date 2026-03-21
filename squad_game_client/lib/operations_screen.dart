@@ -253,7 +253,11 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _lowRemaining = 0.0;
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
-  double _boneRemaining = 0.0;   // NEW: separate broken bone timer
+
+  // NEW: per-level bone penalty timers
+  double _boneLow = 0.0;
+  double _boneMid = 0.0;
+  double _boneHigh = 0.0;
 
   Timer? _timer;
 
@@ -270,20 +274,37 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final now = SocketService().currentServerTime;
     final skill = widget.skill;
     final reduction = skill * 0.5;
+    final stats = SocketService().statsNotifier.value;
 
-    // NEW: Broken bone penalty timer (fixed 10s, no skill reduction)
-    final boneEnd = SocketService().statsNotifier.value['bonePenaltyEndTime'] ?? 0;
-    _boneRemaining = boneEnd > now ? ((boneEnd - now) / 1000).clamp(0.0, 10.0) : 0.0;
+    // Per-level bone timers
+    _boneLow = (stats['bonePenaltyEndTimeLow'] ?? 0) > now
+        ? (((stats['bonePenaltyEndTimeLow'] ?? 0) - now) / 1000).clamp(0.0, 10.0)
+        : 0.0;
+    _boneMid = (stats['bonePenaltyEndTimeMid'] ?? 0) > now
+        ? (((stats['bonePenaltyEndTimeMid'] ?? 0) - now) / 1000).clamp(0.0, 10.0)
+        : 0.0;
+    _boneHigh = (stats['bonePenaltyEndTimeHigh'] ?? 0) > now
+        ? (((stats['bonePenaltyEndTimeHigh'] ?? 0) - now) / 1000).clamp(0.0, 10.0)
+        : 0.0;
 
-    if (_boneRemaining > 0.1) {
-      // Normal timers are frozen at the skill-reduced value while bone penalty is active
-      _lowRemaining = (60 - reduction).clamp(0.0, 60.0);
+    // Low level
+    if (_boneLow > 0.1) {
+      _lowRemaining = (60 - reduction).clamp(0.0, 60.0); // frozen
+    } else {
+      _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, 60.0);
+    }
+
+    // Mid level
+    if (_boneMid > 0.1) {
       _midRemaining = (72 - reduction).clamp(0.0, 72.0);
+    } else {
+      _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, 72.0);
+    }
+
+    // High level
+    if (_boneHigh > 0.1) {
       _highRemaining = (80 - reduction).clamp(0.0, 80.0);
     } else {
-      // Normal countdown (Skill reduction already applied)
-      _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, 60.0);
-      _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, 72.0);
       _highRemaining = ((80000 - (now - widget.lastHighLevelOp)) / 1000 - reduction).clamp(0.0, 80.0);
     }
   }
@@ -305,21 +326,13 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // NEW: Prominent broken bone recovery banner
-          if (_boneRemaining > 0.1)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.orange[900],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '🦴 Broken Bone Recovery: ${_boneRemaining.toStringAsFixed(1)} s\nNormal cooldown is frozen until this ends.',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-            ),
+          // Per-level bone recovery banners
+          if (_boneLow > 0.1)
+            _buildBoneBanner('Low-level ops locked for ${_boneLow.toStringAsFixed(1)} s (bone recovery)'),
+          if (_boneMid > 0.1)
+            _buildBoneBanner('Mid-level ops locked for ${_boneMid.toStringAsFixed(1)} s (bone recovery)'),
+          if (_boneHigh > 0.1)
+            _buildBoneBanner('High-level ops locked for ${_boneHigh.toStringAsFixed(1)} s (bone recovery)'),
 
           const Text('Select Operation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
@@ -327,6 +340,22 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
           _buildGroup('Medium Level', midLevelOps, _midRemaining),
           _buildGroup('High Level', highLevelOps, _highRemaining),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBoneBanner(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange[900],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+        textAlign: TextAlign.center,
       ),
     );
   }
