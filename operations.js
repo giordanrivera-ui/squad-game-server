@@ -1,3 +1,5 @@
+const admin = require('firebase-admin');
+
 const { markPlayerAsDead } = require('./combat.js');
 
 const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];

@@ -653,7 +653,7 @@ Widget _buildDashboard() {
             style: const TextStyle(fontSize: 20, color: Colors.green)),
           )
         ),
-                Padding(
+        Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,

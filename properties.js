@@ -1,4 +1,4 @@
-// properties.js (updated)
+const admin = require('firebase-admin');
 
 const properties = [
   {
