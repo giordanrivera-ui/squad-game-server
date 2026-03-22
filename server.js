@@ -793,8 +793,8 @@ socket.on('respawn', async () => {
     }
 
     // Heal the debuff
-    p.balance -= cost;
     await logTransaction(socket, -cost, 'Broken Bone Healing ($110)', p, docRef);   // p = playerData, docRef = the Firestore reference
+    p.balance -= cost;
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;

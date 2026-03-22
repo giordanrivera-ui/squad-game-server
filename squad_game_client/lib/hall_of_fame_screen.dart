@@ -11,26 +11,16 @@ class HallOfFameScreen extends StatefulWidget {
 
 class _HallOfFameScreenState extends State<HallOfFameScreen> {
   Future<List<Map<String, dynamic>>> _loadAllTimeRichest() async {
-    // 1. Live players (only those with a displayName and not dead)
-    final liveSnapshot = await FirebaseFirestore.instance
-        .collection('players')
-        .where('displayName', isNotEqualTo: null)
-        .where('dead', isEqualTo: false)
-        .orderBy('balance', descending: true)
-        .limit(10)
-        .get();
-
-    // 2. Dead profiles (final wealth snapshot)
-    final deadSnapshot = await FirebaseFirestore.instance
-        .collection('deadProfiles')
-        .orderBy('balance', descending: true)
-        .limit(10)
-        .get();
-
-    // Combine both into one list
     final List<Map<String, dynamic>> allPlayers = [];
 
     // Live players
+    final liveSnapshot = await FirebaseFirestore.instance
+        .collection('players')
+        .where('displayName', isNotEqualTo: null)
+        .orderBy('balance', descending: true)
+        .limit(10)
+        .get();
+
     for (var doc in liveSnapshot.docs) {
       final data = doc.data();
       allPlayers.add({
@@ -40,7 +30,13 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
       });
     }
 
-    // Dead players
+    // Dead profiles (final wealth)
+    final deadSnapshot = await FirebaseFirestore.instance
+        .collection('deadProfiles')
+        .orderBy('balance', descending: true)
+        .limit(10)
+        .get();
+
     for (var doc in deadSnapshot.docs) {
       final data = doc.data();
       allPlayers.add({
@@ -50,13 +46,11 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
       });
     }
 
-    // Sort by balance descending (richest first)
+    // Sort by wealth (richest first)
     allPlayers.sort((a, b) => (b['balance'] as int).compareTo(a['balance'] as int));
 
     // Take top 5
     final top5 = allPlayers.take(5).toList();
-
-    // Pad to exactly 5 rows
     while (top5.length < 5) {
       top5.add({'name': '—', 'balance': 0, 'isDead': false});
     }
@@ -93,7 +87,30 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(child: Text('Error loading Hall of Fame'));
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Hall of Fame requires a Firestore index',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Please click the link in the terminal and create the index.\nIt only takes 1–2 minutes.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 15),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton(
+                            onPressed: () => setState(() {}), // retry
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   final topPlayers = snapshot.data ?? [];
@@ -103,12 +120,8 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
                     child: DataTable(
                       headingRowColor: WidgetStateProperty.all(Colors.orange.shade50),
                       columns: const [
-                        DataColumn(
-                          label: Text('Rank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ),
-                        DataColumn(
-                          label: Text('Player', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ),
+                        DataColumn(label: Text('Rank', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                        DataColumn(label: Text('Player', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
                       ],
                       rows: List.generate(5, (index) {
                         final player = topPlayers[index];
@@ -118,22 +131,15 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
 
                         return DataRow(
                           cells: [
-                            DataCell(
-                              Text(
-                                '${index + 1}',
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            DataCell(Text('${index + 1}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                            DataCell(Text(
+                              displayName,
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: isDead ? Colors.red[700] : Colors.black,
+                                fontStyle: isDead ? FontStyle.italic : FontStyle.normal,
                               ),
-                            ),
-                            DataCell(
-                              Text(
-                                displayName,
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: isDead ? Colors.red[700] : Colors.black,
-                                  fontStyle: isDead ? FontStyle.italic : FontStyle.normal,
-                                ),
-                              ),
-                            ),
+                            )),
                           ],
                         );
                       }),
