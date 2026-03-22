@@ -182,9 +182,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   List<String> onlinePlayers = [];
   TextEditingController _controller = TextEditingController();
 
-  List<Map<String, dynamic>> _transactionHistory = [];
-  int _lastKnownBalance = 0;
-
   String time = 'Loading...';
   bool cooldown = false;
   Timer? cooldownTimer;
@@ -212,39 +209,31 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
-    _socketService.statsNotifier.addListener(() {
-      final balance = _socketService.statsNotifier.value['balance'] ?? 0;
-      _lastKnownBalance = balance;
-
-      // NEW: If the latest history entry doesn't match the real balance, correct it
-      if (_transactionHistory.isNotEmpty) {
-        final latestInHistory = _transactionHistory[0]['balanceAfter'] as int? ?? 0;
-        if (latestInHistory != balance) {
-          _transactionHistory[0]['balanceAfter'] = balance;  // Force correction
-        }
-      }
-      setState(() {});
+        _socketService.statsNotifier.addListener(() {
+      setState(() {});  // Just refresh the UI when stats update
     });
 
-    // NEW: Trust the server's balanceAfter completely (no more local rolling calc)
+        // NEW: Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
         final amount = (data['amount'] as num?)?.toInt() ?? 0;
         final serverBalanceAfter = (data['balanceAfter'] as num?)?.toInt() ?? 0;
 
-        setState(() {
-          _transactionHistory.insert(0, {
-            'description': data['description'] ?? 'Unknown',
-            'amount': amount,
-            'balanceAfter': serverBalanceAfter,   // ← Use server's value
-          });
-          if (_transactionHistory.length > 25) _transactionHistory.removeLast();
+        final currentList = List<Map<String, dynamic>>.from(_socketService.transactionHistoryNotifier.value);
+
+        currentList.insert(0, {
+          'description': data['description'] ?? 'Unknown',
+          'amount': amount,
+          'balanceAfter': serverBalanceAfter,
         });
 
-        // Sync our local tracker to the server truth
-        _lastKnownBalance = serverBalanceAfter;
+        if (currentList.length > 25) {
+          currentList.removeLast();
+        }
+
+        _socketService.transactionHistoryNotifier.value = currentList;
       }
-    }); 
+    });
 
     // NEW: Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {

@@ -479,8 +479,10 @@ socket.on('respawn', async () => {
     if (!doc.exists) return;
 
     let p = doc.data();
-    p.balance = (p.balance || 0) + amount;
+
     await logTransaction(socket, amount, 'Test Money Added', p, docRef);   // p = playerData, docRef = the Firestore reference
+
+    p.balance = (p.balance || 0) + amount;
 
     await docRef.set(p);
     socket.emit('update-stats', p);
