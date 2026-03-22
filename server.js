@@ -353,95 +353,106 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-  // ==================== RESPAWN HANDLER ====================
-  socket.on('respawn', async () => {
-    const email = socket.data.email;
-    if (!email) return;
+// ==================== RESPAWN HANDLER ====================
+socket.on('respawn', async () => {
+  const email = socket.data.email;
+  if (!email) return;
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
 
-    let p = doc.data();
+  let p = doc.data();
 
-    if (p.dead) {
-      const oldName = p.displayName;
-      if (oldName) {
-        // NEW: Save dead profile snapshot BEFORE reset
-        const deadProfile = {
-          displayName: oldName,
-          displayNameLower: oldName.toLowerCase(),
-          experience: p.experience || 0,  // For rank
-          balance: p.balance || 0,        // For wealth title
-          headwear: p.headwear || null,
-          armor: p.armor || null,
-          footwear: p.footwear || null,
-          weapon: p.weapon || null,
-          overallPower: p.overallPower || 0,
-          deathTime: admin.firestore.FieldValue.serverTimestamp(),  // When they died
-          originalEmail: email  // Optional: Track owner
-        };
-        await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
-        console.log(`[SERVER] Saved dead profile for ${oldName}`);
-
-        // Add old name to usedNames
-        await db.collection('usedNames').doc(oldName.toLowerCase()).set({
-          name: oldName,
-          taken: true,
-          originalEmail: email,
-          takenAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-      }
-
-      // Reset stats to defaults
-      const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
-      p = {
-        ...p,
-        balance: 0,
-        health: 100,
-        bullets: 0,
-        lastRob: 0,
-        displayName: null,
-        displayNameLower: null,
-        location: randomLocation,
-        experience: 0,
-        intelligence: 0,
-        skill: 0,
-        marksmanship: 0,
-        stealth: 0,
-        defense: 0,
-        kills: 0,
-        photoURL: '',
-        inventory: [],
-        headwear: null,
-        armor: null,
-        footwear: null,
-        overallPower: 0,
-        weapon: null,
-        lastLowLevelOp: 0,
-        lastMidLevelOp: 0,
-        lastHighLevelOp: 0,
-        sellBanEndTime: 0,
-        prisonEndTime: 0,
-        ownedProperties: [],
-        lastIncomeClaim: Date.now(),
-        propertyClaims: [],
-        showArmor: true,
-        showWeapon: true,
-        hasBrokenBone: false,
-        bonePenaltyEndTimeLow: 0,
-        bonePenaltyEndTimeMid: 0,
-        bonePenaltyEndTimeHigh: 0,
-        dead: false,
-        ownedUpgrades: {},
-        unallocatedAttributePoints: 0,
+  if (p.dead) {
+    const oldName = p.displayName;
+    if (oldName) {
+      // Save dead profile snapshot BEFORE reset
+      const deadProfile = {
+        displayName: oldName,
+        displayNameLower: oldName.toLowerCase(),
+        experience: p.experience || 0,
+        balance: p.balance || 0,
+        headwear: p.headwear || null,
+        armor: p.armor || null,
+        footwear: p.footwear || null,
+        weapon: p.weapon || null,
+        overallPower: p.overallPower || 0,
+        deathTime: admin.firestore.FieldValue.serverTimestamp(),
+        originalEmail: email
       };
+      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
+      console.log(`[SERVER] Saved dead profile for ${oldName}`);
 
-      await docRef.set(p);
-      socket.emit('update-stats', p);
-      console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
+      // Add old name to usedNames
+      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
+        name: oldName,
+        taken: true,
+        originalEmail: email,
+        takenAt: admin.firestore.FieldValue.serverTimestamp()
+      });
     }
-  });
+
+    // === NEW: COMPLETELY WIPE TRANSACTION HISTORY ===
+    const txSnapshot = await docRef.collection('transactions').get();
+    if (!txSnapshot.empty) {
+      const batch = db.batch();
+      txSnapshot.docs.forEach((txDoc) => {
+        batch.delete(txDoc.ref);
+      });
+      await batch.commit();
+      console.log(`[SERVER] Respawned ${email} - wiped ${txSnapshot.size} old transactions (new life = clean slate)`);
+    }
+
+    // Reset stats to defaults
+    const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
+    p = {
+      ...p,
+      balance: 0,
+      health: 100,
+      bullets: 0,
+      lastRob: 0,
+      displayName: null,
+      displayNameLower: null,
+      location: randomLocation,
+      experience: 0,
+      intelligence: 0,
+      skill: 0,
+      marksmanship: 0,
+      stealth: 0,
+      defense: 0,
+      kills: 0,
+      photoURL: '',
+      inventory: [],
+      headwear: null,
+      armor: null,
+      footwear: null,
+      overallPower: 0,
+      weapon: null,
+      lastLowLevelOp: 0,
+      lastMidLevelOp: 0,
+      lastHighLevelOp: 0,
+      sellBanEndTime: 0,
+      prisonEndTime: 0,
+      ownedProperties: [],
+      lastIncomeClaim: Date.now(),
+      propertyClaims: [],
+      showArmor: true,
+      showWeapon: true,
+      hasBrokenBone: false,
+      bonePenaltyEndTimeLow: 0,
+      bonePenaltyEndTimeMid: 0,
+      bonePenaltyEndTimeHigh: 0,
+      dead: false,
+      ownedUpgrades: {},
+      unallocatedAttributePoints: 0,
+    };
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+    console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
+  }
+});
 
   // ==================== TEST BUTTONS ====================
   socket.on('add-test-exp', async (amount) => {

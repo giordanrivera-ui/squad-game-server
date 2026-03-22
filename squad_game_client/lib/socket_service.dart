@@ -525,7 +525,10 @@ class SocketService {
   final ValueNotifier<List<Map<String, dynamic>>> transactionHistoryNotifier = ValueNotifier([]);
 
   Future<void> loadTransactions() async {
-    if (_currentEmail == null) return;
+    if (_currentEmail == null) {
+      print('DEBUG: loadTransactions skipped — no email');
+      return;
+    }
 
     try {
       final snap = await FirebaseFirestore.instance
@@ -545,9 +548,13 @@ class SocketService {
         };
       }).toList();
 
-      transactionHistoryNotifier.value = loaded;  // Update notifier
+      transactionHistoryNotifier.value = loaded;
+
+      print('DEBUG: Loaded ${loaded.length} transactions for $_currentEmail');
     } catch (e) {
-      print('Error loading transactions: $e');
+      print('ERROR loading transactions: $e');
+      // Optional: show a snackbar once
+      // You can add a notifier for this if you want UI feedback
     }
   }
 
