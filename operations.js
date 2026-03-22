@@ -4,16 +4,36 @@ const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Lo
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
-// ==================== TRANSACTION LOGGER (needed in this file) ====================
-function logTransaction(socket, amount, description) {
-  if (!socket || typeof amount !== 'number') return;
-  const tx = {
+// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
+async function logTransaction(socket, amount, description, playerData, docRef) {
+  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
+    console.warn('[TX] Invalid logTransaction call - missing params');
+    return;
+  }
+
+  const newBalance = (playerData.balance || 0) + amount;
+
+  const txData = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    balanceAfter: Math.round(newBalance),
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  // Live update to client (for immediate UI)
+  socket.emit('new-transaction', {
+    amount: amount,
+    description: description,
+    balanceAfter: Math.round(newBalance)
+  });
+
+  // Permanent storage on server (always succeeds, uses admin SDK)
+  try {
+    await docRef.collection('transactions').add(txData);
+    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
+  } catch (err) {
+    console.error('[TX ERROR] Failed to save transaction:', err);
+  }
 }
 
 async function handleExecuteOperation(db, socket, data, deps) {
@@ -206,7 +226,8 @@ async function handleExecuteOperation(db, socket, data, deps) {
     const actualDamage = Math.max(0, rawDamage - totalDefense);
 
     p.balance += money;
-    logTransaction(socket, money, `${operation}`);
+    await logTransaction(socket, money, `${operation}`, p, docRef);   // p = playerData, docRef = the Firestore reference
+
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);

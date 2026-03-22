@@ -2,16 +2,36 @@
 
 const admin = require('firebase-admin');
 
-// ==================== TRANSACTION LOGGER (needed in this file) ====================
-function logTransaction(socket, amount, description) {
-  if (!socket || typeof amount !== 'number') return;
-  const tx = {
+// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
+async function logTransaction(socket, amount, description, playerData, docRef) {
+  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
+    console.warn('[TX] Invalid logTransaction call - missing params');
+    return;
+  }
+
+  const newBalance = (playerData.balance || 0) + amount;
+
+  const txData = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    balanceAfter: Math.round(newBalance),
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  // Live update to client (for immediate UI)
+  socket.emit('new-transaction', {
+    amount: amount,
+    description: description,
+    balanceAfter: Math.round(newBalance)
+  });
+
+  // Permanent storage on server (always succeeds, uses admin SDK)
+  try {
+    await docRef.collection('transactions').add(txData);
+    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
+  } catch (err) {
+    console.error('[TX ERROR] Failed to save transaction:', err);
+  }
 }
 
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
@@ -168,7 +188,8 @@ async function handleKillAttempt(db, socket, data, deps) {
 
   // Pay mobilizing cost
   attacker.balance -= 10000;
-  logTransaction(socket, -10000, 'Mobilizing for Kill');
+  await logTransaction(socket, -10000, 'Mobilizing for Kill', p, docRef);   // p = playerData, docRef = the Firestore reference
+
 
   let success = false;
   let message = '';
@@ -212,7 +233,7 @@ async function handleKillAttempt(db, socket, data, deps) {
       const hitDoc = hitQuery.docs[0];
       const hitData = hitDoc.data();
       attacker.balance += hitData.reward;
-      logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`);
+      await logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`, p, docRef);   // p = playerData, docRef = the Firestore reference
       await hitDoc.ref.update({ active: false });
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }

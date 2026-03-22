@@ -260,13 +260,6 @@ class SocketService {
         }
       });
 
-      // NEW: Listen for nice transaction labels + save permanently
-      socket?.on('new-transaction', (data) {
-        if (data is Map<String, dynamic>) {
-          saveTransaction(data);  // ← Saves to Firestore
-        }
-      });
-
       socket?.onReconnect((_) {
         print('🔄 Reconnected to server!');
         // Re-register on reconnect to ensure online list updates

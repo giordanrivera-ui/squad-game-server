@@ -63,16 +63,36 @@ const properties = [
   }
 ];
 
-// ==================== TRANSACTION LOGGER (needed in this file) ====================
-function logTransaction(socket, amount, description) {
-  if (!socket || typeof amount !== 'number') return;
-  const tx = {
+// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
+async function logTransaction(socket, amount, description, playerData, docRef) {
+  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
+    console.warn('[TX] Invalid logTransaction call - missing params');
+    return;
+  }
+
+  const newBalance = (playerData.balance || 0) + amount;
+
+  const txData = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    balanceAfter: Math.round(newBalance),
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  // Live update to client (for immediate UI)
+  socket.emit('new-transaction', {
+    amount: amount,
+    description: description,
+    balanceAfter: Math.round(newBalance)
+  });
+
+  // Permanent storage on server (always succeeds, uses admin SDK)
+  try {
+    await docRef.collection('transactions').add(txData);
+    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
+  } catch (err) {
+    console.error('[TX ERROR] Failed to save transaction:', err);
+  }
 }
 
 const upgradeCosts = {
@@ -200,7 +220,7 @@ async function handleBuyProperty(db, socket, propertyName) {
 
   const now = Date.now();
   p.balance -= prop.cost;
-  logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`);
+  await logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
 
   p.ownedProperties = [...owned, propertyName];
   p.propertyClaims = [...(p.propertyClaims || []), {name: propertyName, lastClaim: now}];  // Add per-property entry
@@ -235,7 +255,7 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
   if (p.balance < cost) return;
 
   p.balance -= cost;
-  logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`);
+  await logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
 
   if (!p.ownedUpgrades) p.ownedUpgrades = {};
   if (!p.ownedUpgrades[propertyName]) p.ownedUpgrades[propertyName] = [];
@@ -299,7 +319,7 @@ async function handleClaimIncome(db, socket) {
 
   if (totalAward > 0) {
     p.balance += totalAward;
-    logTransaction(socket, totalAward, 'Property Income');
+    await logTransaction(socket, totalAward, 'Property Income', p, docRef);   // p = playerData, docRef = the Firestore reference
     p.propertyClaims = updatedClaims;  // Save updated per-property claims
     await docRef.set(p);
     socket.emit('update-stats', p);

@@ -65,16 +65,36 @@ function removeFromOnlineList(displayName) {
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
-// ==================== NEW: TRANSACTION LOGGER (this sends nice labels) ====================
-function logTransaction(socket, amount, description) {
-  if (!socket || typeof amount !== 'number') return;
-  const tx = {
+// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
+async function logTransaction(socket, amount, description, playerData, docRef) {
+  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
+    console.warn('[TX] Invalid logTransaction call - missing params');
+    return;
+  }
+
+  const newBalance = (playerData.balance || 0) + amount;
+
+  const txData = {
     amount: amount,
     description: description,
-    timestamp: Date.now()
+    balanceAfter: Math.round(newBalance),
+    timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
-  socket.emit('new-transaction', tx);
-  console.log(`[TX] ${description} | $${amount}`);
+
+  // Live update to client (for immediate UI)
+  socket.emit('new-transaction', {
+    amount: amount,
+    description: description,
+    balanceAfter: Math.round(newBalance)
+  });
+
+  // Permanent storage on server (always succeeds, uses admin SDK)
+  try {
+    await docRef.collection('transactions').add(txData);
+    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
+  } catch (err) {
+    console.error('[TX ERROR] Failed to save transaction:', err);
+  }
 }
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
@@ -449,7 +469,7 @@ io.on('connection', (socket) => {
 
     let p = doc.data();
     p.balance = (p.balance || 0) + amount;
-    logTransaction(socket, amount, 'Test Money Added');
+    await logTransaction(socket, amount, 'Test Money Added', p, docRef);   // p = playerData, docRef = the Firestore reference
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -526,7 +546,7 @@ io.on('connection', (socket) => {
 
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-    logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`);
+    await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, p, docRef);   // p = playerData, docRef = the Firestore reference
 
     const updatedPoster = await posterDoc.ref.get();
     socket.emit('update-stats', updatedPoster.data());
@@ -692,7 +712,8 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    logTransaction(socket, -cost, `Travel to ${destination}`);
+    await logTransaction(socket, -cost, `Travel to ${destination}`, p, docRef);
+
     p.location = destination;
 
     await docRef.set(p);
@@ -714,7 +735,8 @@ io.on('connection', (socket) => {
     if (p.balance < cost) return;
 
     p.balance -= cost;
-    logTransaction(socket, -cost, 'Healing ($50)');
+    await logTransaction(socket, -cost, 'Healing ($50)', p, docRef);
+
     p.health = 100;
 
     await docRef.set(p);
@@ -759,7 +781,7 @@ io.on('connection', (socket) => {
 
     // Heal the debuff
     p.balance -= cost;
-    logTransaction(socket, -cost, 'Broken Bone Healing ($110)');
+    await logTransaction(socket, -cost, 'Broken Bone Healing ($110)', p, docRef);   // p = playerData, docRef = the Firestore reference
     p.hasBrokenBone = false;
     p.bonePenaltyEndTimeLow = 0;
     p.bonePenaltyEndTimeMid = 0;
@@ -829,7 +851,7 @@ io.on('connection', (socket) => {
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
     p.balance -= data.totalCost;
-    logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)');
+    await logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)', p, docRef);   // p = playerData, docRef = the Firestore reference
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -956,7 +978,7 @@ io.on('connection', (socket) => {
     }
 
     p.balance += data.totalSellValue;
-    logTransaction(socket, data.totalSellValue, 'Items Sold');
+    await logTransaction(socket, data.totalSellValue, 'Items Sold', p, docRef);   // p = playerData, docRef = the Firestore reference
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
