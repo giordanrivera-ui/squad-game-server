@@ -220,6 +220,12 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _connectToServer();
 
+        // Force reliable initial load of transaction history after connection (fixes the race condition)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 500));  // Give socket + Firestore time
+      _socketService.loadTransactions();
+    });
+
     // Initialize rolling balance from the REAL bank balance when app starts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _lastKnownBalance = _socketService.statsNotifier.value['balance'] ?? 0;
@@ -233,6 +239,25 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       final balance = _socketService.statsNotifier.value['balance'] ?? 0;
       _lastKnownBalance = balance;
       setState(() {});  // Refresh if needed, but since builder uses it, optional
+    });
+
+          // Live new transaction + rolling balance
+    _socketService.socket?.on('new-transaction', (data) {
+      if (data is Map) {
+        final amount = (data['amount'] as num?)?.toInt() ?? 0;
+        final newBalance = _lastKnownBalance + amount;
+
+        setState(() {
+          _transactionHistory.insert(0, {
+            'description': data['description'] ?? 'Unknown',
+            'amount': amount,
+            'balanceAfter': newBalance,
+          });
+          if (_transactionHistory.length > 25) _transactionHistory.removeLast();
+        });
+
+        _lastKnownBalance = newBalance;
+      }
     });
 
     // NEW: Start global per-second income checker (only if owned props)

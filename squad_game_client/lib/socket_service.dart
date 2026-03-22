@@ -97,10 +97,6 @@ class SocketService {
           travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
           properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
           statsNotifier.value = Map.from(data['player'] ?? {});
-          // Load transaction history exactly like messages
-          if (data['player']?['transactionHistory'] != null) {
-            transactionHistoryNotifier.value = List<Map<String, dynamic>>.from(data['player']['transactionHistory']);
-          }
           deathNotifier.value = (data['player']?['dead'] == true);
           // NEW: Force death screen on every login/reconnect
           final bool isDeadNow = (data['player']?['dead'] == true) || (data['player']?['health'] ?? 100) <= 0;
@@ -111,9 +107,9 @@ class SocketService {
           statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
           statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
           statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-          loadTransactions();  // ← Loads saved history on every login
+
           loadMessages();
-          
+          loadTransactions();  // ← Loads saved history on every login
           if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
 
           print('Got locations from server: $normalLocations');
@@ -264,14 +260,10 @@ class SocketService {
         }
       });
 
+      // NEW: Listen for nice transaction labels + save permanently
       socket?.on('new-transaction', (data) {
         if (data is Map<String, dynamic>) {
-          final tx = {
-            'description': data['description'] ?? 'Unknown',
-            'amount': (data['amount'] as num?)?.toInt() ?? 0,
-            'balanceAfter': (data['balanceAfter'] as num?)?.toInt() ?? 0,
-          };
-          _updateTransactionNotifier(tx);
+          saveTransaction(data);  // ← Saves to Firestore
         }
       });
 
@@ -541,6 +533,7 @@ class SocketService {
 
   Future<void> loadTransactions() async {
     if (_currentEmail == null) return;
+
     try {
       final snap = await FirebaseFirestore.instance
           .collection('players')
@@ -559,15 +552,15 @@ class SocketService {
         };
       }).toList();
 
-      transactionHistoryNotifier.value = loaded;
+      transactionHistoryNotifier.value = loaded;  // Update notifier
     } catch (e) {
       print('Error loading transactions: $e');
-      transactionHistoryNotifier.value = [];
     }
   }
 
-  Future<void> _saveTransaction(Map<String, dynamic> tx) async {
+  Future<void> saveTransaction(Map<String, dynamic> tx) async {
     if (_currentEmail == null) return;
+
     try {
       await FirebaseFirestore.instance
           .collection('players')
@@ -582,12 +575,5 @@ class SocketService {
     } catch (e) {
       print('Error saving transaction: $e');
     }
-  }
-
-  void _updateTransactionNotifier(Map<String, dynamic> tx) {
-    final newList = List<Map<String, dynamic>>.from(transactionHistoryNotifier.value);
-    newList.insert(0, tx);
-    if (newList.length > 25) newList.removeLast();
-    transactionHistoryNotifier.value = newList;
   }
 }

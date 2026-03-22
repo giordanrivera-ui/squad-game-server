@@ -3,29 +3,15 @@
 const admin = require('firebase-admin');
 
 // ==================== TRANSACTION LOGGER (needed in this file) ====================
-async function logTransaction(socket, docRef, amount, description, p) {
+function logTransaction(socket, amount, description) {
   if (!socket || typeof amount !== 'number') return;
-
-  const newTx = {
-    description: description,
+  const tx = {
     amount: amount,
-    balanceAfter: p.balance,          // ← server knows the real new balance
+    description: description,
     timestamp: Date.now()
   };
-
-  socket.emit('new-transaction', newTx);
-
-  // Add to main player document (exactly like messages)
-  await docRef.update({
-    transactionHistory: admin.firestore.FieldValue.arrayUnion(newTx)
-  });
-
-  // Trim to last 25 (keeps Firestore cheap)
-  const snap = await docRef.get();
-  let history = snap.data()?.transactionHistory || [];
-  if (history.length > 25) {
-    await docRef.update({ transactionHistory: history.slice(-25) });
-  }
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
 }
 
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
@@ -182,13 +168,7 @@ async function handleKillAttempt(db, socket, data, deps) {
 
   // Pay mobilizing cost
   attacker.balance -= 10000;
-  await logTransaction(socket, docRef, -cost, `Travel to ${destination}`, p);
-  socket.emit('new-transaction', {   // ← ADD this right after
-  amount: amount,
-  description: 'Something',
-  timestamp: Date.now(),
-  balanceAfter: p.balance   // ← the updated balance
-});
+  logTransaction(socket, -10000, 'Mobilizing for Kill');
 
   let success = false;
   let message = '';
@@ -232,13 +212,7 @@ async function handleKillAttempt(db, socket, data, deps) {
       const hitDoc = hitQuery.docs[0];
       const hitData = hitDoc.data();
       attacker.balance += hitData.reward;
-      await logTransaction(socket, docRef, hitData.reward, `Bounty Claimed on ${data.target}`, p);
-      socket.emit('new-transaction', {   // ← ADD this right after
-  amount: amount,
-  description: 'Something',
-  timestamp: Date.now(),
-  balanceAfter: p.balance   // ← the updated balance
-});
+      logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`);
       await hitDoc.ref.update({ active: false });
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }

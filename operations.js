@@ -5,29 +5,15 @@ const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack c
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
 // ==================== TRANSACTION LOGGER (needed in this file) ====================
-async function logTransaction(socket, docRef, amount, description, p) {
+function logTransaction(socket, amount, description) {
   if (!socket || typeof amount !== 'number') return;
-
-  const newTx = {
-    description: description,
+  const tx = {
     amount: amount,
-    balanceAfter: p.balance,          // ← server knows the real new balance
+    description: description,
     timestamp: Date.now()
   };
-
-  socket.emit('new-transaction', newTx);
-
-  // Add to main player document (exactly like messages)
-  await docRef.update({
-    transactionHistory: admin.firestore.FieldValue.arrayUnion(newTx)
-  });
-
-  // Trim to last 25 (keeps Firestore cheap)
-  const snap = await docRef.get();
-  let history = snap.data()?.transactionHistory || [];
-  if (history.length > 25) {
-    await docRef.update({ transactionHistory: history.slice(-25) });
-  }
+  socket.emit('new-transaction', tx);
+  console.log(`[TX] ${description} | $${amount}`);
 }
 
 async function handleExecuteOperation(db, socket, data, deps) {
@@ -220,13 +206,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     const actualDamage = Math.max(0, rawDamage - totalDefense);
 
     p.balance += money;
-    await logTransaction(socket, docRef, money, `${operation}`, p);
-    socket.emit('new-transaction', {   // ← ADD this right after
-  amount: amount,
-  description: 'Something',
-  timestamp: Date.now(),
-  balanceAfter: p.balance   // ← the updated balance
-});
+    logTransaction(socket, money, `${operation}`);
     p.health = Math.max(0, p.health - actualDamage);
 
     p = await addExperienceAndGrantPoints(docRef, p, expGain);
