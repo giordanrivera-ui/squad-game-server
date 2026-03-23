@@ -635,8 +635,8 @@ Widget _buildDashboard() {
 
                 // BONDS button (semi-transparent square, bottom-right)
                 Positioned(
-                  bottom: 8,
-                  right: 8,
+                  bottom: 6,
+                  right: 6,
                   child: GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -645,7 +645,7 @@ Widget _buildDashboard() {
                       );
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(16),
@@ -654,14 +654,14 @@ Widget _buildDashboard() {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.pie_chart, color: Colors.amber, size: 20),
+                          Icon(Icons.pie_chart, color: Colors.amber, size: 16),
                           SizedBox(width: 8),
                           Text(
                             'BONDS',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                              fontSize: 13,
                               letterSpacing: 1.5,
                             ),
                           ),
