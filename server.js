@@ -724,8 +724,8 @@ socket.on('respawn', async () => {
     const cost = travelCosts[destination];
     if (p.balance < cost) return;
 
-    p.balance -= cost;
     await logTransaction(socket, -cost, `Travel to ${destination}`, p, docRef);
+    p.balance -= cost;
 
     p.location = destination;
 
@@ -747,8 +747,8 @@ socket.on('respawn', async () => {
     const cost = 50;
     if (p.balance < cost) return;
 
-    p.balance -= cost;
     await logTransaction(socket, -cost, 'Healing ($50)', p, docRef);
+    p.balance -= cost;
 
     p.health = 100;
 
@@ -863,8 +863,8 @@ socket.on('respawn', async () => {
 
     // Add items to inventory (append full objects)
     p.inventory = p.inventory.concat(data.items);
-    p.balance -= data.totalCost;
     await logTransaction(socket, -data.totalCost, 'Gear Purchased (Armor/Weapons)', p, docRef);   // p = playerData, docRef = the Firestore reference
+    p.balance -= data.totalCost;
 
     await docRef.set(p);
     socket.emit('update-stats', p);
@@ -990,9 +990,9 @@ socket.on('respawn', async () => {
       }
     }
 
-    p.balance += data.totalSellValue;
     await logTransaction(socket, data.totalSellValue, 'Items Sold', p, docRef);   // p = playerData, docRef = the Firestore reference
-
+    p.balance += data.totalSellValue;
+    
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
     socket.emit('update-stats', p);

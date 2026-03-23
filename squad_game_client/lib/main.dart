@@ -189,6 +189,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   Timer? _incomeTimer;
   Timer? _globalIncomeTimer;  // NEW: App-wide per-second checker
 
+    bool _isTxHistoryMinimized = false;   // ← NEW: Controls minimize state
+
   int _currentScreen = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -674,12 +676,11 @@ Widget _buildDashboard() {
             ),
           ),
         ),
-        // Replace the whole "Transaction History" Container with this:
+        // Transaction History (now collapsible with arrow button)
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 140),
             decoration: BoxDecoration(
               color: Colors.grey[800],
               borderRadius: BorderRadius.circular(20),
@@ -688,48 +689,80 @@ Widget _buildDashboard() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Transaction History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 220,
-                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
-                    valueListenable: _socketService.transactionHistoryNotifier,
-                    builder: (context, history, child) {
-                      if (history.isEmpty) {
-                        return const Center(child: Text('No transactions yet', style: TextStyle(color: Colors.grey)));
-                      }
-                      return ListView.builder(
-                        itemCount: history.length,
-                        itemBuilder: (context, index) {
-                          final tx = history[index];
-                          final amount = tx['amount'] as int;
-                          final isPositive = amount > 0;
-                          final balanceAfter = tx['balanceAfter'] ?? 0;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                Text(
-                                  isPositive ? '+$amount' : '$amount',
-                                  style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(tx['description'] as String, style: const TextStyle(color: Colors.white70)),
-                                ),
-                                Text(
-                                  '→ \$${NumberFormat("#,###").format(balanceAfter)}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                // Header row with minimize button
+                Row(
+                  children: [
+                    const Text(
+                      'Transaction History',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const Spacer(),
+                    // Arrow button (top-right corner)
+                    IconButton(
+                      icon: Icon(
+                        _isTxHistoryMinimized ? Icons.expand_more : Icons.expand_less,
+                        color: Colors.white70,
+                        size: 24,
+                      ),
+                      onPressed: () {
+                        setState(() => _isTxHistoryMinimized = !_isTxHistoryMinimized);
+                      },
+                      tooltip: _isTxHistoryMinimized ? 'Expand' : 'Minimize',
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 8),
+
+                // Collapsible content
+                if (!_isTxHistoryMinimized)
+                  SizedBox(
+                    height: 220,
+                    child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                      valueListenable: _socketService.transactionHistoryNotifier,
+                      builder: (context, history, child) {
+                        if (history.isEmpty) {
+                          return const Center(
+                            child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: history.length,
+                          itemBuilder: (context, index) {
+                            final tx = history[index];
+                            final amount = tx['amount'] as int;
+                            final isPositive = amount > 0;
+                            final balanceAfter = tx['balanceAfter'] ?? 0;
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    isPositive ? '+$amount' : '$amount',
+                                    style: TextStyle(
+                                      color: isPositive ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      tx['description'] as String,
+                                      style: const TextStyle(color: Colors.white70),
+                                    ),
+                                  ),
+                                  Text(
+                                    '→ \$${NumberFormat("#,###").format(balanceAfter)}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
