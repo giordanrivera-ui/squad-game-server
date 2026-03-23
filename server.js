@@ -40,26 +40,58 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   return playerData;   // IMPORTANT: returns the updated object
 }
 
-// ==================== BOND MARKET HELPERS (Server-side) ====================
-function generateRandomBondMarket() {
-  const bonds = [];
-  const random = Math.random; // for clarity
+  // ==================== CORPORATE BOND TEMPLATES ====================
+  const corporateTemplates = [
+    "Orange Inc. Y Corporate Bond",
+    "Nanosoft Y Corporate Bond",
+    "Amazin Y Corporate Bond",
+    "Nikola Y Corporate Bond",
+    "ByteSway Y Corporate Bond",
+    "JPMarlow Y Corporate Bond",
+    "Fjord Motors Y Corporate Bond",
+    "MalMart Y Corporate Bond",
+    "Beauchênel Y Corporate Bond",
+    "Herizon Y Corporate Bond",
+    "McDawsons Y Corporate Bond",
+    "Webflicks Y Corporate Bond",
+    "NestDepot Y Corporate Bond",
+    "Mvidea Y Corporate Bond",
+    "Starducks Coffee Y Corporate Bond"
+  ];
 
-  for (let i = 1; i <= 15; i++) {
-    const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1); // 1.0 to 1.9
-    const cost = 400 + Math.floor(random() * 4997) * 100; // $400 to $500,000 in $100 steps
+  // ==================== BOND MARKET HELPERS (with dynamic titles) ====================
+  function generateRandomBondMarket(location) {
+    const bonds = [];
+    const random = Math.random;
 
-    bonds.push({
-      title: `Bond Series #${i}`,
-      couponRate: parseFloat(couponRate),
-      cost: cost
-    });
+    // First 3: Treasury Bonds using current location
+    for (let i = 1; i <= 3; i++) {
+      const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1);
+      const title = `${location} ${couponRate}% Treasury Bond`;
+      bonds.push({
+        title: title,
+        couponRate: parseFloat(couponRate),
+        cost: 400 + Math.floor(random() * 4997) * 100
+      });
+    }
+
+    // Remaining 12: Random corporate bonds
+    const shuffledTemplates = [...corporateTemplates].sort(() => random() - 0.5);
+    for (let i = 0; i < 12; i++) {
+      const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1);
+      const template = shuffledTemplates[i];
+      const title = template.replace("Y", couponRate);
+      bonds.push({
+        title: title,
+        couponRate: parseFloat(couponRate),
+        cost: 400 + Math.floor(random() * 4997) * 100
+      });
+    }
+
+    // Sort by cost ascending for nice UI
+    bonds.sort((a, b) => a.cost - b.cost);
+    return bonds;
   }
-
-  // Sort by cost ascending
-  bonds.sort((a, b) => a.cost - b.cost);
-  return bonds;
-}
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
@@ -1064,7 +1096,7 @@ socket.on('respawn', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });
 
-  // ==================== BOND MARKET (with 2-minute cooldown) ====================
+  // ==================== BOND MARKET HANDLERS (with 2-minute cooldown) ====================
   socket.on('request-bond-market', async () => {
     const email = socket.data.email;
     if (!email) return;
@@ -1075,13 +1107,14 @@ socket.on('respawn', async () => {
 
     let bonds = playerData.bondMarket || [];
     const cooldownEnd = playerData.bondMarketCooldownEnd || 0;
+    const location = playerData.location || "Unknown City";
 
     // First-time player: generate market
     if (bonds.length === 0) {
-      bonds = generateRandomBondMarket();
+      bonds = generateRandomBondMarket(location);
       await docRef.update({ 
         bondMarket: bonds,
-        bondMarketCooldownEnd: Date.now() + 120000   // 2 minutes from now
+        bondMarketCooldownEnd: Date.now() + 120000
       });
     }
 
@@ -1101,9 +1134,9 @@ socket.on('respawn', async () => {
 
     const now = Date.now();
     const cooldownEnd = playerData.bondMarketCooldownEnd || 0;
+    const location = playerData.location || "Unknown City";
 
     if (now < cooldownEnd) {
-      // Still on cooldown — tell client remaining time
       socket.emit('bond-market-update', { 
         bonds: playerData.bondMarket || [],
         cooldownEndTime: cooldownEnd 
@@ -1111,9 +1144,9 @@ socket.on('respawn', async () => {
       return;
     }
 
-    // Cooldown over → allow refresh
-    const newBonds = generateRandomBondMarket();
-    const newCooldownEnd = now + 120000;   // 2 minutes
+    // Refresh allowed
+    const newBonds = generateRandomBondMarket(location);
+    const newCooldownEnd = now + 120000;
 
     await docRef.update({ 
       bondMarket: newBonds,
@@ -1125,7 +1158,7 @@ socket.on('respawn', async () => {
       cooldownEndTime: newCooldownEnd 
     });
 
-    console.log(`[BONDS] ${email} refreshed market (cooldown started)`);
+    console.log(`[BONDS] ${email} refreshed market at ${location}`);
   });
 
   // ==================== PRIVATE MESSAGES ====================
