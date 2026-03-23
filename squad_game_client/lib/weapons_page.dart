@@ -40,12 +40,13 @@ class _WeaponsPageState extends State<WeaponsPage> {
     Weapon(name: 'Mossberg 590 Shotgun', description: 'A pump-action 12-gauge shotgun excellent for close-range crowd control.', power: 260, cost: 1200),
     Weapon(name: 'MP5 SMG', description: 'A compact 9mm submachine gun favored for its controllability in full-auto fire.', power: 330, cost: 4000),
     Weapon(name: 'H&K UMP5', description: 'A .45 caliber submachine gun offering superior stopping power in CQB.', power: 380, cost: 4600),
-    Weapon(name: 'SLR104 AK-74', description: 'A modernized 5.45mm assault rifle with reliable performance in various conditions.', power: 425, cost: 7500),
-    Weapon(name: 'M4 Carbine', description: 'A lightweight 5.56mm carbine widely used for its modularity and accuracy.', power: 475, cost: 8400),
-    Weapon(name: 'SCAR-16 Mk II', description: 'A battle-proven 5.56mm assault rifle with quick barrel swap capabilities.', power: 520, cost: 10500),
-    Weapon(name: 'M16A4', description: 'A full-length 5.56mm rifle known for its precision in semi-automatic fire.', power: 550, cost: 16800),
-    Weapon(name: 'M24 Sniper', description: 'A bolt-action 7.62mm rifle designed for long-range precision shots.', power: 580, cost: 22000),
-    Weapon(name: 'Barrett M82', description: 'A .50 caliber anti-materiel rifle capable of penetrating light armor at distance.', power: 610, cost: 28000),
+    Weapon(name: 'SLR104 AK-74', description: 'A modernized 5.45mm assault rifle with reliable performance in various conditions.', power: 405, cost: 6200),
+    Weapon(name: 'CZ Bren 2', description: "A modern Czech 5.56mm assault rifle renowned for its exceptional reliability, lightweight modular design, and superior ergonomics.", power: 430, cost: 7500),
+    Weapon(name: 'M4 Carbine', description: 'A lightweight 5.56mm carbine widely used for its modularity and accuracy.', power: 480, cost: 8400),
+    Weapon(name: 'SCAR-16 Mk II', description: 'A battle-proven 5.56mm assault rifle with quick barrel swap capabilities.', power: 530, cost: 10500),
+    Weapon(name: 'M16A4', description: 'A full-length 5.56mm rifle known for its precision in semi-automatic fire.', power: 560, cost: 16800),
+    Weapon(name: 'M24 Sniper', description: 'A bolt-action 7.62mm rifle designed for long-range precision shots.', power: 595, cost: 22000),
+    Weapon(name: 'Barrett M82', description: 'A .50 caliber anti-materiel rifle capable of penetrating light armor at distance.', power: 625, cost: 28000),
   ];
 
   @override

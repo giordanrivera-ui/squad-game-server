@@ -26,6 +26,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'kill_player_screen.dart';
 import 'hall_of_fame_screen.dart';
+import 'bonds_screen.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -610,23 +611,68 @@ Widget _buildDashboard() {
               ],
             ),
           ),
-          // Black rectangle ONLY for bank balance
+        // Black rectangle ONLY for bank balance + BONDS button
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
             width: double.infinity,
-            constraints: BoxConstraints(
-            minHeight: 120,
+            constraints: const BoxConstraints(minHeight: 140),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Stack(
+              children: [
+                // Bank balance text (centered)
+                Center(
+                  child: Text(
+                    'Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}',
+                    style: const TextStyle(fontSize: 22, color: Colors.green, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                // BONDS button (semi-transparent square, bottom-right)
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PersonalBondsScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.pie_chart, color: Colors.amber, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'BONDS',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          decoration: BoxDecoration(
-            color: Colors.grey[900],
-            borderRadius: BorderRadius.circular(20)
-          ),
-          padding: const EdgeInsets.all(16),
-    
-          child: Text('Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}', 
-            style: const TextStyle(fontSize: 20, color: Colors.green)),
-          )
         ),
         // Replace the whole "Transaction History" Container with this:
         Padding(

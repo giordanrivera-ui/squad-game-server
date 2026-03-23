@@ -227,8 +227,10 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     const actualDamage = Math.max(0, rawDamage - totalDefense);
 
-    p.balance += money;
     await logTransaction(socket, money, `${operation}`, p, docRef);   // p = playerData, docRef = the Firestore reference
+
+    p.balance += money;
+
 
     p.health = Math.max(0, p.health - actualDamage);
 
