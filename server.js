@@ -1064,7 +1064,7 @@ socket.on('respawn', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });
 
-  // ==================== BOND MARKET SOCKET HANDLERS ====================
+  // ==================== BOND MARKET (with 2-minute cooldown) ====================
   socket.on('request-bond-market', async () => {
     const email = socket.data.email;
     if (!email) return;
@@ -1073,16 +1073,22 @@ socket.on('respawn', async () => {
     const doc = await docRef.get();
     let playerData = doc.data() || {};
 
-    let bonds = playerData.bondMarket;
+    let bonds = playerData.bondMarket || [];
+    const cooldownEnd = playerData.bondMarketCooldownEnd || 0;
 
-    // First time: generate and save
-    if (!bonds || !Array.isArray(bonds) || bonds.length === 0) {
+    // First-time player: generate market
+    if (bonds.length === 0) {
       bonds = generateRandomBondMarket();
-      await docRef.update({ bondMarket: bonds });
-      console.log(`[BONDS] Generated first market for ${email}`);
+      await docRef.update({ 
+        bondMarket: bonds,
+        bondMarketCooldownEnd: Date.now() + 120000   // 2 minutes from now
+      });
     }
 
-    socket.emit('bond-market-update', { bonds });
+    socket.emit('bond-market-update', { 
+      bonds, 
+      cooldownEndTime: cooldownEnd 
+    });
   });
 
   socket.on('refresh-bond-market', async () => {
@@ -1090,12 +1096,36 @@ socket.on('respawn', async () => {
     if (!email) return;
 
     const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    let playerData = doc.data() || {};
+
+    const now = Date.now();
+    const cooldownEnd = playerData.bondMarketCooldownEnd || 0;
+
+    if (now < cooldownEnd) {
+      // Still on cooldown — tell client remaining time
+      socket.emit('bond-market-update', { 
+        bonds: playerData.bondMarket || [],
+        cooldownEndTime: cooldownEnd 
+      });
+      return;
+    }
+
+    // Cooldown over → allow refresh
     const newBonds = generateRandomBondMarket();
+    const newCooldownEnd = now + 120000;   // 2 minutes
 
-    await docRef.update({ bondMarket: newBonds });
+    await docRef.update({ 
+      bondMarket: newBonds,
+      bondMarketCooldownEnd: newCooldownEnd
+    });
 
-    socket.emit('bond-market-update', { bonds: newBonds });
-    console.log(`[BONDS] Player ${email} refreshed bond market`);
+    socket.emit('bond-market-update', { 
+      bonds: newBonds, 
+      cooldownEndTime: newCooldownEnd 
+    });
+
+    console.log(`[BONDS] ${email} refreshed market (cooldown started)`);
   });
 
   // ==================== PRIVATE MESSAGES ====================

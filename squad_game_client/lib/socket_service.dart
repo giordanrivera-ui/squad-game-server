@@ -43,6 +43,8 @@ class SocketService {
   // Public getter so other files can listen to it
   ValueNotifier<List<Map<String, dynamic>>> get bondMarketNotifier => _bondMarketNotifier;
 
+  final ValueNotifier<int?> bondMarketCooldownEndNotifier = ValueNotifier(null);
+
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
     if (exp <= 514) return 'Thug';
@@ -207,10 +209,15 @@ class SocketService {
         }
       });
 
-            // Bond market listener
+      // Bond market listener (now includes cooldown)
       socket?.on('bond-market-update', (data) {
-        if (data is Map && data['bonds'] is List) {
-          _bondMarketNotifier.value = List<Map<String, dynamic>>.from(data['bonds']);
+        if (data is Map) {
+          if (data['bonds'] is List) {
+            _bondMarketNotifier.value = List<Map<String, dynamic>>.from(data['bonds']);
+          }
+          if (data['cooldownEndTime'] is num) {
+            bondMarketCooldownEndNotifier.value = (data['cooldownEndTime'] as num).toInt();
+          }
         }
       });
 
