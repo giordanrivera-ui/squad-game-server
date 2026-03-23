@@ -187,9 +187,8 @@ async function handleKillAttempt(db, socket, data, deps) {
   }
 
   // Pay mobilizing cost
-  attacker.balance -= 10000;
   await logTransaction(socket, -10000, 'Mobilizing for Kill', p, docRef);   // p = playerData, docRef = the Firestore reference
-
+  attacker.balance -= 10000;
 
   let success = false;
   let message = '';

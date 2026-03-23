@@ -524,6 +524,10 @@ class SocketService {
     socket?.emit('refresh-bond-market');
   }
 
+  void buyBond(Map<String, dynamic> bond) {
+    socket?.emit('buy-bond', bond);
+  }
+
   void respawn() => socket?.emit('respawn');
 
     // Test buttons

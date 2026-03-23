@@ -17,15 +17,31 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
     super.initState();
     SocketService().requestBondMarket();
 
-    // Live countdown every second
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+
+    // Listen for buy result
+    SocketService().socket?.on('bond-result', _handleBondResult);
+  }
+
+  void _handleBondResult(dynamic data) {
+    if (data is Map && mounted) {
+      final success = data['success'] ?? false;
+      final message = data['message'] ?? 'Transaction complete.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    SocketService().socket?.off('bond-result', _handleBondResult);
     super.dispose();
   }
 
@@ -45,91 +61,176 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Personal Bonds'), backgroundColor: Colors.grey[900]),
-      backgroundColor: Colors.grey[850],
-      body: ValueListenableBuilder<List<Map<String, dynamic>>>(
-        valueListenable: SocketService().bondMarketNotifier,
-        builder: (context, bonds, child) {
-          final cooldownEnd = SocketService().bondMarketCooldownEndNotifier.value;
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Personal Bonds'),
+          backgroundColor: Colors.grey[900],
+          bottom: const TabBar(
+            indicatorColor: Colors.amber,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(text: 'Bond Offerings'),
+              Tab(text: 'Owned Bonds'),
+            ],
+          ),
+        ),
+        backgroundColor: Colors.grey[850],
+        body: TabBarView(
+          children: [
+            // ==================== BOND OFFERINGS ====================
+            ValueListenableBuilder<List<Map<String, dynamic>>>(
+              valueListenable: SocketService().bondMarketNotifier,
+              builder: (context, bonds, child) {
+                final cooldownEnd = SocketService().bondMarketCooldownEndNotifier.value;
 
-          return Column(
-            children: [
-              // Refresh Button with live cooldown
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isOnCooldown(cooldownEnd) ? null : SocketService().refreshBondMarket,
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    label: Text(
-                      _getButtonText(cooldownEnd),
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isOnCooldown(cooldownEnd) ? null : SocketService().refreshBondMarket,
+                          icon: const Icon(Icons.refresh, color: Colors.white),
+                          label: Text(
+                            _getButtonText(cooldownEnd),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isOnCooldown(cooldownEnd) ? Colors.grey : Colors.amber,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isOnCooldown(cooldownEnd) ? Colors.grey : Colors.amber,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ),
 
-              // Bond List
-              Expanded(
-                child: bonds.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: bonds.length,
-                        itemBuilder: (context, index) {
-                          final bond = bonds[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            color: Colors.grey[900],
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(20),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(bond['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                                  const SizedBox(height: 12),
-                                  Row(children: [
-                                    const Text('Coupon Rate: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
-                                    Text('${bond['couponRate'].toStringAsFixed(1)}%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
-                                  ]),
-                                  const SizedBox(height: 8),
-                                  Row(children: [
-                                    const Text('Cost: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
-                                    Text('\$${bond['cost'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
-                                  ]),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Buying ${bond['title']}... (coming soon)'), backgroundColor: Colors.amber),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.amber,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      ),
-                                      child: const Text('BUY BOND', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: bonds.isEmpty
+                          ? const Center(child: CircularProgressIndicator())
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: bonds.length,
+                              itemBuilder: (context, index) {
+                                final bond = bonds[index];
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  color: Colors.grey[900],
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          bond['title'], 
+                                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                          ),
+                                        const SizedBox(height: 12),
+                                        Row(children: [
+                                          const Text('Coupon Rate: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                                          Text('${bond['couponRate'].toStringAsFixed(1)}%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+                                        ]),
+                                        const SizedBox(height: 8),
+                                        Row(children: [
+                                          const Text('Cost: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                                          Text('\$${bond['cost'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}', 
+                                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                                        ]),
+                                        const SizedBox(height: 16),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () => SocketService().buyBond(bond),
+                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber,
+                                              padding: const EdgeInsets.symmetric(vertical: 14),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                            child: const Text('BUY BOND', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
-                          );
-                        },
+                    ),
+                  ],
+                );
+              },
+            ),
+
+            // ==================== OWNED BONDS (now dynamic) ====================
+            ValueListenableBuilder<Map<String, dynamic>>(
+              valueListenable: SocketService().statsNotifier,
+              builder: (context, stats, child) {
+                final ownedBonds = (stats['ownedBonds'] ?? []) as List<dynamic>;
+
+                if (ownedBonds.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_balance_wallet_outlined, size: 90, color: Colors.white38),
+                        SizedBox(height: 20),
+                        Text('Owned Bonds', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                        SizedBox(height: 12),
+                        Text('You don\'t own any bonds yet.\nBonds you purchase will appear here.', 
+                            textAlign: TextAlign.center, style: TextStyle(fontSize: 18, color: Colors.white60)),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: ownedBonds.length,
+                  itemBuilder: (context, index) {
+                    final bond = ownedBonds[index] as Map<dynamic, dynamic>;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      color: Colors.grey[900],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.verified, color: Colors.amber, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text(bond['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white))),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(children: [
+                              const Text('Coupon Rate: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                              Text('${(bond['couponRate'] as num).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              const Text('Purchase Price: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                              Text('\$${(bond['cost'] as num).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}', 
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
+                            ]),
+                            const SizedBox(height: 8),
+                            Text('Purchased: ${DateTime.fromMillisecondsSinceEpoch(bond['purchaseTime'] ?? 0).toString().substring(0,16)}',
+                                style: const TextStyle(color: Colors.grey)),
+                          ],
+                        ),
                       ),
-              ),
-            ],
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

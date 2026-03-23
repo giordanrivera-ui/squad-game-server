@@ -283,6 +283,7 @@ io.on('connection', (socket) => {
       if (playerData.lastMidLevelOp === undefined) playerData.lastMidLevelOp = 0;
       if (playerData.lastHighLevelOp === undefined) playerData.lastHighLevelOp = 0;
       if (playerData.sellBanEndTime === undefined) playerData.sellBanEndTime = 0;
+      if (playerData.ownedBonds === undefined) playerData.ownedBonds = [];
       if (playerData.ownedProperties === undefined) playerData.ownedProperties = [];
       if (playerData.ownedUpgrades === undefined) playerData.ownedUpgrades = {};
       if (playerData.lastIncomeClaim === undefined) playerData.lastIncomeClaim = Date.now();
@@ -343,6 +344,7 @@ io.on('connection', (socket) => {
         lastHighLevelOp: 0,
         sellBanEndTime: 0,
         prisonEndTime: 0,
+        ownedBonds: [],
         ownedProperties: [],
         lastIncomeClaim: Date.now(),
         propertyClaims: [],
@@ -487,6 +489,7 @@ socket.on('respawn', async () => {
       lastHighLevelOp: 0,
       sellBanEndTime: 0,
       prisonEndTime: 0,
+      ownedBonds: [],
       ownedProperties: [],
       lastIncomeClaim: Date.now(),
       propertyClaims: [],
@@ -1159,6 +1162,61 @@ socket.on('respawn', async () => {
     });
 
     console.log(`[BONDS] ${email} refreshed market at ${location}`);
+  });
+
+  // ==================== BUY BOND HANDLER (NEW) ====================
+  socket.on('buy-bond', async (bondData) => {
+    const email = socket.data.email;
+    if (!email || !bondData?.title || typeof bondData.cost !== 'number') {
+      socket.emit('bond-result', { success: false, message: 'Invalid bond data.' });
+      return;
+    }
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Security: must still exist in player's current market
+    const marketBonds = p.bondMarket || [];
+    const matchingIndex = marketBonds.findIndex(b => 
+      b.title === bondData.title && b.cost === bondData.cost
+    );
+
+    if (matchingIndex === -1) {
+      socket.emit('bond-result', { success: false, message: 'This bond is no longer available.' });
+      return;
+    }
+
+    if ((p.balance || 0) < bondData.cost) {
+      socket.emit('bond-result', { success: false, message: 'Insufficient funds.' });
+      return;
+    }
+
+    // Log transaction BEFORE we deduct (correct pattern)
+    await logTransaction(socket, -bondData.cost, `Bond Purchased: ${bondData.title}`, p, docRef);
+    p.balance -= bondData.cost;
+
+    // Store ownership
+    if (!p.ownedBonds) p.ownedBonds = [];
+    p.ownedBonds.push({
+      ...marketBonds[matchingIndex],
+      purchaseTime: Date.now()
+    });
+
+    // Remove from market (prevents double-buy)
+    p.bondMarket = marketBonds.filter((_, i) => i !== matchingIndex);
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    socket.emit('bond-result', { 
+      success: true, 
+      message: `✅ Purchased ${bondData.title} for $${bondData.cost}!` 
+    });
+
+    console.log(`[BOND] ${p.displayName || email} bought ${bondData.title}`);
   });
 
   // ==================== PRIVATE MESSAGES ====================
