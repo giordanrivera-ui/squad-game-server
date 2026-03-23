@@ -17,6 +17,7 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
     super.initState();
     SocketService().requestBondMarket();
 
+    // Live countdown for progress bars
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -80,7 +81,7 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
         backgroundColor: Colors.grey[850],
         body: TabBarView(
           children: [
-            // ==================== BOND OFFERINGS ====================
+            // ==================== BOND OFFERINGS (original beautiful version) ====================
             ValueListenableBuilder<List<Map<String, dynamic>>>(
               valueListenable: SocketService().bondMarketNotifier,
               builder: (context, bonds, child) {
@@ -128,7 +129,7 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                                         Text(
                                           bond['title'], 
                                           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                                          ),
+                                        ),
                                         const SizedBox(height: 12),
                                         Row(children: [
                                           const Text('Coupon Rate: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
@@ -138,14 +139,15 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                                         Row(children: [
                                           const Text('Cost: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
                                           Text('\$${bond['cost'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}', 
-                                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
+                                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
                                         ]),
                                         const SizedBox(height: 16),
                                         SizedBox(
                                           width: double.infinity,
                                           child: ElevatedButton(
                                             onPressed: () => SocketService().buyBond(bond),
-                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.amber,
                                               padding: const EdgeInsets.symmetric(vertical: 14),
                                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                             ),
@@ -164,7 +166,7 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
               },
             ),
 
-            // ==================== OWNED BONDS (now dynamic) ====================
+            // ==================== OWNED BONDS (with 8-minute progress bar) ====================
             ValueListenableBuilder<Map<String, dynamic>>(
               valueListenable: SocketService().statsNotifier,
               builder: (context, stats, child) {
@@ -180,7 +182,7 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                         Text('Owned Bonds', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
                         SizedBox(height: 12),
                         Text('You don\'t own any bonds yet.\nBonds you purchase will appear here.', 
-                            textAlign: TextAlign.center, style: TextStyle(fontSize: 18, color: Colors.white60)),
+                          textAlign: TextAlign.center, style: TextStyle(fontSize: 18, color: Colors.white60)),
                       ],
                     ),
                   );
@@ -191,6 +193,14 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                   itemCount: ownedBonds.length,
                   itemBuilder: (context, index) {
                     final bond = ownedBonds[index] as Map<dynamic, dynamic>;
+                    final maturityTime = bond['maturityTime'] as int? ?? 0;
+                    final now = SocketService().currentServerTime;
+                    final remainingMs = (maturityTime - now).clamp(0, 480000);
+                    final progress = remainingMs / 480000.0;
+
+                    final minutesLeft = (remainingMs ~/ 60000);
+                    final secondsLeft = ((remainingMs % 60000) ~/ 1000).toString().padLeft(2, '0');
+
                     return Card(
                       margin: const EdgeInsets.only(bottom: 16),
                       color: Colors.grey[900],
@@ -206,6 +216,13 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(bond['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white))),
                               ],
+                            ),
+                            const SizedBox(height: 16),
+                            LinearProgressIndicator(
+                              value: progress,
+                              color: Colors.amber,
+                              backgroundColor: Colors.grey[700],
+                              minHeight: 10,
                             ),
                             const SizedBox(height: 12),
                             Row(children: [

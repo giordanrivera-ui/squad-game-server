@@ -222,7 +222,55 @@ setInterval(async () => {
   } catch (error) {
     console.error('Error in hit cleanup: ', error);
   }
-}, 2000); // Check every minute
+}, 2000); // Check every 2 seconds
+
+// ==================== AUTO BOND MATURITY (8 MINUTES) - Runs every 30 seconds ====================
+setInterval(async () => {
+  try {
+    const now = Date.now();
+    const snapshot = await db.collection('players').get();
+    const batch = db.batch();
+
+    for (const doc of snapshot.docs) {
+      let p = doc.data();
+      if (!p.ownedBonds || p.ownedBonds.length === 0) continue;
+
+      let refundTotal = 0;
+      const remainingBonds = [];
+
+      for (const bond of p.ownedBonds) {
+        if (bond.maturityTime && now >= bond.maturityTime) {
+          refundTotal += bond.cost || 0;
+        } else {
+          remainingBonds.push(bond);
+        }
+      }
+
+      if (refundTotal > 0) {
+        // Refund + transaction
+        batch.update(doc.ref, { 
+          balance: admin.firestore.FieldValue.increment(refundTotal),
+          ownedBonds: remainingBonds 
+        });
+
+        // Log "Bond Maturity" transaction
+        const txRef = doc.ref.collection('transactions').doc();
+        batch.set(txRef, {
+          amount: refundTotal,
+          description: 'Bond Maturity',
+          balanceAfter: (p.balance || 0) + refundTotal,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`[BOND MATURITY] ${p.displayName || doc.id} refunded $${refundTotal}`);
+      }
+    }
+
+    await batch.commit();
+  } catch (e) {
+    console.error('Bond maturity error:', e);
+  }
+}, 1000); // every second
 
 const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
@@ -1164,7 +1212,7 @@ socket.on('respawn', async () => {
     console.log(`[BONDS] ${email} refreshed market at ${location}`);
   });
 
-  // ==================== BUY BOND HANDLER (NEW) ====================
+  // ==================== BUY BOND HANDLER (WITH 8-MIN MATURITY TIMER) ====================
   socket.on('buy-bond', async (bondData) => {
     const email = socket.data.email;
     if (!email || !bondData?.title || typeof bondData.cost !== 'number') {
@@ -1178,7 +1226,6 @@ socket.on('respawn', async () => {
 
     let p = doc.data();
 
-    // Security: must still exist in player's current market
     const marketBonds = p.bondMarket || [];
     const matchingIndex = marketBonds.findIndex(b => 
       b.title === bondData.title && b.cost === bondData.cost
@@ -1194,15 +1241,16 @@ socket.on('respawn', async () => {
       return;
     }
 
-    // Log transaction BEFORE we deduct (correct pattern)
+    const maturityTime = Date.now() + 8 * 60 * 1000; // 8 minutes
+
     await logTransaction(socket, -bondData.cost, `Bond Purchased: ${bondData.title}`, p, docRef);
     p.balance -= bondData.cost;
 
-    // Store ownership
     if (!p.ownedBonds) p.ownedBonds = [];
     p.ownedBonds.push({
       ...marketBonds[matchingIndex],
-      purchaseTime: Date.now()
+      purchaseTime: Date.now(),
+      maturityTime: maturityTime
     });
 
     // Remove from market (prevents double-buy)
@@ -1213,10 +1261,8 @@ socket.on('respawn', async () => {
 
     socket.emit('bond-result', { 
       success: true, 
-      message: `✅ Purchased ${bondData.title} for $${bondData.cost}!` 
+      message: `✅ Bought ${bondData.title}! Matures in exactly 8 minutes.` 
     });
-
-    console.log(`[BOND] ${p.displayName || email} bought ${bondData.title}`);
   });
 
   // ==================== PRIVATE MESSAGES ====================
