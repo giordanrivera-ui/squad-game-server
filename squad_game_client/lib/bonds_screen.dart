@@ -218,11 +218,16 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            LinearProgressIndicator(
-                              value: progress,
-                              color: Colors.amber,
-                              backgroundColor: Colors.grey[700],
-                              minHeight: 10,
+                            Row(
+                              children: [
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  color: Colors.amber,
+                                  backgroundColor: Colors.grey[700],
+                                  minHeight: 10,
+                                ),
+                                Text('$minutesLeft:$secondsLeft left', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+                              ],
                             ),
                             const SizedBox(height: 12),
                             Row(children: [
