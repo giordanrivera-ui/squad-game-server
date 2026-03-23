@@ -61,40 +61,6 @@ function generateRandomBondMarket() {
   return bonds;
 }
 
-// ==================== BOND MARKET SOCKET HANDLERS ====================
-socket.on('request-bond-market', async () => {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  let playerData = doc.data() || {};
-
-  let bonds = playerData.bondMarket;
-
-  // First time: generate and save
-  if (!bonds || !Array.isArray(bonds) || bonds.length === 0) {
-    bonds = generateRandomBondMarket();
-    await docRef.update({ bondMarket: bonds });
-    console.log(`[BONDS] Generated first market for ${email}`);
-  }
-
-  socket.emit('bond-market-update', { bonds });
-});
-
-socket.on('refresh-bond-market', async () => {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const newBonds = generateRandomBondMarket();
-
-  await docRef.update({ bondMarket: newBonds });
-
-  socket.emit('bond-market-update', { bonds: newBonds });
-  console.log(`[BONDS] Player ${email} refreshed bond market`);
-});
-
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
 function recalculateOverallPower(p) {
@@ -1096,6 +1062,40 @@ socket.on('respawn', async () => {
   // NEW: Handler for claiming income (now per-property)
   socket.on('claim-income', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
+  });
+
+  // ==================== BOND MARKET SOCKET HANDLERS ====================
+  socket.on('request-bond-market', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    let playerData = doc.data() || {};
+
+    let bonds = playerData.bondMarket;
+
+    // First time: generate and save
+    if (!bonds || !Array.isArray(bonds) || bonds.length === 0) {
+      bonds = generateRandomBondMarket();
+      await docRef.update({ bondMarket: bonds });
+      console.log(`[BONDS] Generated first market for ${email}`);
+    }
+
+    socket.emit('bond-market-update', { bonds });
+  });
+
+  socket.on('refresh-bond-market', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const newBonds = generateRandomBondMarket();
+
+    await docRef.update({ bondMarket: newBonds });
+
+    socket.emit('bond-market-update', { bonds: newBonds });
+    console.log(`[BONDS] Player ${email} refreshed bond market`);
   });
 
   // ==================== PRIVATE MESSAGES ====================
