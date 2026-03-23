@@ -219,16 +219,29 @@ class _PersonalBondsScreenState extends State<PersonalBondsScreen> {
                             ),
                             const SizedBox(height: 16),
                             Row(
-                              children: [
-                                LinearProgressIndicator(
+                            children: [
+                              Expanded(
+                                child: LinearProgressIndicator(
                                   value: progress,
                                   color: Colors.amber,
                                   backgroundColor: Colors.grey[700],
                                   minHeight: 10,
                                 ),
-                                Text('$minutesLeft:$secondsLeft left', style: const TextStyle(fontSize: 16, color: Colors.white70)),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 16),
+                              SizedBox(
+                                width: 60,
+                                child: Text(
+                                  '$minutesLeft:$secondsLeft',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.amber,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                             const SizedBox(height: 12),
                             Row(children: [
                               const Text('Coupon Rate: ', style: TextStyle(fontSize: 16, color: Colors.white70)),
