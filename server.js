@@ -40,6 +40,61 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   return playerData;   // IMPORTANT: returns the updated object
 }
 
+// ==================== BOND MARKET HELPERS (Server-side) ====================
+function generateRandomBondMarket() {
+  const bonds = [];
+  const random = Math.random; // for clarity
+
+  for (let i = 1; i <= 15; i++) {
+    const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1); // 1.0 to 1.9
+    const cost = 400 + Math.floor(random() * 4997) * 100; // $400 to $500,000 in $100 steps
+
+    bonds.push({
+      title: `Bond Series #${i}`,
+      couponRate: parseFloat(couponRate),
+      cost: cost
+    });
+  }
+
+  // Sort by cost ascending
+  bonds.sort((a, b) => a.cost - b.cost);
+  return bonds;
+}
+
+// ==================== BOND MARKET SOCKET HANDLERS ====================
+socket.on('request-bond-market', async () => {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  let playerData = doc.data() || {};
+
+  let bonds = playerData.bondMarket;
+
+  // First time: generate and save
+  if (!bonds || !Array.isArray(bonds) || bonds.length === 0) {
+    bonds = generateRandomBondMarket();
+    await docRef.update({ bondMarket: bonds });
+    console.log(`[BONDS] Generated first market for ${email}`);
+  }
+
+  socket.emit('bond-market-update', { bonds });
+});
+
+socket.on('refresh-bond-market', async () => {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const newBonds = generateRandomBondMarket();
+
+  await docRef.update({ bondMarket: newBonds });
+
+  socket.emit('bond-market-update', { bonds: newBonds });
+  console.log(`[BONDS] Player ${email} refreshed bond market`);
+});
+
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
 function recalculateOverallPower(p) {
@@ -992,7 +1047,7 @@ socket.on('respawn', async () => {
 
     await logTransaction(socket, data.totalSellValue, 'Items Sold', p, docRef);   // p = playerData, docRef = the Firestore reference
     p.balance += data.totalSellValue;
-    
+
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
     socket.emit('update-stats', p);

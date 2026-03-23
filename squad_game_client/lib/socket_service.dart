@@ -37,6 +37,12 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
 
+    final ValueNotifier<List<Map<String, dynamic>>> _bondMarketNotifier = ValueNotifier([]);
+  List<Map<String, dynamic>> get bondMarket => _bondMarketNotifier.value;
+
+  // Public getter so other files can listen to it
+  ValueNotifier<List<Map<String, dynamic>>> get bondMarketNotifier => _bondMarketNotifier;
+
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
     if (exp <= 514) return 'Thug';
@@ -198,6 +204,13 @@ class SocketService {
           inboxNotifier.value = [newItem, ...inboxNotifier.value];
           _saveMessagesToFirestore();
           _updateUnreadStatus();
+        }
+      });
+
+            // Bond market listener
+      socket?.on('bond-market-update', (data) {
+        if (data is Map && data['bonds'] is List) {
+          _bondMarketNotifier.value = List<Map<String, dynamic>>.from(data['bonds']);
         }
       });
 
@@ -495,6 +508,14 @@ class SocketService {
   }
   
   void claimIncome() => socket?.emit('claim-income');
+
+  void requestBondMarket() {
+    socket?.emit('request-bond-market');
+  }
+
+  void refreshBondMarket() {
+    socket?.emit('refresh-bond-market');
+  }
 
   void respawn() => socket?.emit('respawn');
 
