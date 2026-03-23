@@ -711,7 +711,7 @@ Widget _buildDashboard() {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
 
                 // Collapsible content
                 if (!_isTxHistoryMinimized)
