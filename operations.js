@@ -321,11 +321,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
           // NEW Eichenwald-specific drop table
           if (exp <= 3514) {
             glockThreshold = 38;
-            remingtonThreshold = 64;   // 38 + 26
-            waltherThreshold = 75;     // 64 + 11
-            mossbergThreshold = 91;    // 75 + 16
-            mp5Threshold = 97;         // 91 + 6
-            ump5Threshold = 100;       // 97 + 3
+            remingtonThreshold = 60;   // 38 + (22%)
+            waltherThreshold = 75;     // 64 + (15%)
+            mossbergThreshold = 91;    // 75 + (16%)
+            mp5Threshold = 97;         // 91 + (6%)
+            ump5Threshold = 100;       // 97 + (3%)
           } else if (exp <= 10214) {
             glockThreshold = 25;
             remingtonThreshold = 47;   // 25 + (22%)
