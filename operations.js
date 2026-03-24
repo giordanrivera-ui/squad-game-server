@@ -274,7 +274,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       }
     }
 
-    if (operation === "Attack military barracks") {
+    else if (operation === "Attack military barracks") {
       let stealChance = 0.12;
       if (exp > 49) stealChance = 0.15;
       if (exp > 514) stealChance = 0.20;
@@ -294,29 +294,62 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 38214) stealChance = 0.85;
 
       if (Math.random() < stealChance) {
-        let glockThreshold = 42; 
-        let remingtonThreshold = 72; 
-        let mossbergThreshold = 91; 
-        let mp5Threshold = 97;
-        if (exp > 3514) { 
-          glockThreshold = 33; 
-          remingtonThreshold = 63; 
-          mossbergThreshold = 85; 
-          mp5Threshold = 95; }
-        if (exp > 10214) { 
-          glockThreshold = 24; 
-          remingtonThreshold = 48; 
-          mossbergThreshold = 70; 
-          mp5Threshold = 88; }
+        const isEichenwald = p.location === "Eichenwald";
+
+        let glockThreshold, remingtonThreshold, waltherThreshold, mossbergThreshold, mp5Threshold, ump5Threshold;
+
+        if (isEichenwald) {
+          // NEW Eichenwald-specific drop table
+          if (exp <= 3514) {
+            glockThreshold = 38;
+            remingtonThreshold = 64;   // 38 + 26
+            waltherThreshold = 75;     // 64 + 11
+            mossbergThreshold = 91;    // 75 + 16
+            mp5Threshold = 97;         // 91 + 6
+            ump5Threshold = 100;       // 97 + 3
+          } else if (exp <= 10214) {
+            glockThreshold = 25;
+            remingtonThreshold = 47;   // 25 + 22
+            waltherThreshold = 65;     // 47 + 18
+            mossbergThreshold = 85;    // 65 + 20
+            mp5Threshold = 95;         // 85 + 10
+            ump5Threshold = 100;       // 95 + 5
+          } else {
+            glockThreshold = 16;
+            remingtonThreshold = 28;   // 16 + 12
+            waltherThreshold = 50;     // 28 + 22
+            mossbergThreshold = 70;    // 50 + 20
+            mp5Threshold = 88;         // 70 + 18
+            ump5Threshold = 100;       // 88 + 12
+          }
+        } else {
+          // Original non-Eichenwald drop table (unchanged)
+          glockThreshold = 42;
+          remingtonThreshold = 72;
+          mossbergThreshold = 91;
+          mp5Threshold = 97;
+          if (exp > 3514) {
+            glockThreshold = 33;
+            remingtonThreshold = 63;
+            mossbergThreshold = 85;
+            mp5Threshold = 95; }
+          if (exp > 10214) {
+            glockThreshold = 24;
+            remingtonThreshold = 48;
+            mossbergThreshold = 70;
+            mp5Threshold = 88; }
+        }
 
         const rand = Math.random() * 100;
 
         let weapon;
-        if (rand < glockThreshold) weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };
-        else if (rand < remingtonThreshold) weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };
-        else if (rand < mossbergThreshold) weapon = { name: 'Mossberg 590 Shotgun', description: '...', power: 260, cost: 1200, type: 'weapon' };
-        else if (rand < mp5Threshold) weapon = { name: 'MP5 SMG', description: '...', power: 330, cost: 4000, type: 'weapon' };
-        else weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
+        if (rand < glockThreshold) {weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };} 
+        else if (rand < remingtonThreshold) {weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };} 
+        else if (rand < waltherThreshold && isEichenwald) {   // Walther only appears in Eichenwald
+          weapon = { name: 'Walther PDP Pro', description: 'A premium 9mm striker-fired pistol optimized for tactical use with modular ergonomics, crisp trigger, and full optics-ready capability.', power: 210, cost: 850, type: 'weapon'};} 
+        else if (rand < mossbergThreshold) {weapon = { name: 'Mossberg 590 Shotgun', description: '...', power: 260, cost: 1200, type: 'weapon' };} 
+        else if (rand < mp5Threshold) {weapon = { name: 'MP5 SMG', description: '...', power: 330, cost: 4000, type: 'weapon' };} 
+        else {weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };}
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;

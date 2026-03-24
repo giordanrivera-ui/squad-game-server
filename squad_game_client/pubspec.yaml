@@ -80,6 +80,7 @@ flutter:
     - assets/Ruger Mark IV.jpg
     - assets/Glock 45 Gen 5.jpg
     - assets/Remington R1 Enhanced.jpg
+    - assets/Walther PDP Pro.jpg
     - assets/Mossberg 590 Shotgun.jpg
     - assets/MP5 SMG.jpg
     - assets/H&K UMP5.jpg
@@ -88,6 +89,7 @@ flutter:
     - assets/M4 Carbine.jpg
     - assets/SCAR-16 Mk II.jpg
     - assets/M16A4.jpg
+    - assets/XM7.jpg
     - assets/M24 Sniper.jpg
     - assets/Barrett M82.jpg
     - assets/Generic Aramid Boots.jpg
