@@ -143,12 +143,12 @@ class SocketService {
             }
           }
 
-          // Update notifier with clean integers
-          statsNotifier.value = {...statsNotifier.value, ...cleaned};
-        
           // Capture old values BEFORE update
           final oldExp = statsNotifier.value['experience'] ?? 0;
           final oldRank = _getRankTitle(oldExp);  // Use helper below
+
+          // Update notifier with clean integers
+          statsNotifier.value = {...statsNotifier.value, ...cleaned};
 
           // Update notifier
           statsNotifier.value = {...statsNotifier.value, ...data};

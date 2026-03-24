@@ -251,15 +251,34 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 11464) stealChance = 0.65;
       if (exp > 14214) stealChance = 0.65;
       if (exp > 17414) stealChance = 0.70;
-      if (exp > 21364) stealChance = 0.70;
-      if (exp > 25864) stealChance = 0.75;
-      if (exp > 31514) stealChance = 0.80;
-      if (exp > 38214) stealChance = 0.85;
+      if (exp > 21364) stealChance = 0.72;
+      if (exp > 25864) stealChance = 0.78;
+      if (exp > 31514) stealChance = 0.82;
+      if (exp > 38214) stealChance = 0.88;
 
       if (Math.random() < stealChance) {
-        let knifeThreshold = 30; let batThreshold = 55; let macheteThreshold = 75; let maulThreshold = 95;
-        if (exp > 3514) { knifeThreshold = 20; batThreshold = 45; macheteThreshold = 70; maulThreshold = 93; }
-        if (exp > 10214) { knifeThreshold = 14; batThreshold = 32; macheteThreshold = 57; maulThreshold = 84; }
+        let knifeThreshold = 30; // (30%)
+        let batThreshold = 55; // 30 + (25%)
+        let macheteThreshold = 75; // 55 + (20%)
+        let maulThreshold = 95; // 75 + (20%)
+        if (exp > 3514) { 
+          knifeThreshold = 20; 
+          batThreshold = 45; 
+          macheteThreshold = 70; 
+          maulThreshold = 93; 
+        }
+        if (exp > 10214) { 
+          knifeThreshold = 14; 
+          batThreshold = 32; 
+          macheteThreshold = 57; 
+          maulThreshold = 84; 
+        }
+        if (exp > 21364) { 
+          knifeThreshold = 8; // (8%)
+          batThreshold = 26; // 8 + (18%)
+          macheteThreshold = 50; // 26 + (24%) 
+          maulThreshold = 78; // 50 + (28%)
+        }
 
         const rand = Math.random() * 100;
         let weapon;
@@ -288,10 +307,10 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 11464) stealChance = 0.62;
       if (exp > 14214) stealChance = 0.65;
       if (exp > 17414) stealChance = 0.68;
-      if (exp > 21364) stealChance = 0.72;
-      if (exp > 25864) stealChance = 0.75;
-      if (exp > 31514) stealChance = 0.80;
-      if (exp > 38214) stealChance = 0.85;
+      if (exp > 21364) stealChance = 0.74;
+      if (exp > 25864) stealChance = 0.78;
+      if (exp > 31514) stealChance = 0.82;
+      if (exp > 38214) stealChance = 0.86;
 
       if (Math.random() < stealChance) {
         const isEichenwald = p.location === "Eichenwald";
@@ -309,11 +328,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
             ump5Threshold = 100;       // 97 + 3
           } else if (exp <= 10214) {
             glockThreshold = 25;
-            remingtonThreshold = 47;   // 25 + 22
-            waltherThreshold = 65;     // 47 + 18
-            mossbergThreshold = 85;    // 65 + 20
-            mp5Threshold = 95;         // 85 + 10
-            ump5Threshold = 100;       // 95 + 5
+            remingtonThreshold = 47;   // 25 + (22%)
+            waltherThreshold = 65;     // 47 + (18%)
+            mossbergThreshold = 85;    // 65 + (20%)
+            mp5Threshold = 95;         // 85 + (10%)
+            ump5Threshold = 100;       // 95 + (5%)
           } else {
             glockThreshold = 16;
             remingtonThreshold = 28;   // 16 + 12
