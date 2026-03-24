@@ -56,7 +56,7 @@ function generateRandomBondMarket(location) {
 
   // First 3: Treasury Bonds
   for (let i = 1; i <= 3; i++) {
-    const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1);
+    const couponRate = (4.4 + Math.floor(random() * 33) * 0.1).toFixed(1);
     const title = `${location} ${couponRate}% Treasury Bond`;
     bonds.push({
       title: title,
@@ -68,7 +68,7 @@ function generateRandomBondMarket(location) {
   // 12 corporate bonds
   const shuffledTemplates = [...corporateTemplates].sort(() => random() - 0.5);
   for (let i = 0; i < 12; i++) {
-    const couponRate = (1.0 + Math.floor(random() * 10) * 0.1).toFixed(1);
+    const couponRate = (4.4 + Math.floor(random() * 33) * 0.1).toFixed(1);
     const template = shuffledTemplates[i];
     const title = template.replace("Y", couponRate);
     bonds.push({
