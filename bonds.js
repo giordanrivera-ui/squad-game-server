@@ -190,7 +190,7 @@ async function handleBuyBond(db, socket, bondData) {
   });
 }
 
-// ==================== AUTO BOND COUPON PAYMENTS (NEW LOGIC) ====================
+// ==================== AUTO BOND COUPON PAYMENTS (with special final description) ====================
 function startBondMaturityChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
@@ -205,30 +205,32 @@ function startBondMaturityChecker(db, { onlineSockets }) {
 
         let updatedBonds = [];
         let refundTotalThisCycle = 0;
+        let useMaturityDescription = false;   // ← NEW: flag for final payment
 
         for (const bond of p.ownedBonds) {
           if (!bond.nextPaymentTime || !bond.paymentsRemaining) {
-            updatedBonds.push(bond); // old bond, keep as-is
+            updatedBonds.push(bond);
             continue;
           }
 
           if (now >= bond.nextPaymentTime && bond.paymentsRemaining > 0) {
             let paymentAmount = bond.couponAmount / 4;
 
-            // Last payment also returns the principal (cost)
+            // Last payment also returns the principal
             if (bond.paymentsRemaining === 1) {
               paymentAmount += bond.cost;
+              useMaturityDescription = true;   // ← NEW: this is the final payment
             }
 
             refundTotalThisCycle += paymentAmount;
 
-            // Update this bond
+            // Update bond for next cycle
             bond.paymentsRemaining--;
             if (bond.paymentsRemaining > 0) {
-              bond.nextPaymentTime += 2 * 60 * 1000; // next payment in 2 min
+              bond.nextPaymentTime += 2 * 60 * 1000;
               updatedBonds.push(bond);
             }
-            // else: bond is fully paid → do NOT push it back (it gets removed)
+            // else: fully paid → do not push back (bond disappears)
           } else {
             updatedBonds.push(bond);
           }
@@ -241,16 +243,19 @@ function startBondMaturityChecker(db, { onlineSockets }) {
           });
 
           const txRef = doc.ref.collection('transactions').doc();
+          const description = useMaturityDescription 
+            ? 'Bond Coupon Payment & Maturity' 
+            : 'Bond Coupon Payment';
+
           batch.set(txRef, {
             amount: refundTotalThisCycle,
-            description: 'Bond Coupon Payment',
+            description: description,           // ← now uses the correct text
             balanceAfter: (p.balance || 0) + refundTotalThisCycle,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
           });
 
-          console.log(`[BOND COUPON] ${p.displayName || doc.id} received $${refundTotalThisCycle}`);
+          console.log(`[BOND COUPON] ${p.displayName || doc.id} received $${refundTotalThisCycle} (${description})`);
 
-          // NEW: Remember this player for live notification
           if (p.displayName) {
             playersToNotify.push({
               displayName: p.displayName,
@@ -263,7 +268,7 @@ function startBondMaturityChecker(db, { onlineSockets }) {
 
       await batch.commit();
 
-      // Live UI updates (same as before)
+      // Live UI updates (unchanged)
       for (const player of playersToNotify) {
         const socket = onlineSockets.get(player.displayName);
         if (socket) {
@@ -272,7 +277,7 @@ function startBondMaturityChecker(db, { onlineSockets }) {
           socket.emit('update-stats', freshData);
           socket.emit('new-transaction', {
             amount: player.refundTotal,
-            description: 'Bond Coupon Payment',
+            description: 'Bond Coupon Payment',   // live event still uses short name (you can change this too if you want)
             balanceAfter: (freshData.balance || 0)
           });
         }
