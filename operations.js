@@ -277,12 +277,12 @@ async function handleExecuteOperation(db, socket, data, deps) {
     else if (operation === "Attack military barracks") {
       let stealChance = 0.12;
       if (exp > 49) stealChance = 0.15;
-      if (exp > 514) stealChance = 0.20;
-      if (exp > 1264) stealChance = 0.25;
-      if (exp > 2314) stealChance = 0.30;
-      if (exp > 3514) stealChance = 0.35;
-      if (exp > 5014) stealChance = 0.40;
-      if (exp > 6864) stealChance = 0.45;
+      if (exp > 514) stealChance = 0.21;
+      if (exp > 1264) stealChance = 0.26;
+      if (exp > 2314) stealChance = 0.32;
+      if (exp > 3514) stealChance = 0.36;
+      if (exp > 5014) stealChance = 0.42;
+      if (exp > 6864) stealChance = 0.46;
       if (exp > 8864) stealChance = 0.55;
       if (exp > 10214) stealChance = 0.60;
       if (exp > 11464) stealChance = 0.62;
@@ -361,19 +361,19 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 49) stealChance = 0.05;
       if (exp > 514) stealChance = 0.06;
       if (exp > 1264) stealChance = 0.07;
-      if (exp > 2314) stealChance = 0.09;
-      if (exp > 3514) stealChance = 0.10;
-      if (exp > 5014) stealChance = 0.12;
-      if (exp > 6864) stealChance = 0.14;
-      if (exp > 8864) stealChance = 0.15;
-      if (exp > 10214) stealChance = 0.16;
-      if (exp > 11464) stealChance = 0.17;
-      if (exp > 14214) stealChance = 0.18;
-      if (exp > 17414) stealChance = 0.20;
-      if (exp > 21364) stealChance = 0.22;
-      if (exp > 25864) stealChance = 0.23;
-      if (exp > 31514) stealChance = 0.25;
-      if (exp > 38214) stealChance = 0.28;
+      if (exp > 2314) stealChance = 0.10;
+      if (exp > 3514) stealChance = 0.12;
+      if (exp > 5014) stealChance = 0.14;
+      if (exp > 6864) stealChance = 0.16;
+      if (exp > 8864) stealChance = 0.18;
+      if (exp > 10214) stealChance = 0.19;
+      if (exp > 11464) stealChance = 0.20;
+      if (exp > 14214) stealChance = 0.21;
+      if (exp > 17414) stealChance = 0.22;
+      if (exp > 21364) stealChance = 0.23;
+      if (exp > 25864) stealChance = 0.25;
+      if (exp > 31514) stealChance = 0.28;
+      if (exp > 38214) stealChance = 0.30;
 
       if (Math.random() < stealChance) {
         let ump5Threshold = 48; 

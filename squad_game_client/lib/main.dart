@@ -486,7 +486,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                   skill: _socketService.statsNotifier.value['skill'] ?? 0,
                                 )
                               : _currentScreen == 6 
-                                  ? ProfileScreen(stats: _socketService.statsNotifier.value)
+                                  ? ProfileScreen(
+                                    stats: {
+                                      ..._socketService.statsNotifier.value,
+                                      'balance': (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
+                                      })
                                   : _currentScreen == 7 
                                       ? StoreScreen(
                                         currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
