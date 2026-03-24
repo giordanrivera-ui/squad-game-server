@@ -172,9 +172,6 @@ setInterval(async () => {
   }
 }, 2000); // Check every 2 seconds
 
-// ==================== AUTO BOND MATURITY (8 MINUTES) - Runs every 30 seconds ====================
-startBondMaturityChecker(db, { onlineSockets });
-
 const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
   "Valleora", "Lónghǎi", "Sakuragawa", "Cawayan Heights"
@@ -189,6 +186,9 @@ const travelCosts = { // ==================== TRAVEL COSTS ====================
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
+
+// ==================== AUTO BOND MATURITY (8 MINUTES) - Runs every 30 seconds ====================
+startBondMaturityChecker(db, { onlineSockets });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
