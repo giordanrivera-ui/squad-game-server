@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 
-// ==================== IMPROVED TRANSACTION LOGGER (same as every other file) ====================
+// ==================== IMPROVED TRANSACTION LOGGER ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
     console.warn('[TX] Invalid logTransaction call - missing params');
@@ -8,7 +8,7 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
   }
 
   const newBalance = (playerData.balance || 0) + amount;
-  
+
   const txData = {
     amount: amount,
     description: description,
@@ -30,7 +30,7 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
   }
 }
 
-// ==================== CORPORATE BOND TEMPLATES (moved here) ====================
+// ==================== CORPORATE BOND TEMPLATES ====================
 const corporateTemplates = [
   "Orange Inc. Y Corporate Bond",
   "Nanosoft Y Corporate Bond",
@@ -49,7 +49,7 @@ const corporateTemplates = [
   "Starducks Coffee Y Corporate Bond"
 ];
 
-// ==================== GENERATE RANDOM BOND MARKET (moved here) ====================
+// ==================== GENERATE RANDOM BOND MARKET ====================
 function generateRandomBondMarket(location) {
   const bonds = [];
   const random = Math.random;
@@ -82,7 +82,7 @@ function generateRandomBondMarket(location) {
   return bonds;
 }
 
-// ==================== REQUEST BOND MARKET HANDLER ====================
+// ==================== REQUEST / REFRESH BOND MARKET (unchanged) ====================
 async function handleRequestBondMarket(db, socket) {
   const email = socket.data.email;
   if (!email) return;
@@ -101,9 +101,9 @@ async function handleRequestBondMarket(db, socket) {
     });
   }
 
-  socket.emit('bond-market-update', {
-    bonds,
-    cooldownEndTime: cooldownEnd
+  socket.emit('bond-market-update', { 
+    bonds, 
+    cooldownEndTime: cooldownEnd 
   });
 }
 
@@ -128,18 +128,18 @@ async function handleRefreshBondMarket(db, socket) {
 
   const newBonds = generateRandomBondMarket(location);
   const newCooldownEnd = now + 120000;
-  await docRef.update({
-    bondMarket: newBonds,
-    bondMarketCooldownEnd: newCooldownEnd
+  await docRef.update({ 
+    bondMarket: newBonds, 
+    bondMarketCooldownEnd: newCooldownEnd 
   });
-  socket.emit('bond-market-update', {
-    bonds: newBonds,
-    cooldownEndTime: newCooldownEnd
+  socket.emit('bond-market-update', { 
+    bonds: newBonds, 
+    cooldownEndTime: newCooldownEnd 
   });
   console.log(`[BONDS] ${email} refreshed market at ${location}`);
 }
 
-// ==================== BUY BOND HANDLER ====================
+// ==================== BUY BOND — NOW CALCULATES COUPON ====================
 async function handleBuyBond(db, socket, bondData) {
   const email = socket.data.email;
   if (!email || !bondData?.title || typeof bondData.cost !== 'number') {
@@ -162,69 +162,101 @@ async function handleBuyBond(db, socket, bondData) {
     socket.emit('bond-result', { success: false, message: 'Insufficient funds.' });
     return;
   }
-  const maturityTime = Date.now() + 8 * 60 * 1000;
+  // ====================== NEW COUPON CALCULATION ======================
+  const couponRateDecimal = bondData.couponRate / 100;
+  const totalCoupon = Math.round(couponRateDecimal * bondData.cost);   // e.g. 5% of $100,000 = $5,000
+
   await logTransaction(socket, -bondData.cost, `Bond Purchased: ${bondData.title}`, p, docRef);
+
   p.balance -= bondData.cost;
+
   if (!p.ownedBonds) p.ownedBonds = [];
   p.ownedBonds.push({
     ...marketBonds[matchingIndex],
     purchaseTime: Date.now(),
-    maturityTime: maturityTime
+    totalCoupon: totalCoupon,      // NEW
+    paymentsMade: 0                // NEW — tracks how many of the 4 coupon payments have been made
   });
+
   p.bondMarket = marketBonds.filter((_, i) => i !== matchingIndex);
+
   await docRef.set(p);
   socket.emit('update-stats', p);
   socket.emit('bond-result', {
     success: true,
-    message: `✅ Bought ${bondData.title}! Matures in exactly 8 minutes.`
+    message: `✅ Bought ${bondData.title}! Coupon $${totalCoupon} will be paid in 4 installments (every 2 min). Final payment includes principal.`
   });
 }
 
-// ==================== AUTO BOND MATURITY + LIVE UI UPDATE (FIXED) ====================
+// ==================== NEW BOND PAYMENT CHECKER (4 installments every 2 min) ====================
 function startBondMaturityChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = []; // NEW: track who needs live update
+      const playersToNotify = [];
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
         if (!p.ownedBonds || p.ownedBonds.length === 0) continue;
 
-        let refundTotal = 0;
-        const remainingBonds = [];
+        let bondsToKeep = [];
+        let totalPaidThisCycle = 0;
+
         for (const bond of p.ownedBonds) {
-          if (bond.maturityTime && now >= bond.maturityTime) {
-            refundTotal += bond.cost || 0;
+          const elapsedMs = now - bond.purchaseTime;
+          const intervalMs = 2 * 60 * 1000; // 2 minutes
+          const paymentsDue = Math.min(4, Math.floor(elapsedMs / intervalMs));
+
+          const alreadyPaid = bond.paymentsMade || 0;
+
+          if (paymentsDue > alreadyPaid) {
+            const numToPayNow = paymentsDue - alreadyPaid;
+            const couponPerPayment = Math.floor(bond.totalCoupon / 4);
+
+            let amountNow = couponPerPayment * numToPayNow;
+
+            const isFinalPayment = paymentsDue >= 4;
+            if (isFinalPayment) {
+              amountNow += bond.cost || 0;   // ← principal returned on the 4th payment
+            }
+
+            totalPaidThisCycle += amountNow;
+
+            // Update the bond record
+            bond.paymentsMade = paymentsDue;
+
+            if (!isFinalPayment) {
+              bondsToKeep.push(bond);
+            }
+            // else: bond is fully matured and removed
           } else {
-            remainingBonds.push(bond);
+            bondsToKeep.push(bond);
           }
         }
 
-        if (refundTotal > 0) {
+        if (totalPaidThisCycle > 0) {
           batch.update(doc.ref, {
-            balance: admin.firestore.FieldValue.increment(refundTotal),
-            ownedBonds: remainingBonds
+            balance: admin.firestore.FieldValue.increment(totalPaidThisCycle),
+            ownedBonds: bondsToKeep
           });
 
           const txRef = doc.ref.collection('transactions').doc();
           batch.set(txRef, {
-            amount: refundTotal,
-            description: 'Bond Maturity',
-            balanceAfter: (p.balance || 0) + refundTotal,
+            amount: totalPaidThisCycle,
+            description: 'Bond Coupon + Maturity',
+            balanceAfter: (p.balance || 0) + totalPaidThisCycle,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
           });
 
-          console.log(`[BOND MATURITY] ${p.displayName || doc.id} refunded $${refundTotal}`);
+          console.log(`[BOND PAYOUT] ${p.displayName || doc.id} received $${totalPaidThisCycle}`);
 
-          // NEW: Remember this player for live notification
           if (p.displayName) {
             playersToNotify.push({
               displayName: p.displayName,
               email: doc.id,
-              refundTotal
+              totalPaidThisCycle
             });
           }
         }
@@ -232,30 +264,27 @@ function startBondMaturityChecker(db, { onlineSockets }) {
 
       await batch.commit();
 
-      // ==================== LIVE NOTIFICATION (the fix) ====================
+      // ==================== LIVE UI UPDATE ====================
       for (const player of playersToNotify) {
         const socket = onlineSockets.get(player.displayName);
         if (socket) {
-          // 1. Refresh stats → Owned Bonds tab instantly removes the bond
           const freshDoc = await db.collection('players').doc(player.email).get();
           const freshData = freshDoc.data();
           socket.emit('update-stats', freshData);
-
-          // 2. Live transaction → Transaction History instantly shows "Bond Maturity"
           socket.emit('new-transaction', {
-            amount: player.refundTotal,
-            description: 'Bond Maturity',
+            amount: player.totalPaidThisCycle,
+            description: 'Bond Coupon + Maturity',
             balanceAfter: (freshData.balance || 0)
           });
         }
       }
     } catch (e) {
-      console.error('Bond maturity error:', e);
+      console.error('Bond payment error:', e);
     }
   }, 1000);
 }
 
-// Export everything so server.js can use it
+// Export everything
 module.exports = {
   handleRequestBondMarket,
   handleRefreshBondMarket,
