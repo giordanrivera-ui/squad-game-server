@@ -214,7 +214,7 @@ function startBondMaturityChecker(db, { onlineSockets }) {
           }
 
           if (now >= bond.nextPaymentTime && bond.paymentsRemaining > 0) {
-            let paymentAmount = bond.couponAmount / 4;
+            let paymentAmount = Math.round(bond.couponAmount / 4);
 
             // Last payment also returns the principal
             if (bond.paymentsRemaining === 1) {

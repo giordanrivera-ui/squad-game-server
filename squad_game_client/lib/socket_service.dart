@@ -127,6 +127,25 @@ class SocketService {
       // NEW: Handle update-stats (update the notifier)
       socket?.on(SocketEvents.updateStats, (data) {
         if (data is Map<String, dynamic>) {
+          final cleaned = <String, dynamic>{...data};
+
+          const numericFields = [
+            'balance', 'health', 'bullets', 'experience', 'overallPower',
+            'kills', 'intelligence', 'skill', 'marksmanship', 'stealth', 'defense',
+            'lastLowLevelOp', 'lastMidLevelOp', 'lastHighLevelOp',
+            'prisonEndTime', 'sellBanEndTime', 'bonePenaltyEndTimeLow',
+            'bonePenaltyEndTimeMid', 'bonePenaltyEndTimeHigh'
+          ];
+
+          for (var field in numericFields) {
+            if (cleaned.containsKey(field) && cleaned[field] is num) {
+              cleaned[field] = (cleaned[field] as num).toInt();   // ← This is the key fix
+            }
+          }
+
+          // Update notifier with clean integers
+          statsNotifier.value = {...statsNotifier.value, ...cleaned};
+        
           // Capture old values BEFORE update
           final oldExp = statsNotifier.value['experience'] ?? 0;
           final oldRank = _getRankTitle(oldExp);  // Use helper below
