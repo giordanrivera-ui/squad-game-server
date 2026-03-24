@@ -164,7 +164,7 @@ async function handleBuyBond(db, socket, bondData) {
   }
 
   // === NEW: Calculate Coupon and prepare 4 payments ===
-  const couponAmount = bondData.couponRate * bondData.cost;   // e.g. 0.05 * 100000 = 5000
+  const couponAmount = (bondData.couponRate / 100)* bondData.cost;   // e.g. 0.05 * 100000 = 5000
   const now = Date.now();
   const maturityTime = now + 8 * 60 * 1000;                   // still 8 minutes total
 
