@@ -173,7 +173,7 @@ setInterval(async () => {
 }, 2000); // Check every 2 seconds
 
 // ==================== AUTO BOND MATURITY (8 MINUTES) - Runs every 30 seconds ====================
-startBondMaturityChecker(db);
+startBondMaturityChecker(db, { onlineSockets });
 
 const normalLocations = [ // ==================== LOCATIONS ====================
   "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",

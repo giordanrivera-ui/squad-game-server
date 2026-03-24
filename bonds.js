@@ -180,17 +180,19 @@ async function handleBuyBond(db, socket, bondData) {
   });
 }
 
-// ==================== AUTO BOND MATURITY (moved here) ====================
-// This runs forever and refunds matured bonds for EVERY player
-function startBondMaturityChecker(db) {
+// ==================== AUTO BOND MATURITY + LIVE UI UPDATE (FIXED) ====================
+function startBondMaturityChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
+      const playersToNotify = []; // NEW: track who needs live update
+
       for (const doc of snapshot.docs) {
         let p = doc.data();
         if (!p.ownedBonds || p.ownedBonds.length === 0) continue;
+
         let refundTotal = 0;
         const remainingBonds = [];
         for (const bond of p.ownedBonds) {
@@ -200,11 +202,13 @@ function startBondMaturityChecker(db) {
             remainingBonds.push(bond);
           }
         }
+
         if (refundTotal > 0) {
           batch.update(doc.ref, {
             balance: admin.firestore.FieldValue.increment(refundTotal),
             ownedBonds: remainingBonds
           });
+
           const txRef = doc.ref.collection('transactions').doc();
           batch.set(txRef, {
             amount: refundTotal,
@@ -212,14 +216,43 @@ function startBondMaturityChecker(db) {
             balanceAfter: (p.balance || 0) + refundTotal,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
           });
+
           console.log(`[BOND MATURITY] ${p.displayName || doc.id} refunded $${refundTotal}`);
+
+          // NEW: Remember this player for live notification
+          if (p.displayName) {
+            playersToNotify.push({
+              displayName: p.displayName,
+              email: doc.id,
+              refundTotal
+            });
+          }
         }
       }
+
       await batch.commit();
+
+      // ==================== LIVE NOTIFICATION (the fix) ====================
+      for (const player of playersToNotify) {
+        const socket = onlineSockets.get(player.displayName);
+        if (socket) {
+          // 1. Refresh stats → Owned Bonds tab instantly removes the bond
+          const freshDoc = await db.collection('players').doc(player.email).get();
+          const freshData = freshDoc.data();
+          socket.emit('update-stats', freshData);
+
+          // 2. Live transaction → Transaction History instantly shows "Bond Maturity"
+          socket.emit('new-transaction', {
+            amount: player.refundTotal,
+            description: 'Bond Maturity',
+            balanceAfter: (freshData.balance || 0)
+          });
+        }
+      }
     } catch (e) {
       console.error('Bond maturity error:', e);
     }
-  }, 1000); // every second (same as before)
+  }, 1000);
 }
 
 // Export everything so server.js can use it
