@@ -461,7 +461,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                   : _currentScreen == 3 
                       ? AirportScreen(
                           currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                          currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                          currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
                           currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                           currentTime: time,
                           prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
@@ -469,27 +469,27 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                       : _currentScreen == 4 
                           ? HospitalScreen(
                               currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                              currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                              currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
                               currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                               currentTime: time,
                             )
                           : _currentScreen == 5 
                               ? OperationsScreen(
                                   currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                                  currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                                  currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
                                   currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                                   currentTime: time,
-                                  lastLowLevelOp: _socketService.statsNotifier.value['lastLowLevelOp'] ?? 0,
-                                  prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
-                                  lastMidLevelOp: _socketService.statsNotifier.value['lastMidLevelOp'] ?? 0,
-                                  lastHighLevelOp: _socketService.statsNotifier.value['lastHighLevelOp'] ?? 0,
+                                  lastLowLevelOp: (_socketService.statsNotifier.value['lastLowLevelOp'] ?? 0).toInt(),
+                                  prisonEndTime: (_socketService.statsNotifier.value['prisonEndTime'] ?? 0).toInt(),
+                                  lastMidLevelOp: (_socketService.statsNotifier.value['lastMidLevelOp'] ?? 0.toInt()),
+                                  lastHighLevelOp: (_socketService.statsNotifier.value['lastHighLevelOp'] ?? 0).toInt(),
                                   skill: _socketService.statsNotifier.value['skill'] ?? 0,
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(stats: _socketService.statsNotifier.value)
                                   : _currentScreen == 7 
                                       ? StoreScreen(
-                                        currentBalance: _socketService.statsNotifier.value['balance'] ?? 0,
+                                        currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
                                         currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                                         currentTime: time,
                                         currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
