@@ -82,7 +82,7 @@ function generateRandomBondMarket(location) {
   return bonds;
 }
 
-// ==================== REQUEST / REFRESH BOND MARKET (unchanged) ====================
+// ==================== REQUEST BOND MARKET HANDLER ====================
 async function handleRequestBondMarket(db, socket) {
   const email = socket.data.email;
   if (!email) return;
@@ -101,9 +101,9 @@ async function handleRequestBondMarket(db, socket) {
     });
   }
 
-  socket.emit('bond-market-update', { 
-    bonds, 
-    cooldownEndTime: cooldownEnd 
+  socket.emit('bond-market-update', {
+    bonds,
+    cooldownEndTime: cooldownEnd
   });
 }
 
@@ -128,18 +128,18 @@ async function handleRefreshBondMarket(db, socket) {
 
   const newBonds = generateRandomBondMarket(location);
   const newCooldownEnd = now + 120000;
-  await docRef.update({ 
-    bondMarket: newBonds, 
-    bondMarketCooldownEnd: newCooldownEnd 
+  await docRef.update({
+    bondMarket: newBonds,
+    bondMarketCooldownEnd: newCooldownEnd
   });
-  socket.emit('bond-market-update', { 
-    bonds: newBonds, 
-    cooldownEndTime: newCooldownEnd 
+  socket.emit('bond-market-update', {
+    bonds: newBonds,
+    cooldownEndTime: newCooldownEnd
   });
   console.log(`[BONDS] ${email} refreshed market at ${location}`);
 }
 
-// ==================== BUY BOND — NOW CALCULATES COUPON ====================
+// ==================== BUY BOND HANDLER ====================
 async function handleBuyBond(db, socket, bondData) {
   const email = socket.data.email;
   if (!email || !bondData?.title || typeof bondData.cost !== 'number') {
@@ -162,33 +162,35 @@ async function handleBuyBond(db, socket, bondData) {
     socket.emit('bond-result', { success: false, message: 'Insufficient funds.' });
     return;
   }
-  // ====================== NEW COUPON CALCULATION ======================
-  const couponRateDecimal = bondData.couponRate / 100;
-  const totalCoupon = Math.round(couponRateDecimal * bondData.cost);   // e.g. 5% of $100,000 = $5,000
+
+  // === NEW: Calculate Coupon and prepare 4 payments ===
+  const couponAmount = bondData.couponRate * bondData.cost;   // e.g. 0.05 * 100000 = 5000
+  const now = Date.now();
+  const maturityTime = now + 8 * 60 * 1000;                   // still 8 minutes total
 
   await logTransaction(socket, -bondData.cost, `Bond Purchased: ${bondData.title}`, p, docRef);
 
   p.balance -= bondData.cost;
-
   if (!p.ownedBonds) p.ownedBonds = [];
+
   p.ownedBonds.push({
     ...marketBonds[matchingIndex],
-    purchaseTime: Date.now(),
-    totalCoupon: totalCoupon,      // NEW
-    paymentsMade: 0                // NEW — tracks how many of the 4 coupon payments have been made
+    purchaseTime: now,
+    maturityTime: maturityTime,           // kept for progress bar
+    couponAmount: couponAmount,           // NEW
+    paymentsRemaining: 4,                 // NEW
+    nextPaymentTime: now + 2 * 60 * 1000  // first coupon payment in exactly 2 minutes
   });
-
   p.bondMarket = marketBonds.filter((_, i) => i !== matchingIndex);
-
   await docRef.set(p);
   socket.emit('update-stats', p);
   socket.emit('bond-result', {
     success: true,
-    message: `✅ Bought ${bondData.title}! Coupon $${totalCoupon} will be paid in 4 installments (every 2 min). Final payment includes principal.`
+    message: `✅ Bought ${bondData.title}! Coupon $${couponAmount.toFixed(0)} will be paid in 4 installments every 2 minutes.`
   });
 }
 
-// ==================== NEW BOND PAYMENT CHECKER (4 installments every 2 min) ====================
+// ==================== AUTO BOND COUPON PAYMENTS (NEW LOGIC) ====================
 function startBondMaturityChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
@@ -201,62 +203,59 @@ function startBondMaturityChecker(db, { onlineSockets }) {
         let p = doc.data();
         if (!p.ownedBonds || p.ownedBonds.length === 0) continue;
 
-        let bondsToKeep = [];
-        let totalPaidThisCycle = 0;
+        let updatedBonds = [];
+        let refundTotalThisCycle = 0;
 
         for (const bond of p.ownedBonds) {
-          const elapsedMs = now - bond.purchaseTime;
-          const intervalMs = 2 * 60 * 1000; // 2 minutes
-          const paymentsDue = Math.min(4, Math.floor(elapsedMs / intervalMs));
+          if (!bond.nextPaymentTime || !bond.paymentsRemaining) {
+            updatedBonds.push(bond); // old bond, keep as-is
+            continue;
+          }
 
-          const alreadyPaid = bond.paymentsMade || 0;
+          if (now >= bond.nextPaymentTime && bond.paymentsRemaining > 0) {
+            let paymentAmount = bond.couponAmount / 4;
 
-          if (paymentsDue > alreadyPaid) {
-            const numToPayNow = paymentsDue - alreadyPaid;
-            const couponPerPayment = Math.floor(bond.totalCoupon / 4);
-
-            let amountNow = couponPerPayment * numToPayNow;
-
-            const isFinalPayment = paymentsDue >= 4;
-            if (isFinalPayment) {
-              amountNow += bond.cost || 0;   // ← principal returned on the 4th payment
+            // Last payment also returns the principal (cost)
+            if (bond.paymentsRemaining === 1) {
+              paymentAmount += bond.cost;
             }
 
-            totalPaidThisCycle += amountNow;
+            refundTotalThisCycle += paymentAmount;
 
-            // Update the bond record
-            bond.paymentsMade = paymentsDue;
-
-            if (!isFinalPayment) {
-              bondsToKeep.push(bond);
+            // Update this bond
+            bond.paymentsRemaining--;
+            if (bond.paymentsRemaining > 0) {
+              bond.nextPaymentTime += 2 * 60 * 1000; // next payment in 2 min
+              updatedBonds.push(bond);
             }
-            // else: bond is fully matured and removed
+            // else: bond is fully paid → do NOT push it back (it gets removed)
           } else {
-            bondsToKeep.push(bond);
+            updatedBonds.push(bond);
           }
         }
 
-        if (totalPaidThisCycle > 0) {
+        if (refundTotalThisCycle > 0) {
           batch.update(doc.ref, {
-            balance: admin.firestore.FieldValue.increment(totalPaidThisCycle),
-            ownedBonds: bondsToKeep
+            balance: admin.firestore.FieldValue.increment(refundTotalThisCycle),
+            ownedBonds: updatedBonds
           });
 
           const txRef = doc.ref.collection('transactions').doc();
           batch.set(txRef, {
-            amount: totalPaidThisCycle,
-            description: 'Bond Coupon + Maturity',
-            balanceAfter: (p.balance || 0) + totalPaidThisCycle,
+            amount: refundTotalThisCycle,
+            description: 'Bond Coupon Payment',
+            balanceAfter: (p.balance || 0) + refundTotalThisCycle,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
           });
 
-          console.log(`[BOND PAYOUT] ${p.displayName || doc.id} received $${totalPaidThisCycle}`);
+          console.log(`[BOND COUPON] ${p.displayName || doc.id} received $${refundTotalThisCycle}`);
 
+          // NEW: Remember this player for live notification
           if (p.displayName) {
             playersToNotify.push({
               displayName: p.displayName,
               email: doc.id,
-              totalPaidThisCycle
+              refundTotal: refundTotalThisCycle
             });
           }
         }
@@ -264,7 +263,7 @@ function startBondMaturityChecker(db, { onlineSockets }) {
 
       await batch.commit();
 
-      // ==================== LIVE UI UPDATE ====================
+      // Live UI updates (same as before)
       for (const player of playersToNotify) {
         const socket = onlineSockets.get(player.displayName);
         if (socket) {
@@ -272,14 +271,14 @@ function startBondMaturityChecker(db, { onlineSockets }) {
           const freshData = freshDoc.data();
           socket.emit('update-stats', freshData);
           socket.emit('new-transaction', {
-            amount: player.totalPaidThisCycle,
-            description: 'Bond Coupon + Maturity',
+            amount: player.refundTotal,
+            description: 'Bond Coupon Payment',
             balanceAfter: (freshData.balance || 0)
           });
         }
       }
     } catch (e) {
-      console.error('Bond payment error:', e);
+      console.error('Bond coupon error:', e);
     }
   }, 1000);
 }
