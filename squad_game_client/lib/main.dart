@@ -629,7 +629,7 @@ Widget _buildDashboard() {
                 // Bank balance text (centered)
                 Center(
                   child: Text(
-                    'Bank: \$${NumberFormat('#,###').format(stats['balance'] ?? 0)}',
+                    'Bank: \$${NumberFormat('#,###').format((stats['balance'] as num?)?.toInt() ?? 0)}',
                     style: const TextStyle(fontSize: 22, color: Colors.green, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
