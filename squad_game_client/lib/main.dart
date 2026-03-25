@@ -17,7 +17,6 @@ import 'operations_screen.dart';
 import 'profile_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'store_screen.dart';
-import 'properties_screen.dart';
 import 'sidebar.dart';
 import 'prison_screen.dart';
 import 'rescue_celebration_overlay.dart';
@@ -27,6 +26,7 @@ import 'package:intl/intl.dart';
 import 'kill_player_screen.dart';
 import 'hall_of_fame_screen.dart';
 import 'bonds_screen.dart';
+import 'businesses_screen.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -438,7 +438,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                       ? 'Profile'
                                       : _currentScreen == 7 
                                           ? 'Store'
-                                          : 'Properties',
+                                          : 'Businesses',
               statsNotifier: _socketService.statsNotifier,
               time: time,
               onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -498,8 +498,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                         currentTime: time,
                                         currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
                                       )
-                                      : _currentScreen == 8 
-                                        ? PropertiesScreen(initialStats: _socketService.statsNotifier.value)  // Pass stats
+                                      
                                         : _currentScreen == 9 
                                             ? PrisonScreen(
                                               currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
@@ -509,7 +508,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                             ? const KillPlayerScreen()
                                             : _currentScreen == 11  // NEW: Hall of Fame
                                                 ? const HallOfFameScreen()
-                                                : PropertiesScreen(initialStats: _socketService.statsNotifier.value),  // Fallback
+                                                : _currentScreen == 12 
+                                                ? const BusinessesScreen()
+                                                : const BusinessesScreen(),
 
           floatingActionButton: _currentScreen == 2
           ? FloatingActionButton(

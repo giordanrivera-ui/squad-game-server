@@ -217,20 +217,18 @@ class Sidebar extends StatelessWidget {
               },
             ),
           ),
-
           SizedBox(
             height: 48,
             child: ListTile(
-              leading: const Icon(Icons.apartment),
-              title: const Text('Properties'),
+              leading: const Icon(Icons.business_center),
+              title: const Text('Businesses'),
               selected: currentScreen == 8,
               onTap: () {
-                onScreenChanged(8);
+                onScreenChanged(12);
                 Navigator.pop(context);
               },
             ),
           ),
-
           SizedBox(
             height: 48,
             child: ListTile(
