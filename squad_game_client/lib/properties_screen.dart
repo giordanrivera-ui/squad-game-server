@@ -1,11 +1,10 @@
-// properties_screen.dart (updated)
-
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';  // For FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';  // For FirebaseFirestore
 import 'dart:async';
-import 'package:intl/intl.dart';  // NEW: For NumberFormat
+import 'package:intl/intl.dart'; 
+import 'status_app_bar.dart';
 
 class PropertiesScreen extends StatefulWidget {
   final Map<String, dynamic> initialStats;  // Assuming this is added from previous fix
@@ -262,14 +261,22 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final socketService = SocketService();
-    final owned = List<String>.from(_stats['ownedProperties'] ?? []);
+Widget build(BuildContext context) {
+  final socketService = SocketService();
+  final owned = List<String>.from(_stats['ownedProperties'] ?? []);
 
-    return ListView.builder(
+  return Scaffold(   // ← ADD THIS
+    appBar: StatusAppBar(   // ← ADD THIS
+      title: 'Properties',
+      statsNotifier: socketService.statsNotifier,
+      time: 'Live',
+      onMenuPressed: () => Navigator.pop(context),
+    ),
+    body: ListView.builder(   // ← Your existing ListView stays exactly the same
       padding: const EdgeInsets.all(16),
       itemCount: socketService.properties.length,
       itemBuilder: (context, index) {
+        // ... (everything inside your itemBuilder remains 100% unchanged)
         final prop = socketService.properties[index];
         final name = prop['name'] as String;
         final cost = prop['cost'] as int;
@@ -393,6 +400,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 }

@@ -219,9 +219,9 @@ async function handleBuyProperty(db, socket, propertyName) {
   if (p.balance < prop.cost) return;
 
   const now = Date.now();
-  p.balance -= prop.cost;
   await logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
-
+  p.balance -= prop.cost;
+  
   p.ownedProperties = [...owned, propertyName];
   p.propertyClaims = [...(p.propertyClaims || []), {name: propertyName, lastClaim: now}];  // Add per-property entry
 
@@ -254,8 +254,8 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
   // Check balance
   if (p.balance < cost) return;
 
-  p.balance -= cost;
   await logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
+  p.balance -= cost;
 
   if (!p.ownedUpgrades) p.ownedUpgrades = {};
   if (!p.ownedUpgrades[propertyName]) p.ownedUpgrades[propertyName] = [];
@@ -318,8 +318,8 @@ async function handleClaimIncome(db, socket) {
   }
 
   if (totalAward > 0) {
-    p.balance += totalAward;
     await logTransaction(socket, totalAward, 'Property Income', p, docRef);   // p = playerData, docRef = the Firestore reference
+    p.balance += totalAward;
     p.propertyClaims = updatedClaims;  // Save updated per-property claims
     await docRef.set(p);
     socket.emit('update-stats', p);
