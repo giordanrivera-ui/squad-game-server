@@ -531,93 +531,107 @@ Widget _buildDashboard() {
       return Column(
         children: [
           // Top section (unchanged until health)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            color: Colors.grey[800],
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                children: [
-                  // NEW: Menu button here (with unread dot)
-                  Builder(
-                    builder: (context) => Stack(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.menu, color: Colors.white),
-                          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                        ),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _socketService.hasUnreadMessages,
-                          builder: (context, hasUnread, child) {
-                            if (!hasUnread) return const SizedBox.shrink();
-                            return Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),  // Space between button and time
-                  Expanded(  // Let time take remaining space
-                    child: Text(
-                      time,
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
-              const SizedBox(height: 8),
-                // ==================== UPDATED HEALTH BAR WITH BROKEN BONE ICON ====================
-                LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green,
-                ),
-                Row(
-                  children: [
-                    Text(
-                      'Health: ${stats['health'] ?? 100}/100',
-                      style: const TextStyle(fontSize: 16, color: Colors.white),
-                    ),
-                    if (stats['hasBrokenBone'] == true)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 8),
-                        child: Icon(
-                          Icons.personal_injury,
-                          color: Colors.orangeAccent,
-                          size: 24,
-                        ),
-                      ),
-                  ],
-                ),
-                // ==================== END OF UPDATE ====================
+// ==================== TOP SECTION WITH BACKGROUND IMAGE + OVERLAY ====================
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(16),
+  decoration: const BoxDecoration(
+    image: DecorationImage(
+      image: AssetImage('assets/top-section-bg.jpg'),
+      fit: BoxFit.cover,
+    ),
+  ),
+  child: Stack(
+    children: [
+      // Semi-transparent black overlay (makes text easy to read)
+      Container(
+        color: Colors.black.withOpacity(0.58),   // ← Feel free to tweak 0.58 if you want darker/lighter
+      ),
 
-                const SizedBox(height: 8),
-                Row(
+      // All your original content stays exactly the same
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Menu button
+              Builder(
+                builder: (context) => Stack(
                   children: [
-                    const Icon(Icons.adjust, size: 20, color: Colors.orange),  // Bullet icon
-                    const SizedBox(width: 4),
-                    Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.whatshot, size: 20, color: Colors.red),  // Skull or fire icon for kills
-                    const SizedBox(width: 4),
-                    Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                    IconButton(
+                      icon: const Icon(Icons.menu, color: Colors.white),
+                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                    ),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _socketService.hasUnreadMessages,
+                      builder: (context, hasUnread, child) {
+                        if (!hasUnread) return const SizedBox.shrink();
+                        return Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  time,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 2),
+          Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
+          const SizedBox(height: 8),
+          // Health bar
+          LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green,
+          ),
+          Row(
+            children: [
+              Text(
+                'Health: ${stats['health'] ?? 100}/100',
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+              ),
+              if (stats['hasBrokenBone'] == true)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Icon(
+                    Icons.personal_injury,
+                    color: Colors.orangeAccent,
+                    size: 24,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.adjust, size: 20, color: Colors.orange),
+              const SizedBox(width: 4),
+              Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+              const SizedBox(width: 6),
+              const Icon(Icons.whatshot, size: 20, color: Colors.red),
+              const SizedBox(width: 4),
+              Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
+            ],
+          ),
+        ],
+      ),
+    ],
+  ),
+),
         // Black rectangle ONLY for bank balance + BONDS button
         Padding(
           padding: const EdgeInsets.all(16),

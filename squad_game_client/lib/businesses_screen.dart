@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'properties_screen.dart';
-import 'taxi_tycoon.dart';   // ← NEW IMPORT
+import 'taxi_tycoon.dart';
 
 class BusinessesScreen extends StatelessWidget {
   const BusinessesScreen({super.key});
@@ -13,7 +13,7 @@ class BusinessesScreen extends StatelessWidget {
       builder: (context, stats, child) {
         return Column(
           children: [
-            // Taxi Tycoon rectangle
+            // ==================== TAXI TYCOON BUTTON ====================
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -26,24 +26,42 @@ class BusinessesScreen extends StatelessWidget {
                   width: double.infinity,
                   margin: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E88E5), Color(0xFF1565C0)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                    image: DecorationImage(
+                      image: AssetImage('assets/business-taxi.jpg'),
+                      fit: BoxFit.cover,
+                      colorFilter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.40), // ← Dark overlay for text readability
+                        BlendMode.darken,
+                      ),
                     ),
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(color: Colors.blue.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10)),
                     ],
+                    
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(Icons.local_taxi, size: 110, color: Colors.white),
                       const SizedBox(height: 24),
-                      const Text('TAXI TYCOON', style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 3)),
+                      const Text(
+                        'TAXI TYCOON',
+                        style: TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 3,
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      Text('Own a fleet • Earn passive income', style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.9))),
+                      Text(
+                        'Own a fleet • Earn passive income',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white.withOpacity(0.95),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -52,7 +70,7 @@ class BusinessesScreen extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Real Estate (unchanged)
+            // ==================== REAL ESTATE BUTTON ====================
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -67,10 +85,13 @@ class BusinessesScreen extends StatelessWidget {
                   width: double.infinity,
                   margin: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF43A047), Color(0xFF2E7D32)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                    image: DecorationImage(
+                      image: AssetImage('assets/business-realestate.jpg'),
+                      fit: BoxFit.cover,
+                      colorFilter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.40), // ← Dark overlay for text readability
+                        BlendMode.darken,
+                      ),
                     ),
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
@@ -82,9 +103,23 @@ class BusinessesScreen extends StatelessWidget {
                     children: [
                       const Icon(Icons.apartment, size: 110, color: Colors.white),
                       const SizedBox(height: 24),
-                      const Text('REAL ESTATE', style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 3)),
+                      const Text(
+                        'REAL ESTATE',
+                        style: TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 3,
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      Text('Properties • Upgrades • Passive income', style: TextStyle(fontSize: 18, color: Colors.white.withOpacity(0.9))),
+                      Text(
+                        'Properties • Upgrades • Passive income',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white.withOpacity(0.95),
+                        ),
+                      ),
                     ],
                   ),
                 ),
