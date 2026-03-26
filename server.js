@@ -15,6 +15,7 @@ const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = r
 const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
+const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -182,23 +183,6 @@ const travelCosts = { // ==================== TRAVEL COSTS ====================
   "Montclair": 85, "Valleora": 70, "Lónghǎi": 140, "Sakuragawa": 95,
   "Cawayan Heights": 55
 };
-
-// ==================== VEHICLE MASTER LIST (SERVER-AUTHORITATIVE) ====================
-const vehicleTemplates = [
-  { name: 'Bicycle', power: 50, cost: 350, skillReq: 0, description: 'A human-powered vehicle with two wheels, propelled by pedaling.', defense: 0},
-  { name: 'Motorcycle', power: 75, cost: 4200, skillReq: 0, description: 'A two-wheeled powered vehicle with a seat or saddle, designed for rider and passenger.', defense: 1},
-  { name: 'Corolla', power: 150, cost: 18000, skillReq: 0, description: 'A compact sedan known for reliability, fuel efficiency, and affordability.', defense: 2},
-  { name: 'Jeep', power: 200, cost: 36000, skillReq: 1, description: 'Rugged off-road SUV with removable doors/roof, excellent trail capability.', defense: 3},
-  { name: 'Strada Pickup Truck', power: 280, cost: 55000, skillReq: 1, description: 'Mid-size pickup with rugged design, diesel engine, good for work/adventure.', defense: 3},
-  { name: 'Hummer H1', power: 360, cost: 80000, skillReq: 2, description: 'Civilian version of military Humvee, extreme off-road 4x4 with high ground clearance.', defense: 4},
-  { name: 'M998 Humvee', power: 500, cost: 92000, skillReq: 4, description: 'Military 4x4 utility vehicle, highly mobile, multi-purpose.', defense: 4},
-  { name: 'M-ATV', power: 750, cost: 475000, skillReq: 5, description: 'Mine-resistant ambush-protected all-terrain vehicle for troop protection in hazardous environments.', defense: 5},
-  { name: 'MaxxPro MRAP', power: 900, cost: 1400000, skillReq: 6, description: 'Armored fighting vehicle designed for IED protection, V-hull design.', defense: 5},
-  { name: 'AMPV', power: 1200, cost: 4500000, skillReq: 8, description: 'Armored multi-purpose vehicle replacing M113, for troop transport and support.', defense: 6},
-  { name: 'Stryker M1126', power: 1500, cost: 5250000, skillReq: 10, description: 'Wheeled armored personnel carrier, highly mobile 8x8 for infantry transport.', defense: 7},
-  { name: 'M1 Abrams', power: 2000, cost: 8200000, skillReq: 12, description: 'Third-generation main battle tank with advanced armor, 120mm gun, high mobility.', defense: 8},
-];
-
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
@@ -895,52 +879,10 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  // ==================== REQUEST VEHICLES LIST ====================
-  socket.on('request-vehicles', () => {
-    socket.emit('vehicles-list', vehicleTemplates);
-  });
+  // ==================== VEHICLES ====================
+  socket.on('request-vehicles', () => handleRequestVehicles(socket));
 
-  // ==================== PURCHASE VEHICLES (SECURE SERVER VALIDATION) ====================
-  socket.on('purchase-vehicles', async (data) => {
-    const email = socket.data.email;
-    if (!email || !Array.isArray(data.items) || typeof data.totalCost !== 'number') {
-      socket.emit('purchase-result', { success: false, message: 'Invalid request' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // 1. Check balance
-    if (p.balance < data.totalCost) {
-      socket.emit('purchase-result', { success: false, message: 'Not enough money' });
-      return;
-    }
-
-    // 2. Validate every vehicle against server master list
-    for (const item of data.items) {
-      const template = vehicleTemplates.find(v => v.name === item.name);
-      if (!template || template.cost !== item.cost) {
-        socket.emit('purchase-result', { success: false, message: 'Invalid vehicle data' });
-        return;
-      }
-      // Optional future check: player's skill level
-      // if ((p.skill || 0) < template.skillReq) { ... }
-    }
-
-    // 3. Log transaction and update inventory
-    await logTransaction(socket, -data.totalCost, 'Vehicles Purchased', p, docRef);
-    p.balance -= data.totalCost;
-    p.inventory = p.inventory.concat(data.items);
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    socket.emit('purchase-result', { success: true, message: 'Vehicles purchased!' });
-  });
+  socket.on('purchase-vehicles', async (data) => {await handlePurchaseVehicles(db, socket, data);});
   
   socket.on('equip-armor', async (data) => { // NEW: Equip armor
     const email = socket.data.email;
