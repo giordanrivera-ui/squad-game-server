@@ -31,6 +31,16 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
   List<Vehicle> _vehicles = [];
 
+  void _onVehiclesList(dynamic data) {
+    if (data is List && mounted) {
+      setState(() {
+        _vehicles = data
+            .map((v) => Vehicle.fromMap(v as Map<String, dynamic>))
+            .toList();
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,15 +51,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
     SocketService().socket?.emit('request-vehicles');
 
     // Listen for the response
-    SocketService().socket?.on('vehicles-list', (data) {
-      if (data is List) {
-        setState(() {
-          _vehicles = data
-              .map((v) => Vehicle.fromMap(v as Map<String, dynamic>))
-              .toList();
-        });
-      }
-    });
+    SocketService().socket?.on('vehicles-list', _onVehiclesList);
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
   }
@@ -65,6 +67,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
   @override
   void dispose() {
+    SocketService().socket?.off('vehicles-list', _onVehiclesList);
     SocketService().socket?.off('update-stats', _handleStatsUpdate);
     super.dispose();
   }

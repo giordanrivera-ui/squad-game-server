@@ -48,8 +48,7 @@ class Vehicle {
   final int skillReq;
   final String description;
   final int defense;
-
-  
+  final int health;
 
   Vehicle({
     required this.name,
@@ -58,6 +57,7 @@ class Vehicle {
     required this.skillReq,
     required this.description,
     required this.defense,
+    this.health = 100,
   });
 
   factory Vehicle.fromMap(Map<String, dynamic> map) {
@@ -68,6 +68,7 @@ class Vehicle {
       skillReq: map['skillReq'],
       description: map['description'],
       defense: map['defense'],
+      health: map['health'] ?? 100,
     );
   }
   
@@ -79,6 +80,8 @@ class Vehicle {
       'skillReq': skillReq,
       'description': description,
       'defense': defense,
+      'health': health,
+      'type': 'vehicle',
     };
   }
 }

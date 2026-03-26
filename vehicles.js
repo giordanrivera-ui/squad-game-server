@@ -35,18 +35,18 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
 
 // ==================== VEHICLE MASTER LIST (SERVER-AUTHORITATIVE) ====================
 const vehicleTemplates = [
-  { name: 'Bicycle', power: 50, cost: 350, skillReq: 0, description: 'A human-powered vehicle with two wheels, propelled by pedaling.', defense: 0},
-  { name: 'Motorcycle', power: 75, cost: 4200, skillReq: 0, description: 'A two-wheeled powered vehicle with a seat or saddle, designed for rider and passenger.', defense: 1},
-  { name: 'Corolla', power: 150, cost: 18000, skillReq: 0, description: 'A compact sedan known for reliability, fuel efficiency, and affordability.', defense: 2},
-  { name: 'Jeep', power: 200, cost: 36000, skillReq: 1, description: 'Rugged off-road SUV with removable doors/roof, excellent trail capability.', defense: 3},
-  { name: 'Strada Pickup Truck', power: 280, cost: 55000, skillReq: 1, description: 'Mid-size pickup with rugged design, diesel engine, good for work/adventure.', defense: 3},
-  { name: 'Hummer H1', power: 360, cost: 80000, skillReq: 2, description: 'Civilian version of military Humvee, extreme off-road 4x4 with high ground clearance.', defense: 4},
-  { name: 'M998 Humvee', power: 500, cost: 92000, skillReq: 4, description: 'Military 4x4 utility vehicle, highly mobile, multi-purpose.', defense: 4},
-  { name: 'M-ATV', power: 750, cost: 475000, skillReq: 5, description: 'Mine-resistant ambush-protected all-terrain vehicle for troop protection in hazardous environments.', defense: 5},
-  { name: 'MaxxPro MRAP', power: 900, cost: 1400000, skillReq: 6, description: 'Armored fighting vehicle designed for IED protection, V-hull design.', defense: 5},
-  { name: 'AMPV', power: 1200, cost: 4500000, skillReq: 8, description: 'Armored multi-purpose vehicle replacing M113, for troop transport and support.', defense: 6},
-  { name: 'Stryker M1126', power: 1500, cost: 5250000, skillReq: 10, description: 'Wheeled armored personnel carrier, highly mobile 8x8 for infantry transport.', defense: 7},
-  { name: 'M1 Abrams', power: 2000, cost: 8200000, skillReq: 12, description: 'Third-generation main battle tank with advanced armor, 120mm gun, high mobility.', defense: 8},
+  { name: 'Bicycle', power: 50, cost: 350, skillReq: 0, description: 'A human-powered vehicle with two wheels, propelled by pedaling.', defense: 0, health: 100},
+  { name: 'Motorcycle', power: 75, cost: 4200, skillReq: 0, description: 'A two-wheeled powered vehicle with a seat or saddle, designed for rider and passenger.', defense: 1, health: 100},
+  { name: 'Corolla', power: 150, cost: 18000, skillReq: 0, description: 'A compact sedan known for reliability, fuel efficiency, and affordability.', defense: 2, health: 100},
+  { name: 'Jeep', power: 200, cost: 36000, skillReq: 1, description: 'Rugged off-road SUV with removable doors/roof, excellent trail capability.', defense: 3, health: 100},
+  { name: 'Strada Pickup Truck', power: 280, cost: 55000, skillReq: 1, description: 'Mid-size pickup with rugged design, diesel engine, good for work/adventure.', defense: 3, health: 100},
+  { name: 'Hummer H1', power: 360, cost: 80000, skillReq: 2, description: 'Civilian version of military Humvee, extreme off-road 4x4 with high ground clearance.', defense: 4, health: 100},
+  { name: 'M998 Humvee', power: 500, cost: 92000, skillReq: 4, description: 'Military 4x4 utility vehicle, highly mobile, multi-purpose.', defense: 4, health: 100},
+  { name: 'M-ATV', power: 750, cost: 475000, skillReq: 5, description: 'Mine-resistant ambush-protected all-terrain vehicle for troop protection in hazardous environments.', defense: 5, health: 100},
+  { name: 'MaxxPro MRAP', power: 900, cost: 1400000, skillReq: 6, description: 'Armored fighting vehicle designed for IED protection, V-hull design.', defense: 5, health: 100},
+  { name: 'AMPV', power: 1200, cost: 4500000, skillReq: 8, description: 'Armored multi-purpose vehicle replacing M113, for troop transport and support.', defense: 6, health: 100},
+  { name: 'Stryker M1126', power: 1500, cost: 5250000, skillReq: 10, description: 'Wheeled armored personnel carrier, highly mobile 8x8 for infantry transport.', defense: 7, health: 100},
+  { name: 'M1 Abrams', power: 2000, cost: 8200000, skillReq: 12, description: 'Third-generation main battle tank with advanced armor, 120mm gun, high mobility.', defense: 8, health: 100},
 ];
 
 // ==================== REQUEST VEHICLES LIST ====================
@@ -83,10 +83,16 @@ async function handlePurchaseVehicles(db, socket, data) {
     }
   }
 
-  // 3. Log transaction and update inventory
+  // 3. Add health: 100 to every purchased vehicle
+  const vehiclesWithHealth = data.items.map(item => ({
+    ...item,
+    health: 100,           // ← NEW: Default health for every vehicle
+    type: 'vehicle'
+  }));
+
   await logTransaction(socket, -data.totalCost, 'Vehicles Purchased', p, docRef);
   p.balance -= data.totalCost;
-  p.inventory = p.inventory.concat(data.items);
+  p.inventory = p.inventory.concat(vehiclesWithHealth);
 
   await docRef.set(p);
   socket.emit('update-stats', p);

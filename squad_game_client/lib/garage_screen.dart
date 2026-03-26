@@ -69,31 +69,56 @@ class _GarageScreenState extends State<GarageScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           child: Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Row(
+                            child: Column(   // ← Changed to Column for better layout
                               children: [
-                                const Icon(Icons.directions_car, size: 80, color: Colors.blue),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _selectedVehicle!['name'] ?? 'Unknown Vehicle',
-                                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.directions_car, size: 80, color: Colors.blue),
+                                    const SizedBox(width: 20),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _selectedVehicle!['name'] ?? 'Unknown Vehicle',
+                                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                          ),
+                                          // HEALTH BAR – NEW
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              const Text('Health: ', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                                              Expanded(
+                                                child: LinearProgressIndicator(
+                                                  value: (_selectedVehicle!['health'] ?? 100) / 100.0,
+                                                  backgroundColor: Colors.grey[300],
+                                                  color: Colors.green,
+                                                  minHeight: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                '${_selectedVehicle!['health'] ?? 100}/100',
+                                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'Power: ${_selectedVehicle!['power'] ?? 0} | Defense: ${_selectedVehicle!['defense'] ?? 0}',
+                                            style: const TextStyle(fontSize: 16, color: Colors.grey),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            _selectedVehicle!['description'] ?? 'No description available.',
+                                            style: const TextStyle(fontSize: 14),
+                                            maxLines: 4,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
                                       ),
-                                      Text(
-                                        'Power: ${_selectedVehicle!['power'] ?? 0} | Defense: ${_selectedVehicle!['defense'] ?? 0}',
-                                        style: const TextStyle(fontSize: 16, color: Colors.grey),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _selectedVehicle!['description'] ?? 'No description available.',
-                                        style: const TextStyle(fontSize: 14),
-                                        maxLines: 4,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -123,8 +148,8 @@ class _GarageScreenState extends State<GarageScreen> {
                         ),
                       ],
                     ),
-            ),
-
+            ),      
+            
             const Divider(height: 1, thickness: 2),
 
             // ==================== SCROLLABLE FLEET GRID (only this part scrolls) ====================
