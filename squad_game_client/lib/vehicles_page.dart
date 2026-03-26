@@ -29,26 +29,23 @@ class _VehiclesPageState extends State<VehiclesPage> {
   final Map<String, int> _quantities = {};
   int _totalCost = 0;
 
-  final List<Vehicle> _vehicles = [
-    Vehicle(name: 'Bicycle', power: 50, cost: 350, skillReq: 0, description: 'A human-powered vehicle with two wheels, propelled by pedaling.', defense: 0),
-    Vehicle(name: 'Motorcycle', power: 75, cost: 4200, skillReq: 0, description: 'A two-wheeled powered vehicle with a seat or saddle, designed for rider and passenger.', defense: 1),
-    Vehicle(name: 'Corolla', power: 150, cost: 18000, skillReq: 0, description: 'A compact sedan known for reliability, fuel efficiency, and affordability.', defense: 2),
-    Vehicle(name: 'Jeep', power: 200, cost: 36000, skillReq: 1, description: 'Rugged off-road SUV with removable doors/roof, excellent trail capability.', defense: 3),
-    Vehicle(name: 'Strada Pickup Truck', power: 280, cost: 55000, skillReq: 1, description: 'Mid-size pickup with rugged design, diesel engine, good for work/adventure.', defense: 3),
-    Vehicle(name: 'Hummer H1', power: 360, cost: 80000, skillReq: 2, description: 'Civilian version of military Humvee, extreme off-road 4x4 with high ground clearance.', defense: 4),
-    Vehicle(name: 'M998 Humvee', power: 500, cost: 92000, skillReq: 4, description: 'Military 4x4 utility vehicle, highly mobile, multi-purpose.', defense: 4),
-    Vehicle(name: 'M-ATV', power: 750, cost: 475000, skillReq: 5, description: 'Mine-resistant ambush-protected all-terrain vehicle for troop protection in hazardous environments.', defense: 5),
-    Vehicle(name: 'MaxxPro MRAP', power: 900, cost: 1400000, skillReq: 6, description: 'Armored fighting vehicle designed for IED protection, V-hull design.', defense: 5),
-    Vehicle(name: 'AMPV', power: 1200, cost: 4500000, skillReq: 8, description: 'Armored multi-purpose vehicle replacing M113, for troop transport and support.', defense: 6),
-    Vehicle(name: 'Stryker M1126', power: 1500, cost: 5250000, skillReq: 10, description: 'Wheeled armored personnel carrier, highly mobile 8x8 for infantry transport.', defense: 7),
-    Vehicle(name: 'M1 Abrams', power: 2000, cost: 8200000, skillReq: 12, description: 'Third-generation main battle tank with advanced armor, 120mm gun, high mobility.', defense: 8),
-  ];
+  List<Vehicle> _vehicles = [];
 
   @override
   void initState() {
     super.initState();
     _currentBalance = widget.currentBalance;
     _currentHealth = widget.currentHealth;
+
+    SocketService().socket?.on('init', (data) {
+      if (data['vehicles'] != null) {
+        setState(() {
+          _vehicles = (data['vehicles'] as List)
+              .map((v) => Vehicle.fromMap(v))   // add fromMap to class
+              .toList();
+        });
+      }
+    });
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
   }
@@ -95,7 +92,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
       _currentBalance -= _totalCost;
     });
 
-    SocketService().purchaseArmor(purchased, _totalCost); // Reuse purchase logic or create new event if needed
+    SocketService().socket?.emit('purchase-vehicles', {'items': purchased, 'totalCost': _totalCost,});
 
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Items purchased!')));
 
