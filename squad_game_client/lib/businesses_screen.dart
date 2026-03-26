@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'properties_screen.dart';
+import 'taxi_tycoon.dart';   // ← NEW IMPORT
 
 class BusinessesScreen extends StatelessWidget {
   const BusinessesScreen({super.key});
@@ -10,14 +11,15 @@ class BusinessesScreen extends StatelessWidget {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: SocketService().statsNotifier,
       builder: (context, stats, child) {
-        return Column(   // ← No Scaffold here anymore
+        return Column(
           children: [
             // Taxi Tycoon rectangle
             Expanded(
               child: GestureDetector(
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('🚕 Taxi Tycoon coming soon!')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TaxiTycoonScreen()),
                   );
                 },
                 child: Container(
@@ -50,7 +52,7 @@ class BusinessesScreen extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Real Estate rectangle (now opens Properties)
+            // Real Estate (unchanged)
             Expanded(
               child: GestureDetector(
                 onTap: () {
