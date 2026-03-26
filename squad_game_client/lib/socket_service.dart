@@ -504,6 +504,10 @@ class SocketService {
     });
   }
 
+  void assignToFleet(Map<String, dynamic> vehicle) {
+    socket?.emit('assign-to-fleet', vehicle);
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }

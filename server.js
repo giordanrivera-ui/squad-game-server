@@ -248,6 +248,7 @@ io.on('connection', (socket) => {
       if (playerData.bonePenaltyEndTimeHigh === undefined) playerData.bonePenaltyEndTimeHigh = 0;
       if (playerData.dead === undefined) playerData.dead = false;
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
+      if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -309,6 +310,7 @@ io.on('connection', (socket) => {
         dead: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
+        taxiFleet: [],
       };
     }
 
@@ -455,6 +457,7 @@ socket.on('respawn', async () => {
       dead: false,
       ownedUpgrades: {},
       unallocatedAttributePoints: 0,
+      taxiFleet: [],
     };
 
     await docRef.set(p);
@@ -525,6 +528,50 @@ socket.on('respawn', async () => {
     } catch (error) {
       console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
     }
+  });
+
+  // ==================== ASSIGN TO TAXI FLEET ====================
+  socket.on('assign-to-fleet', async (vehicle) => {
+    const email = socket.data.email;
+    if (!email || !vehicle || !vehicle.name) {
+      socket.emit('fleet-result', { success: false, message: 'Invalid vehicle' });
+      return;
+    }
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Find and remove from inventory
+    const index = p.inventory.findIndex(v => 
+      v.name === vehicle.name && 
+      v.power === vehicle.power && 
+      v.health === (vehicle.health || 100)
+    );
+
+    if (index === -1) {
+      socket.emit('fleet-result', { success: false, message: 'Vehicle not found in inventory' });
+      return;
+    }
+
+    const assignedVehicle = p.inventory.splice(index, 1)[0];
+
+    // Ensure taxiFleet exists
+    if (!p.taxiFleet) p.taxiFleet = [];
+
+    // Add to fleet
+    p.taxiFleet.push(assignedVehicle);
+
+    await docRef.set(p);
+
+    // Live update
+    socket.emit('update-stats', p);
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `${assignedVehicle.name} assigned to your taxi fleet!` 
+    });
   });
 
   // ====================== KILL ATTEMPT ======================

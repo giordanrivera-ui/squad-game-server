@@ -129,9 +129,17 @@ class _GarageScreenState extends State<GarageScreen> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
+                              if (_selectedVehicle == null) return;
+
+                              // Call server
+                              SocketService().assignToFleet(_selectedVehicle!);
+
+                              // Clear selection immediately
+                              setState(() => _selectedVehicle = null);
+
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('${_selectedVehicle!['name']} added to your fleet!'),
+                                  content: Text('${_selectedVehicle!['name']} assigned to fleet!'),
                                   backgroundColor: Colors.green,
                                 ),
                               );
@@ -149,7 +157,7 @@ class _GarageScreenState extends State<GarageScreen> {
                       ],
                     ),
             ),      
-            
+
             const Divider(height: 1, thickness: 2),
 
             // ==================== SCROLLABLE FLEET GRID (only this part scrolls) ====================
