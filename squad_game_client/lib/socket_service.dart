@@ -508,6 +508,11 @@ class SocketService {
     socket?.emit('assign-to-fleet', vehicle);
   }
 
+  void removeFromFleet(List<Map<String, dynamic>> vehicles) {
+    if (vehicles.isEmpty) return;
+    socket?.emit('remove-from-fleet', vehicles);
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }
