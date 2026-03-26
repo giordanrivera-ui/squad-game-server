@@ -37,11 +37,15 @@ class _VehiclesPageState extends State<VehiclesPage> {
     _currentBalance = widget.currentBalance;
     _currentHealth = widget.currentHealth;
 
-    SocketService().socket?.on('init', (data) {
-      if (data['vehicles'] != null) {
+    // Request vehicles from server every time this page opens
+    SocketService().socket?.emit('request-vehicles');
+
+    // Listen for the response
+    SocketService().socket?.on('vehicles-list', (data) {
+      if (data is List) {
         setState(() {
-          _vehicles = (data['vehicles'] as List)
-              .map((v) => Vehicle.fromMap(v))   // add fromMap to class
+          _vehicles = data
+              .map((v) => Vehicle.fromMap(v as Map<String, dynamic>))
               .toList();
         });
       }

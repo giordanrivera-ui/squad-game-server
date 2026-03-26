@@ -895,6 +895,11 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
+  // ==================== REQUEST VEHICLES LIST ====================
+  socket.on('request-vehicles', () => {
+    socket.emit('vehicles-list', vehicleTemplates);
+  });
+
   // ==================== PURCHASE VEHICLES (SECURE SERVER VALIDATION) ====================
   socket.on('purchase-vehicles', async (data) => {
     const email = socket.data.email;
