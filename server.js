@@ -574,8 +574,16 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (ROBUST MATCHING FIX) ====================
+  // ==================== REMOVE FROM TAXI FLEET (DEBUG VERSION) ====================
 socket.on('remove-from-fleet', async (vehiclesToRemove) => {
+  console.log('=== REMOVE FROM FLEET DEBUG START ===');
+  console.log('socket.data.email:', socket.data?.email);
+  console.log('vehiclesToRemove received:', vehiclesToRemove);
+  console.log('IsArray?', Array.isArray(vehiclesToRemove));
+  console.log('Length?', vehiclesToRemove?.length);
+  console.log('Type of first item?', typeof vehiclesToRemove?.[0]);
+  console.log('=== REMOVE FROM FLEET DEBUG END ===');
+
   const email = socket.data.email;
   if (!email || !Array.isArray(vehiclesToRemove) || vehiclesToRemove.length === 0) {
     socket.emit('fleet-result', { success: false, message: 'Invalid request' });
@@ -597,7 +605,6 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
   const removedVehicles = [];
 
   for (const toRemove of vehiclesToRemove) {
-    // ROBUST MATCHING - ignores extra fields and normalizes health
     const index = p.taxiFleet.findIndex(v => {
       const vHealth = v.health ?? 100;
       const toRemoveHealth = toRemove.health ?? 100;
