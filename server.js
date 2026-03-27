@@ -574,69 +574,69 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (MULTI-SELECT FIXED) ====================
-  socket.on('remove-from-fleet', async (vehiclesToRemove) => {
-    const email = socket.data.email;
-    if (!email) {
-      socket.emit('fleet-result', { success: false, message: 'Not logged in' });
-      return;
+  // ==================== REMOVE FROM TAXI FLEET (FINAL MULTI-SELECT FIX) ====================
+socket.on('remove-from-fleet', async (vehiclesToRemove) => {
+  const email = socket.data.email;
+  if (!email) {
+    socket.emit('fleet-result', { success: false, message: 'Not logged in' });
+    return;
+  }
+
+  // Normalize input (single object or array)
+  let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
+  if (items.length === 0) {
+    socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
+    return;
+  }
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    socket.emit('fleet-result', { success: false, message: 'Player not found' });
+    return;
+  }
+
+  let p = doc.data();
+  if (!p.taxiFleet) p.taxiFleet = [];
+  if (!p.inventory) p.inventory = [];
+
+  const removedVehicles = [];
+
+  // Use filter instead of indices — much safer for multi-select
+  p.taxiFleet = p.taxiFleet.filter(v => {
+    const vHealth = v.health ?? 100;
+
+    // Check if this vehicle matches ANY of the ones we want to remove
+    const matchIndex = items.findIndex(toRemove => {
+      const toRemoveHealth = toRemove.health ?? 100;
+      return v.name === toRemove.name &&
+             v.power === toRemove.power &&
+             vHealth === toRemoveHealth;
+    });
+
+    if (matchIndex !== -1) {
+      // Remove this match from the items list so we don't double-remove
+      const matchedVehicle = items.splice(matchIndex, 1)[0];
+      removedVehicles.push(v);
+      return false; // filter it out
     }
-
-    // Normalize: accept single object or array
-    let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
-    if (items.length === 0) {
-      socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      socket.emit('fleet-result', { success: false, message: 'Player not found' });
-      return;
-    }
-
-    let p = doc.data();
-    if (!p.taxiFleet) p.taxiFleet = [];
-    if (!p.inventory) p.inventory = [];
-
-    const removedVehicles = [];
-
-    // Collect all matching indices first
-    const indicesToRemove = [];
-    for (const toRemove of items) {
-      const index = p.taxiFleet.findIndex(v => {
-        const vHealth = v.health ?? 100;
-        const toRemoveHealth = toRemove.health ?? 100;
-        return v.name === toRemove.name &&
-              v.power === toRemove.power &&
-              vHealth === toRemoveHealth;
-      });
-      if (index !== -1) indicesToRemove.push(index);
-    }
-
-    // Sort descending so we can safely splice without index shifting
-    indicesToRemove.sort((a, b) => b - a);
-
-    for (const index of indicesToRemove) {
-      const vehicle = p.taxiFleet.splice(index, 1)[0];
-      removedVehicles.push(vehicle);
-    }
-
-    if (removedVehicles.length > 0) {
-      p.inventory = [...p.inventory, ...removedVehicles];
-
-      await docRef.set(p);
-
-      socket.emit('update-stats', p);
-      socket.emit('fleet-result', { 
-        success: true, 
-        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
-      });
-    } else {
-      socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
-    }
+    return true; // keep it
   });
+
+  if (removedVehicles.length > 0) {
+    p.inventory = [...p.inventory, ...removedVehicles];
+
+    await docRef.set(p);
+
+    socket.emit('update-stats', p);
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+    });
+  } else {
+    socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
+  }
+});
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
