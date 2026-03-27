@@ -574,65 +574,70 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (DEBUG VERSION) ====================
-socket.on('remove-from-fleet', async (vehiclesToRemove) => {
-  console.log('=== REMOVE FROM FLEET DEBUG START ===');
-  console.log('socket.data.email:', socket.data?.email);
-  console.log('vehiclesToRemove received:', vehiclesToRemove);
-  console.log('IsArray?', Array.isArray(vehiclesToRemove));
-  console.log('Length?', vehiclesToRemove?.length);
-  console.log('Type of first item?', typeof vehiclesToRemove?.[0]);
-  console.log('=== REMOVE FROM FLEET DEBUG END ===');
+  // ==================== REMOVE FROM TAXI FLEET (FINAL FIXED VERSION) ====================
+  socket.on('remove-from-fleet', async (vehiclesToRemove) => {
+    console.log('=== REMOVE FROM FLEET RECEIVED ===');
+    console.log('Raw data:', vehiclesToRemove);
 
-  const email = socket.data.email;
-  if (!email || !Array.isArray(vehiclesToRemove) || vehiclesToRemove.length === 0) {
-    socket.emit('fleet-result', { success: false, message: 'Invalid request' });
-    return;
-  }
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    socket.emit('fleet-result', { success: false, message: 'Player not found' });
-    return;
-  }
-
-  let p = doc.data();
-
-  if (!p.taxiFleet) p.taxiFleet = [];
-  if (!p.inventory) p.inventory = [];
-
-  const removedVehicles = [];
-
-  for (const toRemove of vehiclesToRemove) {
-    const index = p.taxiFleet.findIndex(v => {
-      const vHealth = v.health ?? 100;
-      const toRemoveHealth = toRemove.health ?? 100;
-      return v.name === toRemove.name &&
-             v.power === toRemove.power &&
-             vHealth === toRemoveHealth;
-    });
-
-    if (index !== -1) {
-      const vehicle = p.taxiFleet.splice(index, 1)[0];
-      removedVehicles.push(vehicle);
+    const email = socket.data.email;
+    if (!email) {
+      socket.emit('fleet-result', { success: false, message: 'Not logged in' });
+      return;
     }
-  }
 
-  if (removedVehicles.length > 0) {
-    p.inventory = [...p.inventory, ...removedVehicles];
+    // Normalize input: accept either a single object or an array
+    let items = vehiclesToRemove;
+    if (!Array.isArray(items)) {
+      items = [items];                    // ← This fixes the single-vehicle case
+    }
+    if (items.length === 0) {
+      socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
+      return;
+    }
 
-    await docRef.set(p);
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      socket.emit('fleet-result', { success: false, message: 'Player not found' });
+      return;
+    }
 
-    socket.emit('update-stats', p);
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
-    });
-  } else {
-    socket.emit('fleet-result', { success: false, message: 'No vehicles found to remove' });
-  }
-});
+    let p = doc.data();
+
+    if (!p.taxiFleet) p.taxiFleet = [];
+    if (!p.inventory) p.inventory = [];
+
+    const removedVehicles = [];
+
+    for (const toRemove of items) {
+      const index = p.taxiFleet.findIndex(v => {
+        const vHealth = v.health ?? 100;
+        const toRemoveHealth = toRemove.health ?? 100;
+        return v.name === toRemove.name &&
+              v.power === toRemove.power &&
+              vHealth === toRemoveHealth;
+      });
+
+      if (index !== -1) {
+        const vehicle = p.taxiFleet.splice(index, 1)[0];
+        removedVehicles.push(vehicle);
+      }
+    }
+
+    if (removedVehicles.length > 0) {
+      p.inventory = [...p.inventory, ...removedVehicles];
+
+      await docRef.set(p);
+
+      socket.emit('update-stats', p);
+      socket.emit('fleet-result', { 
+        success: true, 
+        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+      });
+    } else {
+      socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
+    }
+  });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
