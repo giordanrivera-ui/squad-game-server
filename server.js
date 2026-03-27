@@ -681,6 +681,22 @@ socket.on('respawn', async () => {
     });
   });
 
+  socket.on('clear-scouted-drivers', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    p.scoutedDrivers = [];   // Clear the list
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+    console.log(`[HR] Cleared scoutedDrivers for ${email}`);
+  });
+
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
     await handleKillAttempt(db, socket, data, { 

@@ -11,7 +11,7 @@ class HrScreen extends StatefulWidget {
 class _HrScreenState extends State<HrScreen> {
   final TextEditingController _scoutCountController = TextEditingController(text: '1');
   int _totalCost = 20;
-  bool _scouted = false; // switches UI after successful scout
+  bool _scouted = false;
 
   @override
   void initState() {
@@ -29,11 +29,36 @@ class _HrScreenState extends State<HrScreen> {
   void _scoutDrivers() {
     final count = int.tryParse(_scoutCountController.text) ?? 1;
     if (count < 1) return;
-
-    // Tell server to generate drivers and deduct cost
     SocketService().scoutDrivers(count);
+  }
 
-    // UI will switch automatically when stats update
+  Future<void> _confirmAndClear() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave Human Resource?'),
+        content: const Text(
+          'Your currently scouted drivers will be lost and cannot be recovered.\n\nAre you sure you want to leave?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, discard'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      SocketService().clearScoutedDrivers();
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override
@@ -53,75 +78,98 @@ class _HrScreenState extends State<HrScreen> {
       builder: (context, stats, child) {
         final List<dynamic> scoutedDrivers = stats['scoutedDrivers'] as List<dynamic>? ?? [];
 
-        // If we have scouted drivers, show them instead of scout UI
         if (scoutedDrivers.isNotEmpty) {
           _scouted = true;
         }
 
-        return Dialog(
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: size.width * 0.05,
-            vertical: size.height * 0.05,
-          ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          child: SizedBox(
-            width: size.width * 0.90,
-            height: size.height * 0.90,
-            child: Column(
-              children: [
-                // HEADER
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('👥 Human Resource', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                      IconButton(icon: const Icon(Icons.close, size: 32), onPressed: () => Navigator.pop(context)),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, thickness: 2),
-
-                // PREVIEW SECTION (hidden when keyboard is open)
-                Visibility(
-                  visible: !keyboardVisible,
-                  child: Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.people_alt, size: 120, color: Colors.grey),
-                            const SizedBox(height: 24),
-                            const Text('No drivers hired yet', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Scout for talented drivers to join your taxi fleet.\nThey will generate passive income over time.',
-                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
+        return WillPopScope(
+          onWillPop: () async {
+            await _confirmAndClear();
+            return false;
+          },
+          child: Dialog(
+            // barrierDismissible removed — it does not exist on Dialog widget
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: size.width * 0.05,
+              vertical: size.height * 0.05,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: SizedBox(
+              width: size.width * 0.90,
+              height: size.height * 0.90,
+              child: Column(
+                children: [
+                  // HEADER
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: const Text(
+                              '👥 Human Resource',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28),
                             ),
-                          ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 32),
+                          onPressed: _confirmAndClear,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, thickness: 2),
+
+                  // PREVIEW SECTION
+                  Visibility(
+                    visible: !keyboardVisible,
+                    child: Flexible(
+                      flex: 2,
+                      child: ClipRect(
+                        child: SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.people_alt, size: 110, color: Colors.grey),
+                                  const SizedBox(height: 20),
+                                  const Text('No drivers hired yet', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Scout for talented drivers to join your taxi fleet.\nThey will generate passive income over time.',
+                                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
 
-                const Divider(height: 1, thickness: 2),
+                  const Divider(height: 1, thickness: 2),
 
-                // BOTTOM SECTION – either Scout UI or Scouted Drivers list
-                Expanded(
-                  flex: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _scouted && scoutedDrivers.isNotEmpty
-                        ? _buildScoutedDriversList(scoutedDrivers)
-                        : _buildScoutUI(),
+                  // BOTTOM SECTION
+                  Expanded(
+                    flex: 3,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _scouted && scoutedDrivers.isNotEmpty
+                          ? _buildScoutedDriversList(scoutedDrivers)
+                          : _buildScoutUI(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

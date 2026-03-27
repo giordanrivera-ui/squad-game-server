@@ -521,6 +521,10 @@ class SocketService {
     }
   }
 
+  void clearScoutedDrivers() {
+    socket?.emit('clear-scouted-drivers');
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }
