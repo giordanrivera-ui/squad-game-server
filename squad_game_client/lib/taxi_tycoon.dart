@@ -13,6 +13,31 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   final Set<int> _selectedIndices = {};
 
   @override
+  void initState() {
+    super.initState();
+
+    // NEW: Listen for real server response (fleet-result)
+    SocketService().socket?.on('fleet-result', (data) {
+      if (data is Map && mounted) {
+        final bool success = data['success'] ?? false;
+        final String message = data['message'] ?? 'Operation complete';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    SocketService().socket?.off('fleet-result');   // ← Add this line
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
