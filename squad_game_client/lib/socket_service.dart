@@ -509,9 +509,11 @@ class SocketService {
   }
 
   void removeFromFleet(List<Map<String, dynamic>> vehicles) {
-    if (vehicles.isEmpty) return;
-    socket?.emit('remove-from-fleet', vehicles);
-  }
+  if (vehicles.isEmpty) return;
+  
+  // Wrap it — this forces Socket.io to transmit a clean array every time
+  socket?.emit('remove-from-fleet', { 'vehicles': vehicles });
+}
 
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);

@@ -575,14 +575,17 @@ socket.on('respawn', async () => {
   });
 
   // ==================== REMOVE FROM TAXI FLEET (FINAL SAFE MULTI-SELECT) ====================
-socket.on('remove-from-fleet', async (vehiclesToRemove) => {
+socket.on('remove-from-fleet', async (payload) => {
   const email = socket.data.email;
   if (!email) {
     socket.emit('fleet-result', { success: false, message: 'Not logged in' });
     return;
   }
 
-  // Normalize input: accept single object or array
+  // Support both old direct-array calls (if any) and the new wrapped format
+  let vehiclesToRemove = payload?.vehicles || payload;
+
+  // Normalize input
   let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
   if (items.length === 0) {
     socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
@@ -602,20 +605,23 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
 
   const removedVehicles = [];
 
-  // ROBUST multi-remove: process each requested vehicle individually
-  for (const item of items) {
-    const targetKey = `${item.name}|${item.power}|${item.health ?? 100}`;
+  // ← Fast lookup using composite key (unchanged)
+  const toRemoveKeys = new Set();
+  items.forEach(item => {
+    const key = `${item.name}|${item.power}|${item.health ?? 100}`;
+    toRemoveKeys.add(key);
+  });
 
-    const index = p.taxiFleet.findIndex(v => {
-      const vHealth = v.health ?? 100;
-      return `${v.name}|${v.power}|${vHealth}` === targetKey;
-    });
+  p.taxiFleet = p.taxiFleet.filter(v => {
+    const vHealth = v.health ?? 100;
+    const key = `${v.name}|${v.power}|${vHealth}`;
 
-    if (index !== -1) {
-      const removed = p.taxiFleet.splice(index, 1)[0];
-      removedVehicles.push(removed);
+    if (toRemoveKeys.has(key)) {
+      removedVehicles.push(v);
+      return false;
     }
-  }
+    return true;
+  });
 
   if (removedVehicles.length > 0) {
     p.inventory = [...p.inventory, ...removedVehicles];
