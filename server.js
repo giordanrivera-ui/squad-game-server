@@ -16,6 +16,7 @@ const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
+const { generateRandomDriver } = require('./drivers.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -249,6 +250,7 @@ io.on('connection', (socket) => {
       if (playerData.dead === undefined) playerData.dead = false;
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
       if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
+      if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -311,6 +313,7 @@ io.on('connection', (socket) => {
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
         taxiFleet: [],
+        scoutedDrivers: [],
       };
     }
 
@@ -458,6 +461,7 @@ socket.on('respawn', async () => {
       ownedUpgrades: {},
       unallocatedAttributePoints: 0,
       taxiFleet: [],
+      scoutedDrivers: [],
     };
 
     await docRef.set(p);
@@ -575,68 +579,107 @@ socket.on('respawn', async () => {
   });
 
   // ==================== REMOVE FROM TAXI FLEET (FINAL SAFE MULTI-SELECT) ====================
-socket.on('remove-from-fleet', async (payload) => {
-  const email = socket.data.email;
-  if (!email) {
-    socket.emit('fleet-result', { success: false, message: 'Not logged in' });
-    return;
-  }
-
-  // Support both old direct-array calls (if any) and the new wrapped format
-  let vehiclesToRemove = payload?.vehicles || payload;
-
-  // Normalize input
-  let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
-  if (items.length === 0) {
-    socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
-    return;
-  }
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    socket.emit('fleet-result', { success: false, message: 'Player not found' });
-    return;
-  }
-
-  let p = doc.data();
-  if (!p.taxiFleet) p.taxiFleet = [];
-  if (!p.inventory) p.inventory = [];
-
-  const removedVehicles = [];
-
-  // ← Fast lookup using composite key (unchanged)
-  const toRemoveKeys = new Set();
-  items.forEach(item => {
-    const key = `${item.name}|${item.power}|${item.health ?? 100}`;
-    toRemoveKeys.add(key);
-  });
-
-  p.taxiFleet = p.taxiFleet.filter(v => {
-    const vHealth = v.health ?? 100;
-    const key = `${v.name}|${v.power}|${vHealth}`;
-
-    if (toRemoveKeys.has(key)) {
-      removedVehicles.push(v);
-      return false;
+  socket.on('remove-from-fleet', async (payload) => {
+    const email = socket.data.email;
+    if (!email) {
+      socket.emit('fleet-result', { success: false, message: 'Not logged in' });
+      return;
     }
-    return true;
+
+    // Support both old direct-array calls (if any) and the new wrapped format
+    let vehiclesToRemove = payload?.vehicles || payload;
+
+    // Normalize input
+    let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
+    if (items.length === 0) {
+      socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
+      return;
+    }
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      socket.emit('fleet-result', { success: false, message: 'Player not found' });
+      return;
+    }
+
+    let p = doc.data();
+    if (!p.taxiFleet) p.taxiFleet = [];
+    if (!p.inventory) p.inventory = [];
+
+    const removedVehicles = [];
+
+    // ← Fast lookup using composite key (unchanged)
+    const toRemoveKeys = new Set();
+    items.forEach(item => {
+      const key = `${item.name}|${item.power}|${item.health ?? 100}`;
+      toRemoveKeys.add(key);
+    });
+
+    p.taxiFleet = p.taxiFleet.filter(v => {
+      const vHealth = v.health ?? 100;
+      const key = `${v.name}|${v.power}|${vHealth}`;
+
+      if (toRemoveKeys.has(key)) {
+        removedVehicles.push(v);
+        return false;
+      }
+      return true;
+    });
+
+    if (removedVehicles.length > 0) {
+      p.inventory = [...p.inventory, ...removedVehicles];
+
+      await docRef.set(p);
+
+      socket.emit('update-stats', p);
+      socket.emit('fleet-result', { 
+        success: true, 
+        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+      });
+    } else {
+      socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
+    }
   });
 
-  if (removedVehicles.length > 0) {
-    p.inventory = [...p.inventory, ...removedVehicles];
+  socket.on('scout-drivers', async (count) => {
+    const email = socket.data.email;
+    if (!email || typeof count !== 'number' || count < 1) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    const totalCost = count * 20;
+
+    if ((p.balance || 0) < totalCost) {
+      socket.emit('fleet-result', { success: false, message: 'Not enough money to scout drivers.' }); // reuse existing snackbar style
+      return;
+    }
+
+    // Generate drivers
+    const newDrivers = [];
+    for (let i = 0; i < count; i++) {
+      newDrivers.push(generateRandomDriver(p.location));
+    }
+
+    // Deduct money + log
+    await logTransaction(socket, -totalCost, `Scouted ${count} Driver${count > 1 ? 's' : ''}`, p, docRef);
+    p.balance -= totalCost;
+
+    // Add to scoutedDrivers
+    if (!p.scoutedDrivers) p.scoutedDrivers = [];
+    p.scoutedDrivers = [...p.scoutedDrivers, ...newDrivers];
 
     await docRef.set(p);
-
     socket.emit('update-stats', p);
+
     socket.emit('fleet-result', { 
       success: true, 
-      message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+      message: `Successfully scouted ${count} driver${count > 1 ? 's' : ''}!` 
     });
-  } else {
-    socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
-  }
-});
+  });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {

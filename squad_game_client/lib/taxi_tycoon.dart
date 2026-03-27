@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'garage_screen.dart';
+import 'hr_screen.dart';
 import 'socket_service.dart';
 
 class TaxiTycoonScreen extends StatefulWidget {
@@ -76,8 +77,10 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                       icon: Icons.people_alt,
                       color: Colors.purple,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Human Resource coming soon!')),
+                        showDialog(
+                          context: context,
+                          barrierDismissible: true,   // Allows tapping outside to close
+                          builder: (context) => const HrScreen(),
                         );
                       },
                     ),
