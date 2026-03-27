@@ -574,22 +574,16 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (FINAL FIXED VERSION) ====================
+  // ==================== REMOVE FROM TAXI FLEET (MULTI-SELECT FIXED) ====================
   socket.on('remove-from-fleet', async (vehiclesToRemove) => {
-    console.log('=== REMOVE FROM FLEET RECEIVED ===');
-    console.log('Raw data:', vehiclesToRemove);
-
     const email = socket.data.email;
     if (!email) {
       socket.emit('fleet-result', { success: false, message: 'Not logged in' });
       return;
     }
 
-    // Normalize input: accept either a single object or an array
-    let items = vehiclesToRemove;
-    if (!Array.isArray(items)) {
-      items = [items];                    // ← This fixes the single-vehicle case
-    }
+    // Normalize: accept single object or array
+    let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
     if (items.length === 0) {
       socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
       return;
@@ -603,12 +597,13 @@ socket.on('respawn', async () => {
     }
 
     let p = doc.data();
-
     if (!p.taxiFleet) p.taxiFleet = [];
     if (!p.inventory) p.inventory = [];
 
     const removedVehicles = [];
 
+    // Collect all matching indices first
+    const indicesToRemove = [];
     for (const toRemove of items) {
       const index = p.taxiFleet.findIndex(v => {
         const vHealth = v.health ?? 100;
@@ -617,11 +612,15 @@ socket.on('respawn', async () => {
               v.power === toRemove.power &&
               vHealth === toRemoveHealth;
       });
+      if (index !== -1) indicesToRemove.push(index);
+    }
 
-      if (index !== -1) {
-        const vehicle = p.taxiFleet.splice(index, 1)[0];
-        removedVehicles.push(vehicle);
-      }
+    // Sort descending so we can safely splice without index shifting
+    indicesToRemove.sort((a, b) => b - a);
+
+    for (const index of indicesToRemove) {
+      const vehicle = p.taxiFleet.splice(index, 1)[0];
+      removedVehicles.push(vehicle);
     }
 
     if (removedVehicles.length > 0) {
