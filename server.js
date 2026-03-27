@@ -602,18 +602,19 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
 
   const removedVehicles = [];
 
-  // Filter out all matching vehicles at once (much safer than splice + indices)
+  // ← NEW: Fast lookup using composite key (name|power|health)
+  const toRemoveKeys = new Set();
+  items.forEach(item => {
+    const key = `${item.name}|${item.power}|${item.health ?? 100}`;
+    toRemoveKeys.add(key);
+  });
+
+  // Filter using the key set (much more reliable than .some())
   p.taxiFleet = p.taxiFleet.filter(v => {
     const vHealth = v.health ?? 100;
+    const key = `${v.name}|${v.power}|${vHealth}`;
 
-    const isMatch = items.some(toRemove => {
-      const toRemoveHealth = toRemove.health ?? 100;
-      return v.name === toRemove.name &&
-             v.power === toRemove.power &&
-             vHealth === toRemoveHealth;
-    });
-
-    if (isMatch) {
+    if (toRemoveKeys.has(key)) {
       removedVehicles.push(v);
       return false; // remove it
     }
