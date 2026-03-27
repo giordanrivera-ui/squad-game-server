@@ -602,24 +602,20 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
 
   const removedVehicles = [];
 
-  // ← NEW: Fast lookup using composite key (name|power|health)
-  const toRemoveKeys = new Set();
-  items.forEach(item => {
-    const key = `${item.name}|${item.power}|${item.health ?? 100}`;
-    toRemoveKeys.add(key);
-  });
+  // ROBUST multi-remove: process each requested vehicle individually
+  for (const item of items) {
+    const targetKey = `${item.name}|${item.power}|${item.health ?? 100}`;
 
-  // Filter using the key set (much more reliable than .some())
-  p.taxiFleet = p.taxiFleet.filter(v => {
-    const vHealth = v.health ?? 100;
-    const key = `${v.name}|${v.power}|${vHealth}`;
+    const index = p.taxiFleet.findIndex(v => {
+      const vHealth = v.health ?? 100;
+      return `${v.name}|${v.power}|${vHealth}` === targetKey;
+    });
 
-    if (toRemoveKeys.has(key)) {
-      removedVehicles.push(v);
-      return false; // remove it
+    if (index !== -1) {
+      const removed = p.taxiFleet.splice(index, 1)[0];
+      removedVehicles.push(removed);
     }
-    return true; // keep it
-  });
+  }
 
   if (removedVehicles.length > 0) {
     p.inventory = [...p.inventory, ...removedVehicles];
