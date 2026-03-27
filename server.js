@@ -574,7 +574,7 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET ====================
+  // ==================== REMOVE FROM TAXI FLEET (mirrors assign-to-fleet backwards) ====================
   socket.on('remove-from-fleet', async (vehiclesToRemove) => {
     const email = socket.data.email;
     if (!email || !Array.isArray(vehiclesToRemove) || vehiclesToRemove.length === 0) {
@@ -594,11 +594,11 @@ socket.on('respawn', async () => {
     const removedVehicles = [];
 
     for (const toRemove of vehiclesToRemove) {
-      // Find and remove from taxiFleet
-      const index = p.taxiFleet.findIndex(v =>
-        v.name === toRemove.name &&
-        v.power === toRemove.power &&
-        v.health === (toRemove.health || 100)
+      // Exact same matching logic used in assign-to-fleet
+      const index = p.taxiFleet.findIndex(v => 
+        v.name === toRemove.name && 
+        v.power === toRemove.power && 
+        (v.health || 100) === (toRemove.health || 100)
       );
 
       if (index !== -1) {
@@ -607,18 +607,19 @@ socket.on('respawn', async () => {
       }
     }
 
-    // Add removed vehicles back to inventory
     if (removedVehicles.length > 0) {
       p.inventory = [...p.inventory, ...removedVehicles];
+
+      await docRef.set(p);
+
+      socket.emit('update-stats', p);
+      socket.emit('fleet-result', { 
+        success: true, 
+        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+      });
+    } else {
+      socket.emit('fleet-result', { success: false, message: 'No vehicles found to remove' });
     }
-
-    await docRef.set(p);
-
-    socket.emit('update-stats', p);
-    socket.emit('fleet-result', {
-      success: true,
-      message: `${removedVehicles.length} vehicle(s) moved back to inventory`
-    });
   });
 
   // ====================== KILL ATTEMPT ======================
