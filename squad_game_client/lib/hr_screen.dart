@@ -172,7 +172,7 @@ class _HrScreenState extends State<HrScreen> {
               const Text('Total Cost: ', style: TextStyle(fontSize: 18, color: Colors.white70)),
               Text('\$$_totalCost', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
               const SizedBox(width: 8),
-              Text('($20 per recruit)', style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+              Text('(\$20 per recruit)', style: TextStyle(fontSize: 14, color: Colors.grey[400])),
             ],
           ),
         ),
