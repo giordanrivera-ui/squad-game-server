@@ -214,30 +214,38 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     );
   }
 
-  // ==================== ACTUAL REMOVAL ====================
-  void _performRemoveFromFleet() {
-    final stats = SocketService().statsNotifier.value;
-    final fleet = stats['taxiFleet'] as List<dynamic>? ?? [];
+    // ==================== ACTUAL REMOVAL (MINIMAL DATA FIX) ====================
+    void _performRemoveFromFleet() {
+      final stats = SocketService().statsNotifier.value;
+      final fleet = stats['taxiFleet'] as List<dynamic>? ?? [];
 
-    final vehiclesToRemove = _selectedIndices
-        .map((index) => fleet[index] as Map<String, dynamic>)
-        .toList();
+      final vehiclesToRemove = _selectedIndices
+          .map((index) {
+            final v = fleet[index] as Map<String, dynamic>;
+            // Send ONLY the fields the server matches on – eliminates all serialization issues
+            return {
+              'name': v['name'],
+              'power': v['power'],
+              'health': v['health'] ?? 100,
+            };
+          })
+          .toList();
 
-    if (vehiclesToRemove.isEmpty) return;
+      if (vehiclesToRemove.isEmpty) return;
 
-    // Send to server
-    SocketService().removeFromFleet(vehiclesToRemove);
+      // Send to server
+      SocketService().removeFromFleet(vehiclesToRemove);
 
-    // Clear selection immediately
-    setState(() => _selectedIndices.clear());
+      // Clear selection immediately
+      setState(() => _selectedIndices.clear());
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${vehiclesToRemove.length} vehicle(s) moved back to inventory'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Removing vehicles from fleet...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
 
   Widget _buildBigButton(BuildContext context, {
     required String title,
