@@ -574,53 +574,58 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (mirrors assign-to-fleet backwards) ====================
-  socket.on('remove-from-fleet', async (vehiclesToRemove) => {
-    const email = socket.data.email;
-    if (!email || !Array.isArray(vehiclesToRemove) || vehiclesToRemove.length === 0) {
-      socket.emit('fleet-result', { success: false, message: 'Invalid request' });
-      return;
+  // ==================== REMOVE FROM TAXI FLEET (ROBUST MATCHING FIX) ====================
+socket.on('remove-from-fleet', async (vehiclesToRemove) => {
+  const email = socket.data.email;
+  if (!email || !Array.isArray(vehiclesToRemove) || vehiclesToRemove.length === 0) {
+    socket.emit('fleet-result', { success: false, message: 'Invalid request' });
+    return;
+  }
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    socket.emit('fleet-result', { success: false, message: 'Player not found' });
+    return;
+  }
+
+  let p = doc.data();
+
+  if (!p.taxiFleet) p.taxiFleet = [];
+  if (!p.inventory) p.inventory = [];
+
+  const removedVehicles = [];
+
+  for (const toRemove of vehiclesToRemove) {
+    // ROBUST MATCHING - ignores extra fields and normalizes health
+    const index = p.taxiFleet.findIndex(v => {
+      const vHealth = v.health ?? 100;
+      const toRemoveHealth = toRemove.health ?? 100;
+      return v.name === toRemove.name &&
+             v.power === toRemove.power &&
+             vHealth === toRemoveHealth;
+    });
+
+    if (index !== -1) {
+      const vehicle = p.taxiFleet.splice(index, 1)[0];
+      removedVehicles.push(vehicle);
     }
+  }
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
+  if (removedVehicles.length > 0) {
+    p.inventory = [...p.inventory, ...removedVehicles];
 
-    let p = doc.data();
+    await docRef.set(p);
 
-    if (!p.taxiFleet) p.taxiFleet = [];
-    if (!p.inventory) p.inventory = [];
-
-    const removedVehicles = [];
-
-    for (const toRemove of vehiclesToRemove) {
-      // Exact same matching logic used in assign-to-fleet
-      const index = p.taxiFleet.findIndex(v => 
-        v.name === toRemove.name && 
-        v.power === toRemove.power && 
-        (v.health || 100) === (toRemove.health || 100)
-      );
-
-      if (index !== -1) {
-        const vehicle = p.taxiFleet.splice(index, 1)[0];
-        removedVehicles.push(vehicle);
-      }
-    }
-
-    if (removedVehicles.length > 0) {
-      p.inventory = [...p.inventory, ...removedVehicles];
-
-      await docRef.set(p);
-
-      socket.emit('update-stats', p);
-      socket.emit('fleet-result', { 
-        success: true, 
-        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
-      });
-    } else {
-      socket.emit('fleet-result', { success: false, message: 'No vehicles found to remove' });
-    }
-  });
+    socket.emit('update-stats', p);
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
+    });
+  } else {
+    socket.emit('fleet-result', { success: false, message: 'No vehicles found to remove' });
+  }
+});
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
