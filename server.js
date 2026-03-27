@@ -574,7 +574,7 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (FINAL MULTI-SELECT FIX) ====================
+  // ==================== REMOVE FROM TAXI FLEET (FINAL SAFE MULTI-SELECT) ====================
 socket.on('remove-from-fleet', async (vehiclesToRemove) => {
   const email = socket.data.email;
   if (!email) {
@@ -582,7 +582,7 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
     return;
   }
 
-  // Normalize input (single object or array)
+  // Normalize input: accept single object or array
   let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
   if (items.length === 0) {
     socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
@@ -602,23 +602,20 @@ socket.on('remove-from-fleet', async (vehiclesToRemove) => {
 
   const removedVehicles = [];
 
-  // Use filter instead of indices — much safer for multi-select
+  // Filter out all matching vehicles at once (much safer than splice + indices)
   p.taxiFleet = p.taxiFleet.filter(v => {
     const vHealth = v.health ?? 100;
 
-    // Check if this vehicle matches ANY of the ones we want to remove
-    const matchIndex = items.findIndex(toRemove => {
+    const isMatch = items.some(toRemove => {
       const toRemoveHealth = toRemove.health ?? 100;
       return v.name === toRemove.name &&
              v.power === toRemove.power &&
              vHealth === toRemoveHealth;
     });
 
-    if (matchIndex !== -1) {
-      // Remove this match from the items list so we don't double-remove
-      const matchedVehicle = items.splice(matchIndex, 1)[0];
+    if (isMatch) {
       removedVehicles.push(v);
-      return false; // filter it out
+      return false; // remove it
     }
     return true; // keep it
   });
