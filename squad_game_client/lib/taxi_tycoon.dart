@@ -99,13 +99,50 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 child: Text('Drivers', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
               ),
             ),
-            const Expanded(
+            Expanded(
               flex: 2,
-              child: Center(
-                child: Text(
-                  'Your hired drivers will appear here',
-                  style: TextStyle(fontSize: 17, color: Colors.grey),
-                ),
+              child: ValueListenableBuilder<Map<String, dynamic>>(
+                valueListenable: SocketService().statsNotifier,
+                builder: (context, stats, child) {
+                  final hired = stats['hiredDrivers'] as List<dynamic>? ?? [];
+
+                  if (hired.isEmpty) {
+                    return const Center(
+                      child: Text('No drivers hired yet.\nScout and hire some!', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: Colors.grey)),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: hired.length,
+                    itemBuilder: (context, index) {
+                      final d = hired[index] as Map<String, dynamic>;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.person, size: 48, color: Colors.purple),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(d['name'] ?? 'Driver', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 4),
+                                    Text('Skill: ${d['drivingSkill']} • Salary: \$${d['salary']} • Potential: ${d['potential']}'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
 

@@ -251,6 +251,7 @@ io.on('connection', (socket) => {
       if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
       if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
       if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
+      if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -314,6 +315,7 @@ io.on('connection', (socket) => {
         unallocatedAttributePoints: 0,
         taxiFleet: [],
         scoutedDrivers: [],
+        hiredDrivers: [],
       };
     }
 
@@ -462,6 +464,7 @@ socket.on('respawn', async () => {
       unallocatedAttributePoints: 0,
       taxiFleet: [],
       scoutedDrivers: [],
+      hiredDrivers: [],
     };
 
     await docRef.set(p);
@@ -695,6 +698,34 @@ socket.on('respawn', async () => {
     await docRef.set(p);
     socket.emit('update-stats', p);
     console.log(`[HR] Cleared scoutedDrivers for ${email}`);
+  });
+
+  socket.on('hire-drivers', async (driversToHire) => {
+    const email = socket.data.email;
+    if (!email || !Array.isArray(driversToHire)) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (!p.hiredDrivers) p.hiredDrivers = [];
+    if (!p.scoutedDrivers) p.scoutedDrivers = [];
+
+    // Move selected drivers to hiredDrivers
+    p.hiredDrivers = [...p.hiredDrivers, ...driversToHire];
+
+    // Clear scoutedDrivers
+    p.scoutedDrivers = [];
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `Hired ${driversToHire.length} driver${driversToHire.length > 1 ? 's' : ''}!` 
+    });
   });
 
   // ====================== KILL ATTEMPT ======================

@@ -525,6 +525,13 @@ class SocketService {
     socket?.emit('clear-scouted-drivers');
   }
 
+  // ==================== HIRE DRIVERS ====================
+  void hireDrivers(List<dynamic> driversToHire) {
+    if (driversToHire.isNotEmpty && socket != null) {
+      socket!.emit('hire-drivers', driversToHire);
+    }
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }
