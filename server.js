@@ -189,8 +189,99 @@ const travelCosts = { // ==================== TRAVEL COSTS ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
 
-// ==================== AUTO BOND MATURITY (8 MINUTES) - Runs every 30 seconds ====================
+// ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
+startDriverSalaryChecker(db, { onlineSockets });   // ← NEW LINE
+
+// ==================== AUTO DRIVER SALARY DEDUCTIONS (every 2 minutes) ====================
+// Modeled EXACTLY after the bond coupon checker
+function startDriverSalaryChecker(db, { onlineSockets }) {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const snapshot = await db.collection('players').get();
+      const batch = db.batch();
+      const playersToNotify = [];
+
+      for (const doc of snapshot.docs) {
+        let p = doc.data();
+        if (!p.hiredDrivers || p.hiredDrivers.length === 0) continue;
+
+        let updatedDrivers = [];
+        let totalSalaryThisCycle = 0;
+
+        for (const driver of p.hiredDrivers) {
+          if (!driver.nextSalaryPaymentTime || !driver.salary) {
+            updatedDrivers.push(driver);
+            continue;
+          }
+
+          if (now >= driver.nextSalaryPaymentTime) {
+            const salary = Math.round(driver.salary);   // ensure integer
+            totalSalaryThisCycle += salary;
+
+            // Update next payment time (every 2 minutes from now)
+            driver.nextSalaryPaymentTime = now + 2 * 60 * 1000;
+            updatedDrivers.push(driver);
+
+            console.log(`[SALARY] ${p.displayName || doc.id} paid $${salary} to ${driver.name}`);
+          } else {
+            updatedDrivers.push(driver);
+          }
+        }
+
+        if (totalSalaryThisCycle > 0) {
+          // Deduct from balance
+          batch.update(doc.ref, {
+            balance: admin.firestore.FieldValue.increment(-totalSalaryThisCycle),
+            hiredDrivers: updatedDrivers
+          });
+
+          // Log transaction (negative)
+          const txRef = doc.ref.collection('transactions').doc();
+          batch.set(txRef, {
+            amount: -totalSalaryThisCycle,
+            description: `Driver Salaries ($${totalSalaryThisCycle})`,
+            balanceAfter: (p.balance || 0) - totalSalaryThisCycle,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          if (p.displayName) {
+            playersToNotify.push({
+              displayName: p.displayName,
+              email: doc.id,
+              totalDeducted: totalSalaryThisCycle
+            });
+          }
+        } else {
+          // No payment this cycle but still save updated array (in case any timestamps changed)
+          if (JSON.stringify(p.hiredDrivers) !== JSON.stringify(updatedDrivers)) {
+            batch.update(doc.ref, { hiredDrivers: updatedDrivers });
+          }
+        }
+      }
+
+      await batch.commit();
+
+      // Live updates for online players
+      for (const player of playersToNotify) {
+        const socket = onlineSockets.get(player.displayName);
+        if (socket) {
+          const freshDoc = await db.collection('players').doc(player.email).get();
+          const freshData = freshDoc.data();
+          socket.emit('update-stats', freshData);
+          socket.emit('new-transaction', {
+            amount: -player.totalDeducted,
+            description: 'Driver Salaries',
+            balanceAfter: (freshData.balance || 0)
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Driver salary checker error:', e);
+    }
+  }, 1000); // runs every second, exactly like bonds
+}
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -252,7 +343,6 @@ io.on('connection', (socket) => {
       if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
       if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
       if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
-      if (playerData.lastDriverPayTime === undefined) playerData.lastDriverPayTime = Date.now();
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -317,7 +407,6 @@ io.on('connection', (socket) => {
         taxiFleet: [],
         scoutedDrivers: [],
         hiredDrivers: [],
-        lastDriverPayTime: Date.now(),
       };
     }
 
@@ -467,7 +556,6 @@ socket.on('respawn', async () => {
       taxiFleet: [],
       scoutedDrivers: [],
       hiredDrivers: [],
-      lastDriverPayTime: Date.now(),
     };
 
     await docRef.set(p);
@@ -703,20 +791,21 @@ socket.on('respawn', async () => {
     console.log(`[HR] Cleared scoutedDrivers for ${email}`);
   });
 
-  socket.on('hire-drivers', async (driversToHire) => {
+  // ==================== UPDATED HIRE-DRIVERS HANDLER (adds timestamps) ====================
+  socket.on('hire-drivers', async (payload) => {
     const email = socket.data.email;
     if (!email) {
       console.warn('[HIRE] No email in socket.data');
       return;
     }
 
-    // Make it robust like remove-from-fleet
-    let payload = driversToHire;
+    // Make it robust (same as our previous fix)
+    let driversToHire = payload;
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      payload = payload.drivers || payload; // in case client ever wraps it
+      driversToHire = payload.drivers || payload;
     }
 
-    if (!Array.isArray(payload) || payload.length === 0) {
+    if (!Array.isArray(driversToHire) || driversToHire.length === 0) {
       console.warn('[HIRE] Received non-array or empty driversToHire');
       return;
     }
@@ -730,8 +819,12 @@ socket.on('respawn', async () => {
     if (!p.hiredDrivers) p.hiredDrivers = [];
     if (!p.scoutedDrivers) p.scoutedDrivers = [];
 
-    // Defensive copy + clean each driver (prevents any deep object issues)
-    const cleanDrivers = payload.map(d => ({ ...d }));
+    const now = Date.now();
+    const cleanDrivers = driversToHire.map(d => ({
+      ...d,
+      hireTime: now,                          // ← NEW
+      nextSalaryPaymentTime: now + 2 * 60 * 1000   // first salary due in exactly 2 minutes
+    }));
 
     p.hiredDrivers = [...p.hiredDrivers, ...cleanDrivers];
     p.scoutedDrivers = [];
@@ -749,61 +842,6 @@ socket.on('respawn', async () => {
       console.error('[HIRE ERROR]', err);
       socket.emit('fleet-result', { success: false, message: 'Failed to hire drivers' });
     }
-  });
-
-  // ==================== PAY DRIVER SALARIES EVERY 2 MINUTES ====================
-  socket.on('pay-drivers', async () => {
-    const email = socket.data.email;
-    if (!email) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    const now = Date.now();
-    const intervalMs = 2 * 60 * 1000; // 2 minutes (matches property income)
-
-    const lastPay = p.lastDriverPayTime || 0;
-    const elapsedMs = now - lastPay;
-
-    if (elapsedMs < intervalMs) return; // not due yet
-
-    const intervals = Math.floor(elapsedMs / intervalMs);
-
-    // Calculate total salary of all hired drivers
-    let totalSalary = 0;
-    const hired = p.hiredDrivers || [];
-    for (const driver of hired) {
-      totalSalary += (driver.salary || 0);
-    }
-
-    if (totalSalary <= 0) {
-      p.lastDriverPayTime = now; // still advance timer
-      await docRef.set(p);
-      return;
-    }
-
-    const totalCost = intervals * totalSalary;
-
-    // Log transaction + deduct
-    await logTransaction(socket, -totalCost, `Driver Salaries (x${intervals})`, p, docRef);
-    p.balance = Math.max(0, (p.balance || 0) - totalCost);
-
-    // Advance timestamp by full intervals (same logic as properties)
-    p.lastDriverPayTime = lastPay + (intervals * intervalMs);
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    // Optional feedback
-    socket.emit('driver-pay-result', { 
-      amount: totalCost, 
-      intervals 
-    });
-
-    console.log(`[DRIVER PAY] ${email} paid $${totalCost} for ${intervals} interval(s)`);
   });
 
   // ====================== KILL ATTEMPT ======================

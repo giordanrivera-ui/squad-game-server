@@ -540,8 +540,6 @@ class SocketService {
     }
   }
 
-  void payDrivers() => socket?.emit('pay-drivers');
-
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }
