@@ -17,6 +17,7 @@ const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { generateRandomDriver } = require('./drivers.js');
+const { startDriverSalaryChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers  } = require('./taxi_tycoon.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -191,97 +192,7 @@ const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
-startDriverSalaryChecker(db, { onlineSockets });   // ← NEW LINE
-
-// ==================== AUTO DRIVER SALARY DEDUCTIONS (every 2 minutes) ====================
-// Modeled EXACTLY after the bond coupon checker
-function startDriverSalaryChecker(db, { onlineSockets }) {
-  setInterval(async () => {
-    try {
-      const now = Date.now();
-      const snapshot = await db.collection('players').get();
-      const batch = db.batch();
-      const playersToNotify = [];
-
-      for (const doc of snapshot.docs) {
-        let p = doc.data();
-        if (!p.hiredDrivers || p.hiredDrivers.length === 0) continue;
-
-        let updatedDrivers = [];
-        let totalSalaryThisCycle = 0;
-
-        for (const driver of p.hiredDrivers) {
-          if (!driver.nextSalaryPaymentTime || !driver.salary) {
-            updatedDrivers.push(driver);
-            continue;
-          }
-
-          if (now >= driver.nextSalaryPaymentTime) {
-            const salary = Math.round(driver.salary);   // ensure integer
-            totalSalaryThisCycle += salary;
-
-            // Update next payment time (every 2 minutes from now)
-            driver.nextSalaryPaymentTime = now + 2 * 60 * 1000;
-            updatedDrivers.push(driver);
-
-            console.log(`[SALARY] ${p.displayName || doc.id} paid $${salary} to ${driver.name}`);
-          } else {
-            updatedDrivers.push(driver);
-          }
-        }
-
-        if (totalSalaryThisCycle > 0) {
-          // Deduct from balance
-          batch.update(doc.ref, {
-            balance: admin.firestore.FieldValue.increment(-totalSalaryThisCycle),
-            hiredDrivers: updatedDrivers
-          });
-
-          // Log transaction (negative)
-          const txRef = doc.ref.collection('transactions').doc();
-          batch.set(txRef, {
-            amount: -totalSalaryThisCycle,
-            description: `Driver Salaries ($${totalSalaryThisCycle})`,
-            balanceAfter: (p.balance || 0) - totalSalaryThisCycle,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
-          });
-
-          if (p.displayName) {
-            playersToNotify.push({
-              displayName: p.displayName,
-              email: doc.id,
-              totalDeducted: totalSalaryThisCycle
-            });
-          }
-        } else {
-          // No payment this cycle but still save updated array (in case any timestamps changed)
-          if (JSON.stringify(p.hiredDrivers) !== JSON.stringify(updatedDrivers)) {
-            batch.update(doc.ref, { hiredDrivers: updatedDrivers });
-          }
-        }
-      }
-
-      await batch.commit();
-
-      // Live updates for online players
-      for (const player of playersToNotify) {
-        const socket = onlineSockets.get(player.displayName);
-        if (socket) {
-          const freshDoc = await db.collection('players').doc(player.email).get();
-          const freshData = freshDoc.data();
-          socket.emit('update-stats', freshData);
-          socket.emit('new-transaction', {
-            amount: -player.totalDeducted,
-            description: 'Driver Salaries',
-            balanceAfter: (freshData.balance || 0)
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Driver salary checker error:', e);
-    }
-  }, 1000); // runs every second, exactly like bonds
-}
+startDriverSalaryChecker(db, { onlineSockets });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -628,297 +539,33 @@ socket.on('respawn', async () => {
     }
   });
 
-  // ==================== ASSIGN TO TAXI FLEET ====================
+  // ==================== TAXI TYCOON HANDLERS (now external) ====================
   socket.on('assign-to-fleet', async (vehicle) => {
-    const email = socket.data.email;
-    if (!email || !vehicle || !vehicle.name) {
-      socket.emit('fleet-result', { success: false, message: 'Invalid vehicle' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // Find and remove from inventory
-    const index = p.inventory.findIndex(v => 
-      v.name === vehicle.name && 
-      v.power === vehicle.power && 
-      v.health === (vehicle.health || 100)
-    );
-
-    if (index === -1) {
-      socket.emit('fleet-result', { success: false, message: 'Vehicle not found in inventory' });
-      return;
-    }
-
-    const assignedVehicle = p.inventory.splice(index, 1)[0];
-
-    // Ensure taxiFleet exists
-    if (!p.taxiFleet) p.taxiFleet = [];
-
-    // Add to fleet
-    p.taxiFleet.push(assignedVehicle);
-
-    await docRef.set(p);
-
-    // Live update
-    socket.emit('update-stats', p);
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `${assignedVehicle.name} assigned to your taxi fleet!` 
-    });
+    await handleAssignToFleet(db, socket, vehicle);
   });
 
-  // ==================== REMOVE FROM TAXI FLEET (FINAL SAFE MULTI-SELECT) ====================
   socket.on('remove-from-fleet', async (payload) => {
-    const email = socket.data.email;
-    if (!email) {
-      socket.emit('fleet-result', { success: false, message: 'Not logged in' });
-      return;
-    }
-
-    // Support both old direct-array calls (if any) and the new wrapped format
-    let vehiclesToRemove = payload?.vehicles || payload;
-
-    // Normalize input
-    let items = Array.isArray(vehiclesToRemove) ? vehiclesToRemove : [vehiclesToRemove];
-    if (items.length === 0) {
-      socket.emit('fleet-result', { success: false, message: 'No vehicles selected' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      socket.emit('fleet-result', { success: false, message: 'Player not found' });
-      return;
-    }
-
-    let p = doc.data();
-    if (!p.taxiFleet) p.taxiFleet = [];
-    if (!p.inventory) p.inventory = [];
-
-    const removedVehicles = [];
-
-    // ← Fast lookup using composite key (unchanged)
-    const toRemoveKeys = new Set();
-    items.forEach(item => {
-      const key = `${item.name}|${item.power}|${item.health ?? 100}`;
-      toRemoveKeys.add(key);
-    });
-
-    p.taxiFleet = p.taxiFleet.filter(v => {
-      const vHealth = v.health ?? 100;
-      const key = `${v.name}|${v.power}|${vHealth}`;
-
-      if (toRemoveKeys.has(key)) {
-        removedVehicles.push(v);
-        return false;
-      }
-      return true;
-    });
-
-    if (removedVehicles.length > 0) {
-      p.inventory = [...p.inventory, ...removedVehicles];
-
-      await docRef.set(p);
-
-      socket.emit('update-stats', p);
-      socket.emit('fleet-result', { 
-        success: true, 
-        message: `${removedVehicles.length} vehicle(s) moved back to inventory` 
-      });
-    } else {
-      socket.emit('fleet-result', { success: false, message: 'No matching vehicles found to remove' });
-    }
+    await handleRemoveFromFleet(db, socket, payload);
   });
 
   socket.on('scout-drivers', async (count) => {
-    const email = socket.data.email;
-    if (!email || typeof count !== 'number' || count < 1) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-    const totalCost = count * 20;
-
-    if ((p.balance || 0) < totalCost) {
-      socket.emit('fleet-result', { success: false, message: 'Not enough money to scout drivers.' }); // reuse existing snackbar style
-      return;
-    }
-
-    // Generate drivers
-    const newDrivers = [];
-    for (let i = 0; i < count; i++) {
-      newDrivers.push(generateRandomDriver(p.location));
-    }
-
-    // Deduct money + log
-    await logTransaction(socket, -totalCost, `Scouted ${count} Driver${count > 1 ? 's' : ''}`, p, docRef);
-    p.balance -= totalCost;
-
-    // Add to scoutedDrivers
-    if (!p.scoutedDrivers) p.scoutedDrivers = [];
-    p.scoutedDrivers = [...p.scoutedDrivers, ...newDrivers];
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `Successfully scouted ${count} driver${count > 1 ? 's' : ''}!` 
-    });
+    await handleScoutDrivers(db, socket, count);
   });
 
   socket.on('clear-scouted-drivers', async () => {
-    const email = socket.data.email;
-    if (!email) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-    p.scoutedDrivers = [];   // Clear the list
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    console.log(`[HR] Cleared scoutedDrivers for ${email}`);
+    await handleClearScoutedDrivers(db, socket);
   });
 
-  // ==================== ASSIGN DRIVER TO VEHICLE ====================
   socket.on('assign-driver-to-vehicle', async (data) => {
-    const email = socket.data.email;
-    if (!email || !data.driverName || !data.vehicle) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    if (!p.hiredDrivers || !p.taxiFleet) return;
-
-    // Find the driver
-    const driverIndex = p.hiredDrivers.findIndex(d => d.name === data.driverName);
-    if (driverIndex === -1) return;
-
-    const driver = p.hiredDrivers[driverIndex];
-
-    // Find the vehicle in fleet using composite key
-    const vehicleKey = `${data.vehicle.name}|${data.vehicle.power}|${data.vehicle.health}`;
-    const vehicleIndex = p.taxiFleet.findIndex(v => {
-      const vHealth = v.health ?? 100;
-      return `${v.name}|${v.power}|${vHealth}` === vehicleKey;
-    });
-
-    if (vehicleIndex === -1) return;
-
-    // Assign
-    p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;
-
-    // (Optional: remove driver from hiredDrivers list if you want 1:1 exclusive assignment)
-    // p.hiredDrivers.splice(driverIndex, 1);
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `${driver.name} assigned to ${data.vehicle.name}!` 
-    });
+    await handleAssignDriverToVehicle(db, socket, data);
   });
 
-  // ==================== UNASSIGN DRIVER FROM VEHICLE ====================
   socket.on('unassign-driver-from-vehicle', async (data) => {
-    const email = socket.data.email;
-    if (!email || !data.driverName) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    if (!p.taxiFleet) return;
-
-    // Find the vehicle that has this driver assigned and clear it
-    let updated = false;
-    for (let i = 0; i < p.taxiFleet.length; i++) {
-      if (p.taxiFleet[i].assignedDriverName === data.driverName) {
-        delete p.taxiFleet[i].assignedDriverName;   // remove the field
-        updated = true;
-        break;
-      }
-    }
-
-    if (updated) {
-      await docRef.set(p);
-      socket.emit('update-stats', p);
-
-      socket.emit('fleet-result', { 
-        success: true, 
-        message: `${data.driverName} has been unassigned from their vehicle.` 
-      });
-    }
+    await handleUnassignDriverFromVehicle(db, socket, data);
   });
 
-  // ==================== UPDATED HIRE-DRIVERS HANDLER (adds timestamps) ====================
   socket.on('hire-drivers', async (payload) => {
-    const email = socket.data.email;
-    if (!email) {
-      console.warn('[HIRE] No email in socket.data');
-      return;
-    }
-
-    // Make it robust (same as our previous fix)
-    let driversToHire = payload;
-    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-      driversToHire = payload.drivers || payload;
-    }
-
-    if (!Array.isArray(driversToHire) || driversToHire.length === 0) {
-      console.warn('[HIRE] Received non-array or empty driversToHire');
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    if (!p.hiredDrivers) p.hiredDrivers = [];
-    if (!p.scoutedDrivers) p.scoutedDrivers = [];
-
-    const now = Date.now();
-    const cleanDrivers = driversToHire.map(d => ({
-      ...d,
-      hireTime: now,                          // ← NEW
-      nextSalaryPaymentTime: now + 2 * 60 * 1000   // first salary due in exactly 2 minutes
-    }));
-
-    p.hiredDrivers = [...p.hiredDrivers, ...cleanDrivers];
-    p.scoutedDrivers = [];
-
-    try {
-      await docRef.set(p);
-      console.log(`[HIRE SUCCESS] ${email} hired ${cleanDrivers.length} driver(s)`);
-
-      socket.emit('update-stats', p);
-      socket.emit('fleet-result', { 
-        success: true, 
-        message: `Hired ${cleanDrivers.length} driver${cleanDrivers.length > 1 ? 's' : ''}!` 
-      });
-    } catch (err) {
-      console.error('[HIRE ERROR]', err);
-      socket.emit('fleet-result', { success: false, message: 'Failed to hire drivers' });
-    }
+    await handleHireDrivers(db, socket, payload);
   });
 
   // ====================== KILL ATTEMPT ======================
