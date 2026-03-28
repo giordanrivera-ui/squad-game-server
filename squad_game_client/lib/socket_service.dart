@@ -540,6 +540,17 @@ class SocketService {
     }
   }
 
+  void assignDriverToVehicle(Map<String, dynamic> driver, Map<String, dynamic> vehicle) {
+    socket?.emit('assign-driver-to-vehicle', {
+      'driverName': driver['name'],
+      'vehicle': {
+        'name': vehicle['name'],
+        'power': vehicle['power'],
+        'health': vehicle['health'] ?? 100,
+      },
+    });
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }

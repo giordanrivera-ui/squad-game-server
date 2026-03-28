@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'garage_screen.dart';
 import 'hr_screen.dart';
 import 'socket_service.dart';
+import 'assign_vehicle_screen.dart';
 
 class TaxiTycoonScreen extends StatefulWidget {
   const TaxiTycoonScreen({super.key});
@@ -12,11 +13,12 @@ class TaxiTycoonScreen extends StatefulWidget {
 
 class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   final Set<int> _selectedIndices = {};
+  final Set<int> _selectedDriverIndices = {};
 
   @override
   void initState() {
     super.initState();
-
+    
     // NEW: Listen for real server response (fleet-result)
     SocketService().socket?.on('fleet-result', (data) {
       if (data is Map && mounted) {
@@ -38,12 +40,31 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     super.dispose();
   }
 
+  // ==================== NEW: Toggle driver selection on tap ====================
+  void _toggleDriverSelection(int index) {
+    setState(() {
+      if (_selectedDriverIndices.contains(index)) {
+        _selectedDriverIndices.remove(index);
+      } else {
+        _selectedDriverIndices.add(index);
+      }
+    });
+  }
+
+  // ==================== NEW: Clear driver selection (when tapping "fire driver") ====================
+  void _clearDriverSelection() {
+    setState(() => _selectedDriverIndices.clear());
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        if (_selectedIndices.isNotEmpty) {
-          setState(() => _selectedIndices.clear());
+        if (_selectedIndices.isNotEmpty || _selectedDriverIndices.isNotEmpty) {
+          setState(() {
+            _selectedIndices.clear();
+            _selectedDriverIndices.clear();
+          });
           return false;
         }
         return true;
@@ -62,24 +83,24 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 children: [
                   Expanded(
                     child: _buildBigButton(
-                      context,
-                      title: "Vehicles",
-                      icon: Icons.directions_car,
-                      color: Colors.blue,
-                      onTap: () => _openGarage(context),
+                      context, 
+                      title: "Vehicles", 
+                      icon: Icons.directions_car, 
+                      color: Colors.blue, 
+                      onTap: () => _openGarage(context)
                     ),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
                     child: _buildBigButton(
-                      context,
-                      title: "Human Resource",
-                      icon: Icons.people_alt,
-                      color: Colors.purple,
+                      context, 
+                      title: "Human Resource", 
+                      icon: Icons.people_alt, 
+                      color: Colors.purple, 
                       onTap: () {
                         showDialog(
                           context: context,
-                          barrierDismissible: true,   // Allows tapping outside to close
+                          barrierDismissible: true,   // Allows tapping outside to close 
                           builder: (context) => const HrScreen(),
                         );
                       },
@@ -91,12 +112,58 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
             const Divider(height: 2, thickness: 2),
 
-            // MIDDLE SECTION – Drivers
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Drivers', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            // ==================== DRIVERS SECTION (UPDATED) ====================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Drivers', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+
+                  if (_selectedDriverIndices.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Green "assign vehicle" – ONLY shown when EXACTLY 1 driver is selected
+                        if (_selectedDriverIndices.length == 1)
+                          GestureDetector(
+                            onTap: () {
+                              final selectedDriver = (SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [])
+                                  [_selectedDriverIndices.first] as Map<String, dynamic>;
+
+                              showDialog(
+                                context: context,
+                                builder: (_) => AssignVehicleScreen(driver: selectedDriver),
+                              );
+                            },
+                            child: const Text(
+                              'assign vehicle',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.normal,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+
+                        if (_selectedDriverIndices.length == 1)
+                          const SizedBox(width: 16), // spacing only when both texts are visible
+
+                        // Red text – automatically becomes plural when 2+ drivers selected
+                        GestureDetector(
+                          onTap: _clearDriverSelection,
+                          child: Text(
+                            _selectedDriverIndices.length > 1 ? 'fire drivers' : 'fire driver',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.normal,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
               ),
             ),
             Expanded(
@@ -117,26 +184,34 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                     itemCount: hired.length,
                     itemBuilder: (context, index) {
                       final d = hired[index] as Map<String, dynamic>;
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.person, size: 48, color: Colors.purple),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(d['name'] ?? 'Driver', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 4),
-                                    Text('Skill: ${d['drivingSkill']} • Salary: \$${d['salary']} • Potential: ${d['potential']}'),
-                                  ],
+                      final bool isSelected = _selectedDriverIndices.contains(index);
+
+                      return GestureDetector(
+                        onTap: () => _toggleDriverSelection(index),   // ← TAP TO SELECT (new)
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
+                            side: isSelected ? const BorderSide(color: Colors.blue, width: 3) : BorderSide.none,
+                          ),
+                          color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person, size: 48, color: Colors.purple),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(d['name'] ?? 'Driver', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 4),
+                                      Text('Skill: ${d['drivingSkill']} • Salary: \$${d['salary']} • Potential: ${d['potential']}'),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -148,24 +223,24 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
             const Divider(height: 2, thickness: 2),
 
-            // BOTTOM SECTION – Fleet
+            // ==================== FLEET SECTION  ====================
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Fleet',
+                    'Fleet', 
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-                  ),
+                    ),
                   if (_selectedIndices.isNotEmpty)
                     GestureDetector(
                       onTap: _showRemoveConfirmation,
                       child: const Text(
-                        'remove from fleet',
+                        'remove from fleet', 
                         style: TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.normal,
+                          color: Colors.red, 
+                          fontWeight: FontWeight.normal, 
                           fontSize: 14,
                         ),
                       ),
@@ -230,6 +305,14 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(v['description'] ?? '', style: const TextStyle(fontSize: 14)),
+                                      if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            'Driver: ${v['assignedDriverName']}',
+                                            style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -321,7 +404,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 130,
+        height: 100,
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
           borderRadius: BorderRadius.circular(24),

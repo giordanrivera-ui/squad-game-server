@@ -791,6 +791,49 @@ socket.on('respawn', async () => {
     console.log(`[HR] Cleared scoutedDrivers for ${email}`);
   });
 
+  // ==================== ASSIGN DRIVER TO VEHICLE ====================
+  socket.on('assign-driver-to-vehicle', async (data) => {
+    const email = socket.data.email;
+    if (!email || !data.driverName || !data.vehicle) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (!p.hiredDrivers || !p.taxiFleet) return;
+
+    // Find the driver
+    const driverIndex = p.hiredDrivers.findIndex(d => d.name === data.driverName);
+    if (driverIndex === -1) return;
+
+    const driver = p.hiredDrivers[driverIndex];
+
+    // Find the vehicle in fleet using composite key
+    const vehicleKey = `${data.vehicle.name}|${data.vehicle.power}|${data.vehicle.health}`;
+    const vehicleIndex = p.taxiFleet.findIndex(v => {
+      const vHealth = v.health ?? 100;
+      return `${v.name}|${v.power}|${vHealth}` === vehicleKey;
+    });
+
+    if (vehicleIndex === -1) return;
+
+    // Assign
+    p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;
+
+    // (Optional: remove driver from hiredDrivers list if you want 1:1 exclusive assignment)
+    // p.hiredDrivers.splice(driverIndex, 1);
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `${driver.name} assigned to ${data.vehicle.name}!` 
+    });
+  });
+
   // ==================== UPDATED HIRE-DRIVERS HANDLER (adds timestamps) ====================
   socket.on('hire-drivers', async (payload) => {
     const email = socket.data.email;
