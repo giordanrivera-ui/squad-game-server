@@ -94,7 +94,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                   Expanded(
                     child: _buildBigButton(
                       context, 
-                      title: "Human Resource", 
+                      title: "HR", 
                       icon: Icons.people_alt, 
                       color: Colors.purple, 
                       onTap: () {
@@ -112,7 +112,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
             const Divider(height: 2, thickness: 2),
 
-            // ==================== DRIVERS SECTION (UPDATED) ====================
+            // ==================== DRIVERS SECTION ====================
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
               child: Row(
@@ -166,16 +166,22 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 ],
               ),
             ),
+            // ==================== DRIVERS SECTION ====================
             Expanded(
               flex: 2,
               child: ValueListenableBuilder<Map<String, dynamic>>(
                 valueListenable: SocketService().statsNotifier,
                 builder: (context, stats, child) {
                   final hired = stats['hiredDrivers'] as List<dynamic>? ?? [];
+                  final fleet = stats['taxiFleet'] as List<dynamic>? ?? [];
 
                   if (hired.isEmpty) {
                     return const Center(
-                      child: Text('No drivers hired yet.\nScout and hire some!', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: Colors.grey)),
+                      child: Text(
+                        'No drivers hired yet.\nScout and hire some!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 17, color: Colors.grey),
+                      ),
                     );
                   }
 
@@ -186,12 +192,25 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                       final d = hired[index] as Map<String, dynamic>;
                       final bool isSelected = _selectedDriverIndices.contains(index);
 
+                      // Find if this driver is assigned to any vehicle
+                      String? assignedVehicleName;
+                      for (final v in fleet) {
+                        final vehicle = v as Map<String, dynamic>;
+                        if (vehicle['assignedDriverName'] == d['name']) {
+                          assignedVehicleName = vehicle['name'];
+                          break;
+                        }
+                      }
+
                       return GestureDetector(
-                        onTap: () => _toggleDriverSelection(index),   // ← TAP TO SELECT (new)
+                        onTap: () => _toggleDriverSelection(index),
                         child: Card(
                           margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16),
-                            side: isSelected ? const BorderSide(color: Colors.blue, width: 3) : BorderSide.none,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: isSelected
+                                ? const BorderSide(color: Colors.blue, width: 3)
+                                : BorderSide.none,
                           ),
                           color: isSelected ? Colors.blue.withOpacity(0.1) : null,
                           child: Padding(
@@ -204,9 +223,37 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(d['name'] ?? 'Driver', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                      Text(
+                                        d['name'] ?? 'Driver',
+                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                      ),
                                       const SizedBox(height: 4),
-                                      Text('Skill: ${d['drivingSkill']} • Salary: \$${d['salary']} • Potential: ${d['potential']}'),
+                                      Text(
+                                        'Skill: ${d['drivingSkill'] ?? 0} • Salary: \$${d['salary'] ?? 0} • Potential: ${d['potential'] ?? 0}',
+                                      ),
+                                      const SizedBox(height: 8),
+
+                                      // ← NEW: Assignment indicator
+                                      if (assignedVehicleName != null)
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.directions_car, size: 18, color: Colors.green),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Assigned to $assignedVehicleName',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: Colors.green,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      else
+                                        const Text(
+                                          'No vehicle assigned',
+                                          style: TextStyle(fontSize: 15, color: Colors.grey),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -416,7 +463,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 52, color: Colors.white),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
           ],
         ),
