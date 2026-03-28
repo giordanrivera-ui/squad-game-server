@@ -532,6 +532,14 @@ class SocketService {
     }
   }
 
+  // Add near the other hire/remove methods
+  void hireDriversWrapped(List<dynamic> driversToHire) {
+    if (driversToHire.isNotEmpty && socket != null) {
+      // Wrap it exactly like remove-from-fleet
+      socket!.emit('hire-drivers', { 'drivers': driversToHire });
+    }
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }

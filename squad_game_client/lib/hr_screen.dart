@@ -64,10 +64,10 @@ class _HrScreenState extends State<HrScreen> {
         .map((i) => allDrivers[i] as Map<String, dynamic>)
         .toList();
 
-    SocketService().hireDrivers(driversToHire);
+    // Send wrapped (same pattern as remove-from-fleet - safer)
+    SocketService().hireDriversWrapped(driversToHire);   // ← new method (see below)
 
-    // Clear local selection immediately
-    setState(() => _selectedIndices.clear());
+    // Do NOT clear selection yet - wait for server confirmation
   }
 
   Future<void> _confirmAndClear() async {

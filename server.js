@@ -702,7 +702,21 @@ socket.on('respawn', async () => {
 
   socket.on('hire-drivers', async (driversToHire) => {
     const email = socket.data.email;
-    if (!email || !Array.isArray(driversToHire)) return;
+    if (!email) {
+      console.warn('[HIRE] No email in socket.data');
+      return;
+    }
+
+    // Make it robust like remove-from-fleet
+    let payload = driversToHire;
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      payload = payload.drivers || payload; // in case client ever wraps it
+    }
+
+    if (!Array.isArray(payload) || payload.length === 0) {
+      console.warn('[HIRE] Received non-array or empty driversToHire');
+      return;
+    }
 
     const docRef = db.collection('players').doc(email);
     const doc = await docRef.get();
@@ -713,19 +727,25 @@ socket.on('respawn', async () => {
     if (!p.hiredDrivers) p.hiredDrivers = [];
     if (!p.scoutedDrivers) p.scoutedDrivers = [];
 
-    // Move selected drivers to hiredDrivers
-    p.hiredDrivers = [...p.hiredDrivers, ...driversToHire];
+    // Defensive copy + clean each driver (prevents any deep object issues)
+    const cleanDrivers = payload.map(d => ({ ...d }));
 
-    // Clear scoutedDrivers
+    p.hiredDrivers = [...p.hiredDrivers, ...cleanDrivers];
     p.scoutedDrivers = [];
 
-    await docRef.set(p);
-    socket.emit('update-stats', p);
+    try {
+      await docRef.set(p);
+      console.log(`[HIRE SUCCESS] ${email} hired ${cleanDrivers.length} driver(s)`);
 
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `Hired ${driversToHire.length} driver${driversToHire.length > 1 ? 's' : ''}!` 
-    });
+      socket.emit('update-stats', p);
+      socket.emit('fleet-result', { 
+        success: true, 
+        message: `Hired ${cleanDrivers.length} driver${cleanDrivers.length > 1 ? 's' : ''}!` 
+      });
+    } catch (err) {
+      console.error('[HIRE ERROR]', err);
+      socket.emit('fleet-result', { success: false, message: 'Failed to hire drivers' });
+    }
   });
 
   // ====================== KILL ATTEMPT ======================
