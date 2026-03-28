@@ -551,6 +551,12 @@ class SocketService {
     });
   }
 
+  void unassignDriverFromVehicle(String driverName) {
+    socket?.emit('unassign-driver-from-vehicle', {
+      'driverName': driverName,
+    });
+  }
+
   void attemptRescue(String targetDisplayName) {
     socket?.emit('attempt-rescue', targetDisplayName);
   }

@@ -56,6 +56,23 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     setState(() => _selectedDriverIndices.clear());
   }
 
+  bool _isDriverAssigned(int index) {
+    final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
+    if (index >= hired.length) return false;
+    final driver = hired[index] as Map<String, dynamic>;
+
+    final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
+    return fleet.any((v) {
+      final vehicle = v as Map<String, dynamic>;
+      return vehicle['assignedDriverName'] == driver['name'];
+    });
+  }
+
+  void _unassignSelectedDriver(String driverName) {
+    SocketService().unassignDriverFromVehicle(driverName);
+    _clearDriverSelection(); // optional: clear selection after unassign
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -114,7 +131,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
             // ==================== DRIVERS SECTION ====================
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -124,21 +141,35 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Green "assign vehicle" – ONLY shown when EXACTLY 1 driver is selected
+                        // Green text – "assign vehicle" OR "unassign" depending on assignment status
                         if (_selectedDriverIndices.length == 1)
                           GestureDetector(
                             onTap: () {
-                              final selectedDriver = (SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [])
-                                  [_selectedDriverIndices.first] as Map<String, dynamic>;
+                              final selectedIndex = _selectedDriverIndices.first;
+                              final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
+                              final driver = hired[selectedIndex] as Map<String, dynamic>;
 
-                              showDialog(
-                                context: context,
-                                builder: (_) => AssignVehicleScreen(driver: selectedDriver),
-                              );
+                              // Check if this driver is assigned to any vehicle
+                              final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
+                              bool isAssigned = fleet.any((v) {
+                                final vehicle = v as Map<String, dynamic>;
+                                return vehicle['assignedDriverName'] == driver['name'];
+                              });
+
+                              if (isAssigned) {
+                                _unassignSelectedDriver(driver['name']);
+                              } else {
+                                // Existing assign logic
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => AssignVehicleScreen(driver: driver),
+                                );
+                              }
                             },
-                            child: const Text(
-                              'assign vehicle',
-                              style: TextStyle(
+                            child: Text(
+                              // Determine text based on assignment
+                              _isDriverAssigned(_selectedDriverIndices.first) ? 'unassign' : 'assign vehicle',
+                              style: const TextStyle(
                                 color: Colors.green,
                                 fontWeight: FontWeight.normal,
                                 fontSize: 14,
@@ -146,7 +177,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                             ),
                           ),
 
-                        if (_selectedDriverIndices.length == 1)
+                        if (_selectedDriverIndices.length == 1) 
                           const SizedBox(width: 16), // spacing only when both texts are visible
 
                         // Red text – automatically becomes plural when 2+ drivers selected
@@ -166,7 +197,6 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 ],
               ),
             ),
-            // ==================== DRIVERS SECTION ====================
             Expanded(
               flex: 2,
               child: ValueListenableBuilder<Map<String, dynamic>>(

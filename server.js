@@ -834,6 +834,40 @@ socket.on('respawn', async () => {
     });
   });
 
+  // ==================== UNASSIGN DRIVER FROM VEHICLE ====================
+  socket.on('unassign-driver-from-vehicle', async (data) => {
+    const email = socket.data.email;
+    if (!email || !data.driverName) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    if (!p.taxiFleet) return;
+
+    // Find the vehicle that has this driver assigned and clear it
+    let updated = false;
+    for (let i = 0; i < p.taxiFleet.length; i++) {
+      if (p.taxiFleet[i].assignedDriverName === data.driverName) {
+        delete p.taxiFleet[i].assignedDriverName;   // remove the field
+        updated = true;
+        break;
+      }
+    }
+
+    if (updated) {
+      await docRef.set(p);
+      socket.emit('update-stats', p);
+
+      socket.emit('fleet-result', { 
+        success: true, 
+        message: `${data.driverName} has been unassigned from their vehicle.` 
+      });
+    }
+  });
+
   // ==================== UPDATED HIRE-DRIVERS HANDLER (adds timestamps) ====================
   socket.on('hire-drivers', async (payload) => {
     const email = socket.data.email;
