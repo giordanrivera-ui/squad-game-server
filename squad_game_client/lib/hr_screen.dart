@@ -67,7 +67,7 @@ class _HrScreenState extends State<HrScreen> {
     // Send wrapped (same pattern as remove-from-fleet - safer)
     SocketService().hireDriversWrapped(driversToHire);   // ← new method (see below)
 
-    // Do NOT clear selection yet - wait for server confirmation
+    Navigator.pop(context);
   }
 
   Future<void> _confirmAndClear() async {
