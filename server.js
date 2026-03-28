@@ -252,6 +252,7 @@ io.on('connection', (socket) => {
       if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
       if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
       if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
+      if (playerData.lastDriverPayTime === undefined) playerData.lastDriverPayTime = Date.now();
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -316,6 +317,7 @@ io.on('connection', (socket) => {
         taxiFleet: [],
         scoutedDrivers: [],
         hiredDrivers: [],
+        lastDriverPayTime: Date.now(),
       };
     }
 
@@ -465,6 +467,7 @@ socket.on('respawn', async () => {
       taxiFleet: [],
       scoutedDrivers: [],
       hiredDrivers: [],
+      lastDriverPayTime: Date.now(),
     };
 
     await docRef.set(p);
@@ -746,6 +749,61 @@ socket.on('respawn', async () => {
       console.error('[HIRE ERROR]', err);
       socket.emit('fleet-result', { success: false, message: 'Failed to hire drivers' });
     }
+  });
+
+  // ==================== PAY DRIVER SALARIES EVERY 2 MINUTES ====================
+  socket.on('pay-drivers', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    const now = Date.now();
+    const intervalMs = 2 * 60 * 1000; // 2 minutes (matches property income)
+
+    const lastPay = p.lastDriverPayTime || 0;
+    const elapsedMs = now - lastPay;
+
+    if (elapsedMs < intervalMs) return; // not due yet
+
+    const intervals = Math.floor(elapsedMs / intervalMs);
+
+    // Calculate total salary of all hired drivers
+    let totalSalary = 0;
+    const hired = p.hiredDrivers || [];
+    for (const driver of hired) {
+      totalSalary += (driver.salary || 0);
+    }
+
+    if (totalSalary <= 0) {
+      p.lastDriverPayTime = now; // still advance timer
+      await docRef.set(p);
+      return;
+    }
+
+    const totalCost = intervals * totalSalary;
+
+    // Log transaction + deduct
+    await logTransaction(socket, -totalCost, `Driver Salaries (x${intervals})`, p, docRef);
+    p.balance = Math.max(0, (p.balance || 0) - totalCost);
+
+    // Advance timestamp by full intervals (same logic as properties)
+    p.lastDriverPayTime = lastPay + (intervals * intervalMs);
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    // Optional feedback
+    socket.emit('driver-pay-result', { 
+      amount: totalCost, 
+      intervals 
+    });
+
+    console.log(`[DRIVER PAY] ${email} paid $${totalCost} for ${intervals} interval(s)`);
   });
 
   // ====================== KILL ATTEMPT ======================
