@@ -312,6 +312,7 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   for (let i = 0; i < p.taxiFleet.length; i++) {
     if (p.taxiFleet[i].assignedDriverName === data.driverName) {
       delete p.taxiFleet[i].assignedDriverName;
+      delete p.taxiFleet[i].status;
       updated = true;
       break;
     }
