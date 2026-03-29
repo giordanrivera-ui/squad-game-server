@@ -1,5 +1,7 @@
 const admin = require('firebase-admin');
 
+const { generateRandomDriver } = require('./drivers.js');
+
 // ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
@@ -117,7 +119,6 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
 }
 
 // ==================== TAXI TYCOON HANDLERS ====================
-const { generateRandomDriver } = require('./drivers.js');
 
 async function handleAssignToFleet(db, socket, vehicle) {
   const email = socket.data.email;

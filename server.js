@@ -16,8 +16,8 @@ const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
-const { generateRandomDriver } = require('./drivers.js');
 const { startDriverSalaryChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers  } = require('./taxi_tycoon.js');
+const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -540,33 +540,19 @@ socket.on('respawn', async () => {
   });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
-  socket.on('assign-to-fleet', async (vehicle) => {
-    await handleAssignToFleet(db, socket, vehicle);
-  });
+  socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
 
-  socket.on('remove-from-fleet', async (payload) => {
-    await handleRemoveFromFleet(db, socket, payload);
-  });
+  socket.on('remove-from-fleet', async (payload) => { await handleRemoveFromFleet(db, socket, payload); });
 
-  socket.on('scout-drivers', async (count) => {
-    await handleScoutDrivers(db, socket, count);
-  });
+  socket.on('scout-drivers', async (count) => { await handleScoutDrivers(db, socket, count); });
 
-  socket.on('clear-scouted-drivers', async () => {
-    await handleClearScoutedDrivers(db, socket);
-  });
+  socket.on('clear-scouted-drivers', async () => { await handleClearScoutedDrivers(db, socket); });
 
-  socket.on('assign-driver-to-vehicle', async (data) => {
-    await handleAssignDriverToVehicle(db, socket, data);
-  });
+  socket.on('assign-driver-to-vehicle', async (data) => { await handleAssignDriverToVehicle(db, socket, data); });
 
-  socket.on('unassign-driver-from-vehicle', async (data) => {
-    await handleUnassignDriverFromVehicle(db, socket, data);
-  });
+  socket.on('unassign-driver-from-vehicle', async (data) => { await handleUnassignDriverFromVehicle(db, socket, data); });
 
-  socket.on('hire-drivers', async (payload) => {
-    await handleHireDrivers(db, socket, payload);
-  });
+  socket.on('hire-drivers', async (payload) => { await handleHireDrivers(db, socket, payload); });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
@@ -783,81 +769,10 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  socket.on('heal', async () => {
-    const email = socket.data.email;
-    if (!email) return;
+  // ==================== HOSPITAL / HEALING HANDLERS ====================
+  socket.on('heal', async () => { await handleHeal(db, socket); });
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-    if (p.health >= 100) return;
-
-    const cost = 50;
-    if (p.balance < cost) return;
-
-    await logTransaction(socket, -cost, 'Healing ($50)', p, docRef);
-    p.balance -= cost;
-
-    p.health = 100;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
-
-  socket.on('heal-broken-bone', async () => {
-    const email = socket.data.email;
-    if (!email) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // Strict location check
-    if (p.location !== "Lónghǎi") {
-      socket.emit('heal-broken-bone-result', { 
-        success: false, 
-        message: 'Orthopedic Surgeon is only available in Lónghǎi.' 
-      });
-      return;
-    }
-
-    if (!p.hasBrokenBone) {
-      socket.emit('heal-broken-bone-result', { 
-        success: false, 
-        message: 'You do not have a broken bone to heal.' 
-      });
-      return;
-    }
-
-    const cost = 110;
-    if (p.balance < cost) {
-      socket.emit('heal-broken-bone-result', { 
-        success: false, 
-        message: 'Not enough money ($110 required).' 
-      });
-      return;
-    }
-
-    // Heal the debuff
-    await logTransaction(socket, -cost, 'Broken Bone Healing ($110)', p, docRef);   // p = playerData, docRef = the Firestore reference
-    p.balance -= cost;
-    p.hasBrokenBone = false;
-    p.bonePenaltyEndTimeLow = 0;
-    p.bonePenaltyEndTimeMid = 0;
-    p.bonePenaltyEndTimeHigh = 0;
-
-    await docRef.set(p);
-
-    socket.emit('heal-broken-bone-result', { 
-      success: true, 
-      message: '🦴 Bone healed! You feel much better.' 
-    });
-    socket.emit('update-stats', p);
-  });
+  socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
