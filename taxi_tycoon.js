@@ -18,14 +18,14 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
 
-  // Live update to client
+    // Live update to client
   socket.emit('new-transaction', {
     amount: amount,
     description: description,
     balanceAfter: Math.round(newBalance)
   });
 
-  // Permanent storage
+    // Permanent storage
   try {
     await docRef.collection('transactions').add(txData);
     console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
@@ -118,7 +118,73 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== TAXI TYCOON HANDLERS ====================
+// ==================== NEW: DRIVER VEHICLE EXPERIENCE CHECKER ====================
+function startDriverVehicleExperienceChecker(db) {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const snapshot = await db.collection('players').get();
+      const batch = db.batch();
+
+      for (const doc of snapshot.docs) {
+        let p = doc.data();
+        if (!p.hiredDrivers || !p.taxiFleet) continue;
+
+        let changed = false;
+
+        // Build quick lookup: vehicleName → assignedDriverName
+        const assignmentMap = {};
+        for (const vehicle of p.taxiFleet) {
+          if (vehicle.assignedDriverName) {
+            assignmentMap[vehicle.name] = vehicle.assignedDriverName;
+          }
+        }
+
+        // For every hired driver
+        for (const driver of p.hiredDrivers) {
+          const driverName = driver.name;
+          if (!driverName) continue;
+
+          // Find if this driver is currently assigned to any vehicle
+          let currentVehicleName = null;
+          for (const [vehName, assignedName] of Object.entries(assignmentMap)) {
+            if (assignedName === driverName) {
+              currentVehicleName = vehName;
+              break;
+            }
+          }
+
+          if (!currentVehicleName) continue; // not assigned right now
+
+          // Ensure vehicleExperience map exists
+          if (!driver.vehicleExperience) driver.vehicleExperience = {};
+
+          const currentExp = driver.vehicleExperience[currentVehicleName] || 0;
+
+          // Award +1 every 2 minutes
+          const lastAwardKey = `lastExpAward_${currentVehicleName}`;
+          const lastAward = driver[lastAwardKey] || 0;
+
+          if (now - lastAward >= 2 * 60 * 1000) {
+            driver.vehicleExperience[currentVehicleName] = currentExp + 1;
+            driver[lastAwardKey] = now;   // record when we last gave a point
+            changed = true;
+
+            console.log(`[EXP] ${driverName} gained +1 experience on ${currentVehicleName} (total: ${currentExp + 1})`);
+          }
+        }
+
+        if (changed) {
+          batch.update(doc.ref, { hiredDrivers: p.hiredDrivers });
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      console.error('Driver vehicle experience checker error:', e);
+    }
+  }, 1000);
+}
 
 async function handleAssignToFleet(db, socket, vehicle) {
   const email = socket.data.email;
@@ -284,9 +350,9 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   if (vehicleIndex === -1) return;
 
-  // === NEW: Set vehicle status ===
+  // Assign driver + default status
   p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
-  p.taxiFleet[vehicleIndex].status = 'Finding customer';   // ← Default status
+  p.taxiFleet[vehicleIndex].status = 'Finding customer';
 
   await docRef.set(p);
   socket.emit('update-stats', p);
@@ -375,6 +441,7 @@ async function handleHireDrivers(db, socket, payload) {
 
 module.exports = {
   startDriverSalaryChecker,
+  startDriverVehicleExperienceChecker,   // ← NEW
   handleAssignToFleet,
   handleRemoveFromFleet,
   handleScoutDrivers,
