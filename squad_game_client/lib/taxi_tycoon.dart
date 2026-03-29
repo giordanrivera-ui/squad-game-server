@@ -162,7 +162,10 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                 // Existing assign logic
                                 showDialog(
                                   context: context,
-                                  builder: (_) => AssignVehicleScreen(driver: driver),
+                                  builder: (_) => AssignVehicleScreen(
+                                    driver: driver,
+                                    onAssigned: _clearDriverSelection
+                                  ),
                                 );
                               }
                             },
@@ -364,38 +367,57 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                           color: isSelected ? Colors.yellow.withOpacity(0.25) : null,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.directions_car, size: 60, color: Colors.blue),
-                                const SizedBox(width: 20),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(v['name'] ?? 'Vehicle',
-                                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Power: ${v['power'] ?? 0} • Defense: ${v['defense'] ?? 0} • Health: ${v['health'] ?? 100}/100',
-                                        style: const TextStyle(fontSize: 15, color: Colors.grey),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(v['description'] ?? '', style: const TextStyle(fontSize: 14)),
-                                      if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 8),
-                                          child: Text(
-                                            'Driver: ${v['assignedDriverName']}',
-                                            style: const TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+  padding: const EdgeInsets.all(16),
+  child: Row(
+    children: [
+      const Icon(Icons.directions_car, size: 60, color: Colors.blue),
+      const SizedBox(width: 20),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(v['name'] ?? 'Vehicle',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(
+              'Power: ${v['power'] ?? 0} • Defense: ${v['defense'] ?? 0} • Health: ${v['health'] ?? 100}/100',
+              style: const TextStyle(fontSize: 15, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(v['description'] ?? '', style: const TextStyle(fontSize: 14)),
+
+            // === NEW: Vehicle Status Display ===
+            if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, size: 18, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    Text(
+                      v['status'] ?? 'Finding customer',   // ← Shows the status
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
+              Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Driver: ${v['assignedDriverName']}',
+                  style: TextStyle(fontSize: 14, color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  ),
+),
                         ),
                       );
                     },

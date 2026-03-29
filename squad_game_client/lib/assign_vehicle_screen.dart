@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 
 class AssignVehicleScreen extends StatelessWidget {
-  final Map<String, dynamic> driver; // the selected driver
+  final Map<String, dynamic> driver;
+  final VoidCallback? onAssigned;   // ← NEW: Callback to deselect driver
 
-  const AssignVehicleScreen({super.key, required this.driver});
+  const AssignVehicleScreen({
+    super.key,
+    required this.driver,
+    this.onAssigned,   // ← NEW
+  });
 
   @override
   Widget build(BuildContext context) {
     final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
 
-    // Filter only vehicles that have NO driver assigned yet
     final availableVehicles = fleet.where((v) {
       final vehicle = v as Map<String, dynamic>;
       return (vehicle['assignedDriverName'] == null || vehicle['assignedDriverName'] == '');
@@ -68,9 +72,13 @@ class AssignVehicleScreen extends StatelessWidget {
                               'Power: ${vehicle['power'] ?? 0} • Health: ${vehicle['health'] ?? 100}/100',
                             ),
                             onTap: () {
-                              // Send to server
+                              // Assign vehicle
                               SocketService().assignDriverToVehicle(driver, vehicle);
-                              Navigator.pop(context); // close screen
+                              
+                              // NEW: Automatically deselect the driver
+                              onAssigned?.call();
+
+                              Navigator.pop(context);
                             },
                           ),
                         );

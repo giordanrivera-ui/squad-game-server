@@ -284,7 +284,9 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   if (vehicleIndex === -1) return;
 
-  p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;  // driver.name
+  // === NEW: Set vehicle status ===
+  p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
+  p.taxiFleet[vehicleIndex].status = 'Finding customer';   // ← Default status
 
   await docRef.set(p);
   socket.emit('update-stats', p);
