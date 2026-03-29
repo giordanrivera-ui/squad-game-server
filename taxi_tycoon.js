@@ -119,6 +119,7 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
 }
 
 // ==================== COMBINED DRIVER PROGRESS CHECKER (Experience + Exact Time) ====================
+// ==================== COMBINED DRIVER PROGRESS CHECKER (Experience + Exact Time) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
@@ -140,12 +141,11 @@ function startDriverProgressChecker(db) {
           }
         }
 
-        // For every hired driver
         for (const driver of p.hiredDrivers) {
           const driverName = driver.name;
           if (!driverName) continue;
 
-          // Find if this driver is currently assigned to any vehicle
+          // Find if this driver is currently assigned
           let currentVehicleName = null;
           for (const [vehName, assignedName] of Object.entries(assignmentMap)) {
             if (assignedName === driverName) {
@@ -154,7 +154,7 @@ function startDriverProgressChecker(db) {
             }
           }
 
-          if (!currentVehicleName) continue; // not assigned right now
+          if (!currentVehicleName) continue;
 
           // === 1. vehicleExperience (points every 2 minutes) ===
           if (!driver.vehicleExperience) driver.vehicleExperience = {};
@@ -163,9 +163,12 @@ function startDriverProgressChecker(db) {
           const lastExp = driver[lastExpKey] || 0;
 
           if (now - lastExp >= 2 * 60 * 1000) {
-            driver.vehicleExperience[currentVehicleName] = (driver.vehicleExperience[currentVehicleName] || 0) + 1;
+            const currentExp = driver.vehicleExperience[currentVehicleName] || 0;
+            driver.vehicleExperience[currentVehicleName] = currentExp + 1;
             driver[lastExpKey] = now;
             changed = true;
+
+            console.log(`[EXP] ${driverName} gained +1 experience on ${currentVehicleName} (total: ${currentExp + 1})`);
           }
 
           // === 2. vehicleTime (exact milliseconds) ===
@@ -176,14 +179,12 @@ function startDriverProgressChecker(db) {
           if (startTime) {
             const elapsedThisSession = now - startTime;
             driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsedThisSession;
-            driver[startTimeKey] = now; // reset start for next second
+            driver[startTimeKey] = now; // reset for next second
             changed = true;
           } else {
             // First tick after assignment
             driver[startTimeKey] = now;
             changed = true;
-            
-            console.log(`[EXP] ${driverName} gained +1 experience on ${currentVehicleName} (total: ${currentExp + 1})`);
           }
         }
 
