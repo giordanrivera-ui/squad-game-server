@@ -18,14 +18,14 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
 
-    // Live update to client
+      // Live update to client
   socket.emit('new-transaction', {
     amount: amount,
     description: description,
     balanceAfter: Math.round(newBalance)
   });
 
-    // Permanent storage
+      // Permanent storage
   try {
     await docRef.collection('transactions').add(txData);
     console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
@@ -118,8 +118,8 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== NEW: DRIVER VEHICLE EXPERIENCE CHECKER ====================
-function startDriverVehicleExperienceChecker(db) {
+// ==================== COMBINED DRIVER PROGRESS CHECKER (Experience + Exact Time) ====================
+function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
       const now = Date.now();
@@ -156,20 +156,33 @@ function startDriverVehicleExperienceChecker(db) {
 
           if (!currentVehicleName) continue; // not assigned right now
 
-          // Ensure vehicleExperience map exists
+          // === 1. vehicleExperience (points every 2 minutes) ===
           if (!driver.vehicleExperience) driver.vehicleExperience = {};
 
-          const currentExp = driver.vehicleExperience[currentVehicleName] || 0;
+          const lastExpKey = `lastExpAward_${currentVehicleName}`;
+          const lastExp = driver[lastExpKey] || 0;
 
-          // Award +1 every 2 minutes
-          const lastAwardKey = `lastExpAward_${currentVehicleName}`;
-          const lastAward = driver[lastAwardKey] || 0;
-
-          if (now - lastAward >= 2 * 60 * 1000) {
-            driver.vehicleExperience[currentVehicleName] = currentExp + 1;
-            driver[lastAwardKey] = now;   // record when we last gave a point
+          if (now - lastExp >= 2 * 60 * 1000) {
+            driver.vehicleExperience[currentVehicleName] = (driver.vehicleExperience[currentVehicleName] || 0) + 1;
+            driver[lastExpKey] = now;
             changed = true;
+          }
 
+          // === 2. vehicleTime (exact milliseconds) ===
+          if (!driver.vehicleTime) driver.vehicleTime = {};
+          const startTimeKey = `startTime_${currentVehicleName}`;
+          const startTime = driver[startTimeKey];
+
+          if (startTime) {
+            const elapsedThisSession = now - startTime;
+            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsedThisSession;
+            driver[startTimeKey] = now; // reset start for next second
+            changed = true;
+          } else {
+            // First tick after assignment
+            driver[startTimeKey] = now;
+            changed = true;
+            
             console.log(`[EXP] ${driverName} gained +1 experience on ${currentVehicleName} (total: ${currentExp + 1})`);
           }
         }
@@ -181,7 +194,7 @@ function startDriverVehicleExperienceChecker(db) {
 
       await batch.commit();
     } catch (e) {
-      console.error('Driver vehicle experience checker error:', e);
+      console.error('Driver progress checker error:', e);
     }
   }, 1000);
 }
@@ -350,7 +363,6 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   if (vehicleIndex === -1) return;
 
-  // Assign driver + default status
   p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
 
@@ -377,6 +389,21 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   let updated = false;
   for (let i = 0; i < p.taxiFleet.length; i++) {
     if (p.taxiFleet[i].assignedDriverName === data.driverName) {
+      const vehicleName = p.taxiFleet[i].name;
+      const driver = p.hiredDrivers.find(d => d.name === data.driverName);
+
+      // Finalize exact time for this session
+      if (driver) {
+        const startTimeKey = `startTime_${vehicleName}`;
+        const startTime = driver[startTimeKey];
+        if (startTime) {
+          const elapsed = Date.now() - startTime;
+          if (!driver.vehicleTime) driver.vehicleTime = {};
+          driver.vehicleTime[vehicleName] = (driver.vehicleTime[vehicleName] || 0) + elapsed;
+          delete driver[startTimeKey];
+        }
+      }
+
       delete p.taxiFleet[i].assignedDriverName;
       delete p.taxiFleet[i].status;
       updated = true;
@@ -441,7 +468,7 @@ async function handleHireDrivers(db, socket, payload) {
 
 module.exports = {
   startDriverSalaryChecker,
-  startDriverVehicleExperienceChecker,   // ← NEW
+  startDriverProgressChecker,           // ← NEW
   handleAssignToFleet,
   handleRemoveFromFleet,
   handleScoutDrivers,
