@@ -425,7 +425,10 @@ async function handleClearScoutedDrivers(db, socket) {
 // ==================== ASSIGN DRIVER TO VEHICLE (IMMEDIATE TIMER START) ====================
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
-  if (!email || !data.driverName || !data.vehicle) return;
+  if (!email || !data.driverName || !data.vehicle) {
+    console.log('[ASSIGN] Missing data');
+    return;
+  }
 
   const docRef = db.collection('players').doc(email);
   const doc = await docRef.get();
@@ -434,10 +437,12 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   let p = doc.data();
   if (!p.hiredDrivers || !p.taxiFleet) return;
 
+  // ==================== Use stable fleetId ====================
   const fleetId = data.vehicle.fleetId;
 
   if (!fleetId) {
     socket.emit('fleet-result', { success: false, message: 'Vehicle missing fleetId' });
+    console.log('[ASSIGN] Missing fleetId');
     return;
   }
 
@@ -445,18 +450,27 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   if (vehicleIndex === -1) {
     socket.emit('fleet-result', { success: false, message: 'Vehicle no longer in fleet' });
+    console.log('[ASSIGN] Vehicle not found in fleet');
     return;
   }
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
 
-  // === IMMEDIATE TIMER START ===
+  // ==================== Find driver (this line was missing) ====================
+  const driverIndex = p.hiredDrivers.findIndex(d => d.name === data.driverName);
+  if (driverIndex === -1) {
+    console.log('[ASSIGN] Driver not found');
+    return;
+  }
+
   const driver = p.hiredDrivers[driverIndex];
+
+  // === IMMEDIATE TIMER START ===
   if (!driver.vehicleTime) driver.vehicleTime = {};
   if (!driver.vehicleExperience) driver.vehicleExperience = {};
 
   const startTimeKey = `startTime_${vehicleName}`;
-  driver[startTimeKey] = Date.now();                    // ← Start counting now
+  driver[startTimeKey] = Date.now();
   driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
 
   // Assign driver + status
@@ -468,8 +482,10 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   socket.emit('fleet-result', { 
     success: true, 
-    message: `${data.driverName} assigned to ${data.vehicle.name}!` 
+    message: `${data.driverName} assigned to ${vehicleName}!` 
   });
+
+  console.log(`[ASSIGN SUCCESS] ${data.driverName} → ${vehicleName} (fleetId: ${fleetId})`);
 }
 
 // ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME) ====================
