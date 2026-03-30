@@ -544,12 +544,13 @@ class SocketService {
     socket?.emit('assign-driver-to-vehicle', {
       'driverName': driver['name'],
       'vehicle': {
-        'name': vehicle['name'],
+        'name': vehicle['name'],        // keep for display/debug
         'power': vehicle['power'],
         'health': vehicle['health'] ?? 100,
+        'fleetId': vehicle['fleetId'],   // ← ADD THIS
       },
     });
-  }
+}
 
   void unassignDriverFromVehicle(String driverName) {
     socket?.emit('unassign-driver-from-vehicle', {

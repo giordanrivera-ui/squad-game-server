@@ -304,6 +304,8 @@ async function handleAssignToFleet(db, socket, vehicle) {
 
   const assignedVehicle = p.inventory.splice(index, 1)[0];
 
+  assignedVehicle.fleetId = `fleet_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
   if (!p.taxiFleet) p.taxiFleet = [];
   p.taxiFleet.push(assignedVehicle);
 
@@ -432,16 +434,19 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   let p = doc.data();
   if (!p.hiredDrivers || !p.taxiFleet) return;
 
-  const driverIndex = p.hiredDrivers.findIndex(d => d.name === data.driverName);
-  if (driverIndex === -1) return;
+  const fleetId = data.vehicle.fleetId;
 
-  const vehicleKey = `${data.vehicle.name}|${data.vehicle.power}|${data.vehicle.health}`;
-  const vehicleIndex = p.taxiFleet.findIndex(v => {
-    const vHealth = v.health ?? 100;
-    return `${v.name}|${v.power}|${vHealth}` === vehicleKey;
-  });
+  if (!fleetId) {
+    socket.emit('fleet-result', { success: false, message: 'Vehicle missing fleetId' });
+    return;
+  }
 
-  if (vehicleIndex === -1) return;
+  const vehicleIndex = p.taxiFleet.findIndex(v => v.fleetId === fleetId);
+
+  if (vehicleIndex === -1) {
+    socket.emit('fleet-result', { success: false, message: 'Vehicle no longer in fleet' });
+    return;
+  }
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
 
