@@ -3,6 +3,7 @@ import 'garage_screen.dart';
 import 'hr_screen.dart';
 import 'socket_service.dart';
 import 'assign_vehicle_screen.dart';
+import 'dart:async';
 
 class TaxiTycoonScreen extends StatefulWidget {
   const TaxiTycoonScreen({super.key});
@@ -15,10 +16,17 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   final Set<int> _selectedIndices = {};
   final Set<int> _selectedDriverIndices = {};
 
+  Timer? _jobRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     
+    // NEW: Refresh UI every second so countdowns are live
+    _jobRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+
     // NEW: Listen for real server response (fleet-result)
     SocketService().socket?.on('fleet-result', (data) {
       if (data is Map && mounted) {
@@ -36,7 +44,8 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
   @override
   void dispose() {
-    SocketService().socket?.off('fleet-result');   // ← Add this line
+    _jobRefreshTimer?.cancel();   // ← NEW: Clean up timer
+    SocketService().socket?.off('fleet-result');
     super.dispose();
   }
 
