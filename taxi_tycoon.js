@@ -342,6 +342,7 @@ async function handleClearScoutedDrivers(db, socket) {
   console.log(`[HR] Cleared scoutedDrivers for ${email}`);
 }
 
+// ==================== ASSIGN DRIVER TO VEHICLE (IMMEDIATE TIMER START) ====================
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.driverName || !data.vehicle) return;
@@ -364,6 +365,18 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   if (vehicleIndex === -1) return;
 
+  const vehicleName = p.taxiFleet[vehicleIndex].name;
+
+  // === IMMEDIATE TIMER START ===
+  const driver = p.hiredDrivers[driverIndex];
+  if (!driver.vehicleTime) driver.vehicleTime = {};
+  if (!driver.vehicleExperience) driver.vehicleExperience = {};
+
+  const startTimeKey = `startTime_${vehicleName}`;
+  driver[startTimeKey] = Date.now();                    // ← Start counting now
+  driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
+
+  // Assign driver + status
   p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
 
