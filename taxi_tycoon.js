@@ -118,17 +118,23 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== OPTIMIZED DRIVER PROGRESS CHECKER ====================
+// ==================== OPTIMIZED DRIVER PROGRESS CHECKER (Scalable) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
       const now = Date.now();
-      const snapshot = await db.collection('players').get();
+      const snapshot = await db.collection('players')
+        .where('hiredDrivers', '!=', null)   // still scans, but filters better
+        .get();
+
       const batch = db.batch();
+      let totalProcessed = 0;
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
-        if (!p.hiredDrivers || !p.taxiFleet) continue;
+        if (!p.hiredDrivers || p.hiredDrivers.length === 0 || !p.taxiFleet) continue;
+
+        totalProcessed++;
 
         let changed = false;
 
@@ -161,24 +167,23 @@ function startDriverProgressChecker(db) {
           const startTime = driver[startTimeKey];
 
           if (startTime) {
-            const elapsedThisSession = now - startTime;
-            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsedThisSession;
-            driver[startTimeKey] = now;   // reset for next tick
+            const elapsed = now - startTime;
+            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsed;
+            driver[startTimeKey] = now;
             changed = true;
           } else {
             driver[startTimeKey] = now;
             changed = true;
           }
 
-          // === Derive vehicleExperience from vehicleTime (exactly as you wanted) ===
+          // === vehicleExperience derived from time ===
           if (!driver.vehicleExperience) driver.vehicleExperience = {};
           const totalMs = driver.vehicleTime[currentVehicleName] || 0;
-          const newExperience = Math.floor(totalMs / 120000);
+          const newExp = Math.floor(totalMs / 120000);
 
-          if (driver.vehicleExperience[currentVehicleName] !== newExperience) {
-            driver.vehicleExperience[currentVehicleName] = newExperience;
+          if (driver.vehicleExperience[currentVehicleName] !== newExp) {
+            driver.vehicleExperience[currentVehicleName] = newExp;
             changed = true;
-            console.log(`[EXP] ${driverName} on ${currentVehicleName} → ${newExperience} exp (${Math.floor(totalMs / 60000)} minutes)`);
           }
         }
 
@@ -188,6 +193,7 @@ function startDriverProgressChecker(db) {
       }
 
       await batch.commit();
+      console.log(`[PROGRESS] Processed ${totalProcessed} players with active drivers`);
     } catch (e) {
       console.error('Driver progress checker error:', e);
     }
