@@ -118,8 +118,7 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== COMBINED DRIVER PROGRESS CHECKER (Experience + Exact Time) ====================
-// ==================== COMBINED DRIVER PROGRESS CHECKER (Experience + Exact Time) ====================
+// ==================== OPTIMIZED DRIVER PROGRESS CHECKER (runs every 2 minutes) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
@@ -133,7 +132,7 @@ function startDriverProgressChecker(db) {
 
         let changed = false;
 
-        // Build quick lookup: vehicleName → assignedDriverName
+        // Quick lookup: vehicleName → assignedDriverName
         const assignmentMap = {};
         for (const vehicle of p.taxiFleet) {
           if (vehicle.assignedDriverName) {
@@ -145,7 +144,7 @@ function startDriverProgressChecker(db) {
           const driverName = driver.name;
           if (!driverName) continue;
 
-          // Find if this driver is currently assigned
+          // Find current vehicle
           let currentVehicleName = null;
           for (const [vehName, assignedName] of Object.entries(assignmentMap)) {
             if (assignedName === driverName) {
@@ -156,34 +155,29 @@ function startDriverProgressChecker(db) {
 
           if (!currentVehicleName) continue;
 
-          // === 1. vehicleExperience (points every 2 minutes) ===
-          if (!driver.vehicleExperience) driver.vehicleExperience = {};
-
-          const lastExpKey = `lastExpAward_${currentVehicleName}`;
-          const lastExp = driver[lastExpKey] || 0;
-
-          if (now - lastExp >= 2 * 60 * 1000) {
-            const currentExp = driver.vehicleExperience[currentVehicleName] || 0;
-            driver.vehicleExperience[currentVehicleName] = currentExp + 1;
-            driver[lastExpKey] = now;
-            changed = true;
-
-            console.log(`[EXP] ${driverName} gained +1 experience on ${currentVehicleName} (total: ${currentExp + 1})`);
-          }
-
-          // === 2. vehicleTime (exact milliseconds) ===
+          // === vehicleTime (exact milliseconds) ===
           if (!driver.vehicleTime) driver.vehicleTime = {};
           const startTimeKey = `startTime_${currentVehicleName}`;
           const startTime = driver[startTimeKey];
 
           if (startTime) {
-            const elapsedThisSession = now - startTime;
-            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsedThisSession;
-            driver[startTimeKey] = now; // reset for next second
+            const elapsed = now - startTime;
+            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsed;
+            driver[startTimeKey] = now;           // reset for next 2-minute cycle
             changed = true;
           } else {
-            // First tick after assignment
+            // First cycle after assignment
             driver[startTimeKey] = now;
+            changed = true;
+          }
+
+          // === vehicleExperience derived from vehicleTime ===
+          if (!driver.vehicleExperience) driver.vehicleExperience = {};
+          const totalMs = driver.vehicleTime[currentVehicleName] || 0;
+          const newExp = Math.floor(totalMs / 120000);   // 120000 ms = exactly 2 minutes
+
+          if (driver.vehicleExperience[currentVehicleName] !== newExp) {
+            driver.vehicleExperience[currentVehicleName] = newExp;
             changed = true;
           }
         }
@@ -197,7 +191,7 @@ function startDriverProgressChecker(db) {
     } catch (e) {
       console.error('Driver progress checker error:', e);
     }
-  }, 1000);
+  }, 120000);   // ← Now runs every 2 minutes instead of every second
 }
 
 async function handleAssignToFleet(db, socket, vehicle) {
@@ -342,6 +336,7 @@ async function handleClearScoutedDrivers(db, socket) {
   console.log(`[HR] Cleared scoutedDrivers for ${email}`);
 }
 
+// ==================== ASSIGN DRIVER ====================
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.driverName || !data.vehicle) return;
@@ -376,6 +371,7 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   });
 }
 
+// ==================== UNASSIGN DRIVER (finalizes partial time) ====================
 async function handleUnassignDriverFromVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.driverName) return;
@@ -388,12 +384,12 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   if (!p.taxiFleet) return;
 
   let updated = false;
+
   for (let i = 0; i < p.taxiFleet.length; i++) {
     if (p.taxiFleet[i].assignedDriverName === data.driverName) {
       const vehicleName = p.taxiFleet[i].name;
       const driver = p.hiredDrivers.find(d => d.name === data.driverName);
 
-      // Finalize exact time for this session
       if (driver) {
         const startTimeKey = `startTime_${vehicleName}`;
         const startTime = driver[startTimeKey];
