@@ -388,52 +388,62 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                       const SizedBox(height: 8),
                                       Text(v['description'] ?? '', style: const TextStyle(fontSize: 14)),
 
-                                      // ==================== NEW JOB CYCLE STATUS UI ====================
+                                      // ==================== STATUS + LIVE COUNTDOWN ====================
                                       if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
                                         Padding(
                                           padding: const EdgeInsets.only(top: 12),
-                                          child: Row(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              if (v['status'] == 'Job ongoing' && v['jobEndTime'] != null) ...[
-                                                const Icon(Icons.work, size: 18, color: Colors.orange),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Job ongoing • ',
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    color: Colors.orange,
-                                                    fontWeight: FontWeight.bold,
+                                              // Status
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    v['status'] == 'Job ongoing' ? Icons.work : Icons.search,
+                                                    size: 18,
+                                                    color: v['status'] == 'Job ongoing' ? Colors.orange : Colors.green,
                                                   ),
-                                                ),
-                                                Builder(
-                                                  builder: (context) {
-                                                    final remainingMs = (v['jobEndTime'] as int) - DateTime.now().millisecondsSinceEpoch;
-                                                    if (remainingMs <= 0) return const Text('Finishing...', style: TextStyle(fontSize: 15, color: Colors.orange));
-                                                    final remainingSeconds = (remainingMs / 1000).ceil();
-                                                    final minutes = remainingSeconds ~/ 60;
-                                                    final seconds = remainingSeconds % 60;
-                                                    return Text(
-                                                      '${minutes}m ${seconds}s',
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                        color: Colors.orange,
-                                                        fontWeight: FontWeight.bold,
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    v['status'] ?? 'Finding customer',
+                                                    style: TextStyle(
+                                                      fontSize: 15,
+                                                      color: v['status'] == 'Job ongoing' ? Colors.orange : Colors.green,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+
+                                              // Live Job Countdown (only when Job ongoing)
+                                              if (v['status'] == 'Job ongoing' && v['jobEndTime'] != null)
+                                                ValueListenableBuilder<Map<String, dynamic>>(
+                                                  valueListenable: SocketService().statsNotifier,
+                                                  builder: (context, stats, child) {
+                                                    final now = DateTime.now().millisecondsSinceEpoch;
+                                                    final endTime = (v['jobEndTime'] as num?)?.toInt() ?? 0;
+                                                    final remainingMs = endTime - now;
+
+                                                    if (remainingMs <= 0) {
+                                                      return const SizedBox.shrink();
+                                                    }
+
+                                                    final minutes = (remainingMs / 60000).floor();
+                                                    final seconds = ((remainingMs % 60000) / 1000).floor();
+
+                                                    return Padding(
+                                                      padding: const EdgeInsets.only(top: 4),
+                                                      child: Text(
+                                                        'Job ends in ${minutes}m ${seconds}s',
+                                                        style: const TextStyle(
+                                                          fontSize: 14,
+                                                          color: Colors.orange,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
                                                       ),
                                                     );
                                                   },
                                                 ),
-                                              ] else ...[
-                                                const Icon(Icons.search, size: 18, color: Colors.orange),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  v['status'] ?? 'Finding customer',
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    color: Colors.orange,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
                                             ],
                                           ),
                                         ),

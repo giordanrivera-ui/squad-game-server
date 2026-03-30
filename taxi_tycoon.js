@@ -2,7 +2,7 @@ const admin = require('firebase-admin');
 
 const { generateRandomDriver } = require('./drivers.js');
 
-// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
+// ==================== IMPROVED TRANSACTION LOGGER ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
     console.warn('[TX] Invalid logTransaction call - missing params');
@@ -18,14 +18,14 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
 
-      // Live update to client
+  // Live update to client
   socket.emit('new-transaction', {
     amount: amount,
     description: description,
     balanceAfter: Math.round(newBalance)
   });
 
-      // Permanent storage
+        // Permanent storage
   try {
     await docRef.collection('transactions').add(txData);
     console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
@@ -118,66 +118,12 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== TAXI JOB CYCLE CHECKER (53s cooldown + jobs) ====================
-function startTaxiJobChecker(db) {
-  setInterval(async () => {
-    try {
-      const now = Date.now();
-      const snapshot = await db.collection('players').get();
-      const batch = db.batch();
-
-      for (const doc of snapshot.docs) {
-        let p = doc.data();
-        if (!p.taxiFleet) continue;
-
-        let changed = false;
-
-        for (let i = 0; i < p.taxiFleet.length; i++) {
-          const vehicle = p.taxiFleet[i];
-          if (!vehicle.assignedDriverName) continue;
-
-          const driver = p.hiredDrivers?.find(d => d.name === vehicle.assignedDriverName);
-          if (!driver) continue;
-
-          const skill = driver.drivingSkill || 1;
-          const cooldownMs = Math.max(5, 53 - skill) * 1000;
-
-          if (vehicle.status === 'Finding customer') {
-            if (!vehicle.nextCustomerTime || now >= vehicle.nextCustomerTime) {
-              const jobDurationMs = Math.floor(Math.random() * 181000) + 120000; // 2-5 min
-              vehicle.status = 'Job ongoing';
-              vehicle.jobEndTime = now + jobDurationMs;
-              delete vehicle.nextCustomerTime;
-              changed = true;
-            }
-          } 
-          else if (vehicle.status === 'Job ongoing') {
-            if (vehicle.jobEndTime && now >= vehicle.jobEndTime) {
-              vehicle.status = 'Finding customer';
-              vehicle.nextCustomerTime = now + cooldownMs;
-              delete vehicle.jobEndTime;
-              changed = true;
-            }
-          }
-        }
-
-        if (changed) {
-          batch.update(doc.ref, { taxiFleet: p.taxiFleet });
-        }
-      }
-
-      await batch.commit();
-    } catch (e) {
-      console.error('Taxi job checker error:', e);
-    }
-  }, 5000);
-}
-
 // ==================== OPTIMIZED DRIVER PROGRESS CHECKER (Scalable) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
       const now = Date.now();
+      // Only fetch players who have at least one hired driver (much smaller result set)
       const snapshot = await db.collection('players')
         .where('hiredDrivers', '!=', null)   // still scans, but filters better
         .get();
@@ -193,7 +139,6 @@ function startDriverProgressChecker(db) {
 
         let changed = false;
 
-        // Build lookup: vehicleName → assignedDriverName
         const assignmentMap = {};
         for (const vehicle of p.taxiFleet) {
           if (vehicle.assignedDriverName) {
@@ -205,7 +150,6 @@ function startDriverProgressChecker(db) {
           const driverName = driver.name;
           if (!driverName) continue;
 
-          // Find current vehicle
           let currentVehicleName = null;
           for (const [vehName, assignedName] of Object.entries(assignmentMap)) {
             if (assignedName === driverName) {
@@ -216,7 +160,7 @@ function startDriverProgressChecker(db) {
 
           if (!currentVehicleName) continue;
 
-          // === vehicleTime (exact milliseconds) ===
+          // === vehicleTime (exact ms) ===
           if (!driver.vehicleTime) driver.vehicleTime = {};
           const startTimeKey = `startTime_${currentVehicleName}`;
           const startTime = driver[startTimeKey];
@@ -252,9 +196,82 @@ function startDriverProgressChecker(db) {
     } catch (e) {
       console.error('Driver progress checker error:', e);
     }
-  }, 30000); // ← Every 30 seconds (very efficient, still accurate)
+  }, 30000); // still every 30 seconds
 }
 
+// ==================== NEW: TAXI JOB FINDER & COUNTDOWN CHECKER ====================
+function startTaxiJobChecker(db, { onlineSockets }) {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const snapshot = await db.collection('players').get();
+      const batch = db.batch();
+
+      for (const doc of snapshot.docs) {
+        let p = doc.data();
+        if (!p.taxiFleet || p.taxiFleet.length === 0) continue;
+
+        let changed = false;
+
+        for (const vehicle of p.taxiFleet) {
+          if (!vehicle.assignedDriverName) continue;
+
+          // Find the driver to get skill
+          const driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
+          if (!driver) continue;
+
+          const skill = driver.drivingSkill || 1;
+
+          // Dynamic cooldown = 53 - skill (minimum 10 seconds)
+          const baseCooldown = Math.max(10, 53 - skill);
+
+          if (vehicle.status === 'Finding customer' || !vehicle.status) {
+            // === FINDING CUSTOMER PHASE ===
+            if (!vehicle.nextCustomerTime) {
+              vehicle.nextCustomerTime = now + baseCooldown * 1000;
+              changed = true;
+            }
+
+            if (now >= vehicle.nextCustomerTime) {
+              // Customer found → start job
+              vehicle.status = 'Job ongoing';
+              const jobSeconds = Math.floor(Math.random() * 181) + 120; // 120–300 seconds (2–5 min)
+              vehicle.jobEndTime = now + jobSeconds * 1000;
+              delete vehicle.nextCustomerTime;
+              changed = true;
+
+              console.log(`[JOB] ${vehicle.assignedDriverName} found customer on ${vehicle.name} - job for ${jobSeconds}s`);
+            }
+          } 
+          else if (vehicle.status === 'Job ongoing' && vehicle.jobEndTime) {
+            // === JOB ONGOING PHASE ===
+            if (now >= vehicle.jobEndTime) {
+              // Job finished → back to finding customer
+              vehicle.status = 'Finding customer';
+              vehicle.nextCustomerTime = now + baseCooldown * 1000;
+              delete vehicle.jobEndTime;
+
+              // TODO: Add earnings here in the future (you can calculate based on skill + job duration)
+              changed = true;
+
+              console.log(`[JOB] ${vehicle.assignedDriverName} finished job on ${vehicle.name}`);
+            }
+          }
+        }
+
+        if (changed) {
+          batch.update(doc.ref, { taxiFleet: p.taxiFleet });
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      console.error('Taxi Job Checker error:', e);
+    }
+  }, 1000); // every second for smooth countdowns
+}
+
+// ==================== ASSIGN / UNASSIGN / OTHER HANDLERS (unchanged except minor cleanup) ====================
 async function handleAssignToFleet(db, socket, vehicle) {
   const email = socket.data.email;
   if (!email || !vehicle || !vehicle.name) {
@@ -421,19 +438,19 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   if (vehicleIndex === -1) return;
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
-  const driver = p.hiredDrivers[driverIndex];
 
-  // === 1. Start LONG-TERM experience timer immediately ===
+  // === IMMEDIATE TIMER START ===
+  const driver = p.hiredDrivers[driverIndex];
   if (!driver.vehicleTime) driver.vehicleTime = {};
   if (!driver.vehicleExperience) driver.vehicleExperience = {};
+
   const startTimeKey = `startTime_${vehicleName}`;
-  driver[startTimeKey] = Date.now();
+  driver[startTimeKey] = Date.now();                    // ← Start counting now
   driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
 
-  // === 2. Start JOB CYCLE immediately ===
+  // Assign driver + status
   p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
-  p.taxiFleet[vehicleIndex].nextCustomerTime = Date.now() + (Math.max(5, 53 - (driver.drivingSkill || 1)) * 1000);
 
   await docRef.set(p);
   socket.emit('update-stats', p);
@@ -444,6 +461,7 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   });
 }
 
+// ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME) ====================
 async function handleUnassignDriverFromVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.driverName) return;
@@ -462,7 +480,6 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
       const vehicleName = p.taxiFleet[i].name;
       const driver = p.hiredDrivers.find(d => d.name === data.driverName);
 
-      // Finalize long-term vehicleTime
       if (driver) {
         const startTimeKey = `startTime_${vehicleName}`;
         const startTime = driver[startTimeKey];
@@ -474,12 +491,8 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
         }
       }
 
-      // Clean up job cycle
       delete p.taxiFleet[i].assignedDriverName;
       delete p.taxiFleet[i].status;
-      delete p.taxiFleet[i].nextCustomerTime;
-      delete p.taxiFleet[i].jobEndTime;
-
       updated = true;
       break;
     }
@@ -542,8 +555,8 @@ async function handleHireDrivers(db, socket, payload) {
 
 module.exports = {
   startDriverSalaryChecker,
-  startTaxiJobChecker,
   startDriverProgressChecker,
+  startTaxiJobChecker,
   handleAssignToFleet,
   handleRemoveFromFleet,
   handleScoutDrivers,

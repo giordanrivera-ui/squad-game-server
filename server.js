@@ -193,8 +193,8 @@ const onlineSockets = new Map();
 // ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
 startDriverSalaryChecker(db, { onlineSockets });
-startTaxiJobChecker(db);
 startDriverProgressChecker(db);
+startTaxiJobChecker(db, { onlineSockets });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
