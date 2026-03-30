@@ -16,7 +16,7 @@ const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
-const { startDriverSalaryChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker  } = require('./taxi_tycoon.js');
+const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 
 // Firebase Admin
@@ -193,6 +193,7 @@ const onlineSockets = new Map();
 // ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
 startDriverSalaryChecker(db, { onlineSockets });
+startTaxiJobChecker(db);
 startDriverProgressChecker(db);
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 

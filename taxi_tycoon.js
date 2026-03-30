@@ -118,6 +118,61 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
+// ==================== TAXI JOB CYCLE CHECKER (53s cooldown + jobs) ====================
+function startTaxiJobChecker(db) {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const snapshot = await db.collection('players').get();
+      const batch = db.batch();
+
+      for (const doc of snapshot.docs) {
+        let p = doc.data();
+        if (!p.taxiFleet) continue;
+
+        let changed = false;
+
+        for (let i = 0; i < p.taxiFleet.length; i++) {
+          const vehicle = p.taxiFleet[i];
+          if (!vehicle.assignedDriverName) continue;
+
+          const driver = p.hiredDrivers?.find(d => d.name === vehicle.assignedDriverName);
+          if (!driver) continue;
+
+          const skill = driver.drivingSkill || 1;
+          const cooldownMs = Math.max(5, 53 - skill) * 1000;
+
+          if (vehicle.status === 'Finding customer') {
+            if (!vehicle.nextCustomerTime || now >= vehicle.nextCustomerTime) {
+              const jobDurationMs = Math.floor(Math.random() * 181000) + 120000; // 2-5 min
+              vehicle.status = 'Job ongoing';
+              vehicle.jobEndTime = now + jobDurationMs;
+              delete vehicle.nextCustomerTime;
+              changed = true;
+            }
+          } 
+          else if (vehicle.status === 'Job ongoing') {
+            if (vehicle.jobEndTime && now >= vehicle.jobEndTime) {
+              vehicle.status = 'Finding customer';
+              vehicle.nextCustomerTime = now + cooldownMs;
+              delete vehicle.jobEndTime;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          batch.update(doc.ref, { taxiFleet: p.taxiFleet });
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      console.error('Taxi job checker error:', e);
+    }
+  }, 5000);
+}
+
 // ==================== OPTIMIZED DRIVER PROGRESS CHECKER (Scalable) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
@@ -366,19 +421,19 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   if (vehicleIndex === -1) return;
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
-
-  // === IMMEDIATE TIMER START ===
   const driver = p.hiredDrivers[driverIndex];
+
+  // === 1. Start LONG-TERM experience timer immediately ===
   if (!driver.vehicleTime) driver.vehicleTime = {};
   if (!driver.vehicleExperience) driver.vehicleExperience = {};
-
   const startTimeKey = `startTime_${vehicleName}`;
-  driver[startTimeKey] = Date.now();                    // ← Start counting now
+  driver[startTimeKey] = Date.now();
   driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
 
-  // Assign driver + status
+  // === 2. Start JOB CYCLE immediately ===
   p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
+  p.taxiFleet[vehicleIndex].nextCustomerTime = Date.now() + (Math.max(5, 53 - (driver.drivingSkill || 1)) * 1000);
 
   await docRef.set(p);
   socket.emit('update-stats', p);
@@ -407,6 +462,7 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
       const vehicleName = p.taxiFleet[i].name;
       const driver = p.hiredDrivers.find(d => d.name === data.driverName);
 
+      // Finalize long-term vehicleTime
       if (driver) {
         const startTimeKey = `startTime_${vehicleName}`;
         const startTime = driver[startTimeKey];
@@ -418,8 +474,12 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
         }
       }
 
+      // Clean up job cycle
       delete p.taxiFleet[i].assignedDriverName;
       delete p.taxiFleet[i].status;
+      delete p.taxiFleet[i].nextCustomerTime;
+      delete p.taxiFleet[i].jobEndTime;
+
       updated = true;
       break;
     }
@@ -482,7 +542,8 @@ async function handleHireDrivers(db, socket, payload) {
 
 module.exports = {
   startDriverSalaryChecker,
-  startDriverProgressChecker,           // ← NEW
+  startTaxiJobChecker,
+  startDriverProgressChecker,
   handleAssignToFleet,
   handleRemoveFromFleet,
   handleScoutDrivers,
