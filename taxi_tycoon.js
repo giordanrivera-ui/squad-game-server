@@ -488,7 +488,7 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   console.log(`[ASSIGN SUCCESS] ${data.driverName} → ${vehicleName} (fleetId: ${fleetId})`);
 }
 
-// ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME) ====================
+// ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME + CLEAN JOB TIMERS) ====================
 async function handleUnassignDriverFromVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.driverName) return;
@@ -517,6 +517,8 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
           delete driver[startTimeKey];
         }
       }
+      delete p.taxiFleet[i].jobEndTime;        // ← remove if mid-job
+      delete p.taxiFleet[i].nextCustomerTime;  // ← remove any pending customer search
 
       delete p.taxiFleet[i].assignedDriverName;
       delete p.taxiFleet[i].status;
