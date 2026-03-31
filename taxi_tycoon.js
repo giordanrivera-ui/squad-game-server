@@ -570,6 +570,56 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   }
 }
 
+// ==================== FIRE DRIVERS (FULL REMOVAL + CLEANUP) ====================
+async function handleFireDrivers(db, socket, payload) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  let driversToFire = payload;
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    driversToFire = payload.drivers || payload;
+  }
+
+  if (!Array.isArray(driversToFire) || driversToFire.length === 0) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+  if (!p.hiredDrivers) p.hiredDrivers = [];
+  if (!p.taxiFleet) p.taxiFleet = [];
+
+  const driverNamesToFire = new Set(driversToFire.map(d => d.name || d));
+
+  // Remove from hiredDrivers
+  p.hiredDrivers = p.hiredDrivers.filter(d => !driverNamesToFire.has(d.name));
+
+  // Clean up any vehicles they were assigned to
+  for (let i = 0; i < p.taxiFleet.length; i++) {
+    const vehicle = p.taxiFleet[i];
+    if (vehicle.assignedDriverName && driverNamesToFire.has(vehicle.assignedDriverName)) {
+      // Finalize any time the driver had accumulated (optional but fair)
+      const driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName); // won't find them anymore, but we already removed
+      // Since we already removed the driver, we just clean the vehicle
+
+      delete vehicle.assignedDriverName;
+      delete vehicle.status;
+      delete vehicle.jobEndTime;
+      delete vehicle.nextCustomerTime;
+      delete vehicle.jobDurationSeconds;
+    }
+  }
+
+  await docRef.set(p);
+
+  socket.emit('update-stats', p);
+  socket.emit('fleet-result', {
+    success: true,
+    message: `Fired ${driversToFire.length} driver${driversToFire.length > 1 ? 's' : ''}!`
+  });
+}
+
 async function handleHireDrivers(db, socket, payload) {
   const email = socket.data.email;
   if (!email) return;
@@ -625,5 +675,6 @@ module.exports = {
   handleClearScoutedDrivers,
   handleAssignDriverToVehicle,
   handleUnassignDriverFromVehicle,
-  handleHireDrivers
+  handleHireDrivers,
+  handleFireDrivers
 };

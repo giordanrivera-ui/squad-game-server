@@ -96,6 +96,63 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     _clearDriverSelection(); // optional: clear selection after unassign
   }
 
+    // ==================== FIRE CONFIRMATION + ACTUAL FIRING ====================
+  void _showFireConfirmation() {
+    final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
+    final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
+
+    final selectedDrivers = _selectedDriverIndices
+        .map((index) => hired[index] as Map<String, dynamic>)
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          _selectedDriverIndices.length > 1 ? 'Fire Selected Drivers?' : 'Fire Driver?',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: selectedDrivers.map((driver) {
+              final bool isAssigned = fleet.any((v) {
+                final vehicle = v as Map<String, dynamic>;
+                return vehicle['assignedDriverName'] == driver['name'];
+              });
+
+              return ListTile(
+                leading: const Icon(Icons.person, color: Colors.purple),
+                title: Text(driver['name'] ?? 'Unknown Driver'),
+                subtitle: Text(
+                  'Skill: ${driver['drivingSkill'] ?? 0} • Salary: \$${driver['salary'] ?? 0}\n'
+                  'Assigned to vehicle: ${isAssigned ? 'Yes' : 'No'}',
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // === ACTUAL FIRING ===
+              SocketService().fireDrivers(selectedDrivers);
+              _clearDriverSelection();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Confirm Fire'),
+          ),
+        ],
+      ),
+    );
+  }
+  
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -152,7 +209,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
 
             const Divider(height: 2, thickness: 2),
 
-            // ==================== DRIVERS SECTION ====================
+                        // ==================== DRIVERS SECTION ====================
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
               child: Row(
@@ -160,7 +217,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 children: [
                   const Text('Drivers', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
 
-                  // NEW: Live salary countdown when nothing is selected
+                  // Live salary countdown when nothing is selected
                   if (_selectedDriverIndices.isEmpty)
                     ValueListenableBuilder<Map<String, dynamic>>(
                       valueListenable: SocketService().statsNotifier,
@@ -191,7 +248,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                       },
                     )
 
-                  // Existing selection options (shown only when drivers are selected)
+                  // Selection options (shown only when drivers are selected)
                   else if (_selectedDriverIndices.isNotEmpty)
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -234,8 +291,9 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                         if (_selectedDriverIndices.length == 1)
                           const SizedBox(width: 16),
 
+                        // FIRE BUTTON – now shows confirmation dialog
                         GestureDetector(
-                          onTap: _clearDriverSelection,
+                          onTap: _showFireConfirmation,
                           child: Text(
                             _selectedDriverIndices.length > 1 ? 'fire drivers' : 'fire driver',
                             style: const TextStyle(
@@ -250,7 +308,6 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 ],
               ),
             ),
-
             Expanded(
               flex: 2,
               child: ValueListenableBuilder<Map<String, dynamic>>(

@@ -540,6 +540,12 @@ class SocketService {
     }
   }
 
+  void fireDrivers(List<dynamic> driversToFire) {
+    if (driversToFire.isNotEmpty && socket != null) {
+      socket!.emit('fire-drivers', { 'drivers': driversToFire });
+    }
+  }
+
   void assignDriverToVehicle(Map<String, dynamic> driver, Map<String, dynamic> vehicle) {
     socket?.emit('assign-driver-to-vehicle', {
       'driverName': driver['name'],
