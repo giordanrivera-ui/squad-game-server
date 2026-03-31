@@ -276,6 +276,10 @@ function startTaxiJobChecker(db, { onlineSockets }) {
               delete vehicle.jobDurationSeconds;
 
               changed = true;
+
+              if (p.displayName) {
+                playersToNotify.push(p.displayName);
+              }
             }
           }
         }
