@@ -60,7 +60,7 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
             const salary = Math.round(driver.salary);
             totalSalaryThisCycle += salary;
 
-            driver.nextSalaryPaymentTime = now + 2 * 60 * 1000;
+            driver.nextSalaryPaymentTime = now + 3600 * 1000;
             updatedDrivers.push(driver);
 
             console.log(`[SALARY] ${p.displayName || doc.id} paid $${salary} to ${driver.name}`);
