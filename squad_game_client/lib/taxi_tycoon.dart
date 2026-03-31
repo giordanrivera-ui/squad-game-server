@@ -16,6 +16,20 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   final Set<int> _selectedIndices = {};
   final Set<int> _selectedDriverIndices = {};
 
+  int? _getNextSalaryTime() {
+    final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
+    if (hired.isEmpty) return null;
+
+    int? earliest;
+    for (final driver in hired) {
+      final nextTime = driver['nextSalaryPaymentTime'] as int?;
+      if (nextTime != null && (earliest == null || nextTime < earliest)) {
+        earliest = nextTime;
+      }
+    }
+    return earliest;
+  }
+
   Timer? _jobRefreshTimer;
 
   @override
@@ -146,11 +160,42 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 children: [
                   const Text('Drivers', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
 
-                  if (_selectedDriverIndices.isNotEmpty)
+                  // NEW: Live salary countdown when nothing is selected
+                  if (_selectedDriverIndices.isEmpty)
+                    ValueListenableBuilder<Map<String, dynamic>>(
+                      valueListenable: SocketService().statsNotifier,
+                      builder: (context, stats, child) {
+                        final nextSalary = _getNextSalaryTime();
+                        if (nextSalary == null) return const SizedBox.shrink();
+
+                        final now = SocketService().currentServerTime;
+                        final remainingMs = nextSalary - now;
+                        if (remainingMs <= 0) {
+                          return const Text(
+                            'Salaries due now',
+                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                          );
+                        }
+
+                        final minutes = (remainingMs / 60000).floor();
+                        final seconds = ((remainingMs % 60000) / 1000).floor();
+
+                        return Text(
+                          'Next salaries in ${minutes}m ${seconds.toString().padLeft(2, '0')}s',
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        );
+                      },
+                    )
+
+                  // Existing selection options (shown only when drivers are selected)
+                  else if (_selectedDriverIndices.isNotEmpty)
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Green text – "assign vehicle" OR "unassign" depending on assignment status
                         if (_selectedDriverIndices.length == 1)
                           GestureDetector(
                             onTap: () {
@@ -158,7 +203,6 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                               final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
                               final driver = hired[selectedIndex] as Map<String, dynamic>;
 
-                              // Check if this driver is assigned to any vehicle
                               final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
                               bool isAssigned = fleet.any((v) {
                                 final vehicle = v as Map<String, dynamic>;
@@ -168,18 +212,16 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                               if (isAssigned) {
                                 _unassignSelectedDriver(driver['name']);
                               } else {
-                                // Existing assign logic
                                 showDialog(
                                   context: context,
                                   builder: (_) => AssignVehicleScreen(
                                     driver: driver,
-                                    onAssigned: _clearDriverSelection
+                                    onAssigned: _clearDriverSelection,
                                   ),
                                 );
                               }
                             },
                             child: Text(
-                              // Determine text based on assignment
                               _isDriverAssigned(_selectedDriverIndices.first) ? 'unassign' : 'assign vehicle',
                               style: const TextStyle(
                                 color: Colors.green,
@@ -189,10 +231,9 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                             ),
                           ),
 
-                        if (_selectedDriverIndices.length == 1) 
-                          const SizedBox(width: 16), // spacing only when both texts are visible
+                        if (_selectedDriverIndices.length == 1)
+                          const SizedBox(width: 16),
 
-                        // Red text – automatically becomes plural when 2+ drivers selected
                         GestureDetector(
                           onTap: _clearDriverSelection,
                           child: Text(
@@ -209,6 +250,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                 ],
               ),
             ),
+
             Expanded(
               flex: 2,
               child: ValueListenableBuilder<Map<String, dynamic>>(
