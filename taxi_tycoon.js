@@ -199,14 +199,14 @@ function startDriverProgressChecker(db) {
   }, 30000); // still every 30 seconds
 }
 
-// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER + JOB PAYOUT + LIVE TRANSACTION + SAFETY RESET ====================
+// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER + JOB PAYOUT + LIVE TRANSACTION ====================
 function startTaxiJobChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = new Set();
+      const playersToNotify = [];
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -232,32 +232,37 @@ function startTaxiJobChecker(db, { onlineSockets }) {
 
             if (now >= vehicle.nextCustomerTime) {
               vehicle.status = 'Job ongoing';
-              const jobSeconds = Math.floor(Math.random() * 181) + 120;
+              const jobSeconds = Math.floor(Math.random() * 181) + 120; // 120–300 seconds (2–5 min)
               vehicle.jobEndTime = now + jobSeconds * 1000;
-              vehicle.jobDurationSeconds = jobSeconds;
-
+              vehicle.jobDurationSeconds = jobSeconds;   // ← NEW: Store exact duration for payout
               delete vehicle.nextCustomerTime;
               changed = true;
-            }
-          }
 
+              console.log(`[JOB START] ${vehicle.assignedDriverName} started job on ${vehicle.name} (${jobSeconds}s)`);
+            }
+          } 
           // ==================== JOB END + PAYOUT ====================
-          if (vehicle.status === 'Job ongoing' && vehicle.jobEndTime) {
+          else if (vehicle.status === 'Job ongoing' && vehicle.jobEndTime) {
             if (now >= vehicle.jobEndTime) {
-              const seconds = vehicle.jobDurationSeconds || 180;
+                // === CALCULATE PAYOUT ===
+              const seconds = vehicle.jobDurationSeconds || 180; // fallback just in case
               const money = Math.round((seconds / 3) * ((skill / 100) + 1));
 
+              // Add money to player
               p.balance = (p.balance || 0) + money;
 
+              // Log permanent transaction
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
-                description: `Taxi Job Payout (${vehicle.assignedDriverName} on ${vehicle.name})`,
+                description: `Taxi Job Completed (${vehicle.assignedDriverName} on ${vehicle.name})`,
                 balanceAfter: p.balance,
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Live transaction for dashboard
+              console.log(`[JOB PAYOUT] ${p.displayName || doc.id} earned $${money} from ${vehicle.assignedDriverName}`);
+
+              // === LIVE TRANSACTION EMIT (this was missing) ===
               const socket = onlineSockets.get(p.displayName);
               if (socket) {
                 socket.emit('new-transaction', {
@@ -267,38 +272,36 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 });
               }
 
-              // Reset for next job
+              // Reset vehicle for next job
               vehicle.status = 'Finding customer';
               vehicle.nextCustomerTime = now + baseCooldown * 1000;
               delete vehicle.jobEndTime;
-              delete vehicle.jobDurationSeconds;
+              delete vehicle.jobDurationSeconds;   // clean up
 
               changed = true;
-            }
-          }
 
-          // ==================== SAFETY RESET (prevents stuck state) ====================
-          if (vehicle.status === 'Job ongoing' && !vehicle.jobEndTime) {
-            vehicle.status = 'Finding customer';
-            vehicle.nextCustomerTime = now + baseCooldown * 1000;
-            changed = true;
+              if (p.displayName) {
+                playersToNotify.push(p.displayName);
+              }
+            }
           }
         }
 
-        if (changed && p.displayName) {
-          playersToNotify.add(p.displayName);
+        if (changed) {
+          batch.update(doc.ref, { taxiFleet: p.taxiFleet });
         }
       }
 
       await batch.commit();
 
-      // Send update-stats to all affected players
+// Live updates for online players
       for (const displayName of playersToNotify) {
         const socket = onlineSockets.get(displayName);
         if (socket) {
           const freshDoc = await db.collection('players').doc(socket.data.email).get();
           if (freshDoc.exists) {
             socket.emit('update-stats', freshDoc.data());
+            // Optional: you can also emit a specific "taxi-job-complete" event if you want special UI feedback
           }
         }
       }
