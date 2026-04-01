@@ -3,12 +3,12 @@ import 'socket_service.dart';
 
 class AssignVehicleScreen extends StatelessWidget {
   final Map<String, dynamic> driver;
-  final VoidCallback? onAssigned;   // ← NEW: Callback to deselect driver
+  final VoidCallback? onAssigned;
 
   const AssignVehicleScreen({
     super.key,
     required this.driver,
-    this.onAssigned,   // ← NEW
+    this.onAssigned,
   });
 
   @override
@@ -72,10 +72,10 @@ class AssignVehicleScreen extends StatelessWidget {
                               'Power: ${vehicle['power'] ?? 0} • Health: ${vehicle['health'] ?? 100}/100',
                             ),
                             onTap: () {
-                              // Assign vehicle
-                              SocketService().assignDriverToVehicle(driver, 'driverId': driver['driverId'], vehicle);
-                              
-                              // NEW: Automatically deselect the driver
+                              // driverId is inside the driver map — it is sent correctly
+                              SocketService().assignDriverToVehicle(driver, vehicle);
+
+                              // Deselect driver in HR screen
                               onAssigned?.call();
 
                               Navigator.pop(context);

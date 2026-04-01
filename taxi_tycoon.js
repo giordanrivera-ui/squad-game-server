@@ -180,7 +180,7 @@ function startDriverProgressChecker(db) {
   }, 30000);
 }
 
-// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (FIXED - LIVE UPDATES ON EVERY STATUS CHANGE) ====================
+// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (FIXED - NO DOUBLE TRANSACTIONS) ====================
 function startTaxiJobChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
@@ -198,7 +198,6 @@ function startTaxiJobChecker(db, { onlineSockets }) {
         for (const vehicle of p.taxiFleet) {
           if (!vehicle.assignedDriverId && !vehicle.assignedDriverName) continue;
 
-          // FIXED: Prefer driverId, fallback to name for legacy data
           let driver = p.hiredDrivers.find(d => d.driverId === vehicle.assignedDriverId);
           if (!driver && vehicle.assignedDriverName) {
             driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
@@ -227,8 +226,10 @@ function startTaxiJobChecker(db, { onlineSockets }) {
               const seconds = vehicle.jobDurationSeconds || 180;
               const money = Math.round((seconds / 3) * ((skill / 100) + 1));
 
+              // === ONLY update balance in memory for now ===
               p.balance = (p.balance || 0) + money;
 
+              // === Permanent transaction (Firestore) ===
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
@@ -237,12 +238,14 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
+              // === Live update ONLY for online players (no duplication) ===
               const socket = onlineSockets.get(p.displayName);
               if (socket) {
-                socket.emit('new-transaction', {
-                  amount: money,
-                  description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`,
-                  balanceAfter: p.balance
+                playersToNotify.push({
+                  displayName: p.displayName,
+                  email: doc.id,
+                  money: money,
+                  description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`
                 });
               }
 
@@ -257,18 +260,28 @@ function startTaxiJobChecker(db, { onlineSockets }) {
         }
 
         if (changed) {
-          batch.update(doc.ref, { taxiFleet: p.taxiFleet });
-          if (p.displayName) playersToNotify.push(p.displayName);
+          batch.update(doc.ref, { 
+            taxiFleet: p.taxiFleet,
+            balance: p.balance   // ← IMPORTANT: now actually update balance in Firestore
+          });
         }
       }
 
       await batch.commit();
 
-      for (const displayName of playersToNotify) {
-        const socket = onlineSockets.get(displayName);
+      // === SINGLE live emit after batch is committed ===
+      for (const player of playersToNotify) {
+        const socket = onlineSockets.get(player.displayName);
         if (socket) {
-          const freshDoc = await db.collection('players').doc(socket.data.email).get();
-          if (freshDoc.exists) socket.emit('update-stats', freshDoc.data());
+          const freshDoc = await db.collection('players').doc(player.email).get();
+          if (freshDoc.exists) {
+            socket.emit('update-stats', freshDoc.data());
+            socket.emit('new-transaction', {
+              amount: player.money,
+              description: player.description,
+              balanceAfter: freshDoc.data().balance
+            });
+          }
         }
       }
     } catch (e) {

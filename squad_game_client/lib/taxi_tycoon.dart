@@ -105,9 +105,11 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
     return fleet.any((v) {
       final vehicle = v as Map<String, dynamic>;
-      // FIXED: Prefer driverId, fallback to name only for legacy data
-      return (vehicle['assignedDriverId'] != null && vehicle['assignedDriverId'] == driver['driverId']) ||
-             (vehicle['assignedDriverName'] == driver['name']);
+      // Strict: Use driverId if available. Name fallback ONLY for legacy drivers without driverId
+      return (driver['driverId'] != null && 
+              vehicle['assignedDriverId'] == driver['driverId']) ||
+             (driver['driverId'] == null && 
+              vehicle['assignedDriverName'] == driver['name']);
     });
   }
 
@@ -281,9 +283,14 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                               final driver = hired[selectedIndex] as Map<String, dynamic>;
 
                               final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
+
+                              // FIXED: Strict driverId matching (same logic as card rendering)
                               bool isAssigned = fleet.any((v) {
                                 final vehicle = v as Map<String, dynamic>;
-                                return vehicle['assignedDriverName'] == driver['name'];
+                                return (driver['driverId'] != null &&
+                                        vehicle['assignedDriverId'] == driver['driverId']) ||
+                                       (driver['driverId'] == null &&
+                                        vehicle['assignedDriverName'] == driver['name']);
                               });
 
                               if (isAssigned) {
@@ -346,18 +353,27 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                     );
                   }
 
-                  return ListView.builder(
+                                    return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: hired.length,
                     itemBuilder: (context, index) {
                       final d = hired[index] as Map<String, dynamic>;
                       final bool isSelected = _selectedDriverIndices.contains(index);
 
-                      // Find if this driver is assigned to any vehicle
+                      // FIXED: Strict driverId matching + name fallback ONLY for legacy drivers
                       String? assignedVehicleName;
                       for (final v in fleet) {
                         final vehicle = v as Map<String, dynamic>;
-                        if (vehicle['assignedDriverName'] == d['name']) {
+
+                        final bool matches = 
+                            // If this driver has a driverId, ONLY match on ID
+                            (d['driverId'] != null && 
+                             vehicle['assignedDriverId'] == d['driverId']) ||
+                            // Only fall back to name if this driver has NO driverId (legacy data)
+                            (d['driverId'] == null && 
+                             vehicle['assignedDriverName'] == d['name']);
+
+                        if (matches) {
                           assignedVehicleName = vehicle['name'];
                           break;
                         }
@@ -394,7 +410,6 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                       ),
                                       const SizedBox(height: 8),
 
-                                      // Assignment indicator
                                       if (assignedVehicleName != null)
                                         Row(
                                           children: [
@@ -416,7 +431,6 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                           style: TextStyle(fontSize: 15, color: Colors.grey),
                                         ),
 
-                                      // ==================== NEW: Individual live salary countdown ====================
                                       const SizedBox(height: 8),
                                       Text(
                                         _formatRemainingSalaryTime(d),
@@ -436,10 +450,10 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                       );
                     },
                   );
+                  
                 },
               ),
             ),
-
             const Divider(height: 2, thickness: 2),
 
             // ==================== FLEET SECTION  ====================
