@@ -118,46 +118,36 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== OPTIMIZED DRIVER PROGRESS CHECKER (Scalable) ====================
+// ==================== FIXED DRIVER PROGRESS CHECKER (uses driverId) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
       const now = Date.now();
-      // Only fetch players who have at least one hired driver (much smaller result set)
       const snapshot = await db.collection('players')
-        .where('hiredDrivers', '!=', null)   // still scans, but filters better
+        .where('hiredDrivers', '!=', null)
         .get();
 
       const batch = db.batch();
-      let totalProcessed = 0;
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
         if (!p.hiredDrivers || p.hiredDrivers.length === 0 || !p.taxiFleet) continue;
 
-        totalProcessed++;
-
         let changed = false;
 
-        const assignmentMap = {};
+        // Build map: driverId → vehicleName (this is the fix)
+        const driverToVehicleMap = {};
         for (const vehicle of p.taxiFleet) {
-          if (vehicle.assignedDriverName) {
-            assignmentMap[vehicle.name] = vehicle.assignedDriverName;
+          if (vehicle.assignedDriverId) {
+            driverToVehicleMap[vehicle.assignedDriverId] = vehicle.name;
           }
         }
 
         for (const driver of p.hiredDrivers) {
-          const driverName = driver.name;
-          if (!driverName) continue;
+          const driverId = driver.driverId;
+          if (!driverId) continue;
 
-          let currentVehicleName = null;
-          for (const [vehName, assignedName] of Object.entries(assignmentMap)) {
-            if (assignedName === driverName) {
-              currentVehicleName = vehName;
-              break;
-            }
-          }
-
+          const currentVehicleName = driverToVehicleMap[driverId];
           if (!currentVehicleName) continue;
 
           // === vehicleTime (exact ms) ===
@@ -192,11 +182,10 @@ function startDriverProgressChecker(db) {
       }
 
       await batch.commit();
-      console.log(`[PROGRESS] Processed ${totalProcessed} players with active drivers`);
     } catch (e) {
       console.error('Driver progress checker error:', e);
     }
-  }, 30000); // still every 30 seconds
+  }, 30000);
 }
 
 // ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (FIXED - LIVE UPDATES ON EVERY STATUS CHANGE) ====================

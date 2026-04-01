@@ -101,11 +101,14 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
     if (index >= hired.length) return false;
     final driver = hired[index] as Map<String, dynamic>;
+    final driverId = driver['driverId'] as String?;   // ← use ID
+
+    if (driverId == null) return false; // fallback for very old data
 
     final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
     return fleet.any((v) {
       final vehicle = v as Map<String, dynamic>;
-      return vehicle['assignedDriverName'] == driver['name'];
+      return vehicle['assignedDriverId'] == driverId;   // ← changed to ID
     });
   }
 
