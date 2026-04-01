@@ -453,69 +453,73 @@ async function handleClearScoutedDrivers(db, socket) {
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data.vehicle) {
-    console.log('[ASSIGN] Missing vehicle data');
     socket.emit('fleet-result', { success: false, message: 'Missing vehicle data' });
     return;
   }
 
   const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
 
-  let p = doc.data();
-  if (!p.hiredDrivers || !p.taxiFleet) return;
+  try {
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(docRef);
+      if (!doc.exists) throw new Error('Player not found');
 
-  const fleetId = data.vehicle.fleetId;
-  if (!fleetId) {
-    socket.emit('fleet-result', { success: false, message: 'Vehicle missing fleetId' });
-    return;
+      let p = doc.data();
+      if (!p.hiredDrivers || !p.taxiFleet) throw new Error('No fleet or drivers');
+
+      const fleetId = data.vehicle.fleetId;
+      const vehicleIndex = p.taxiFleet.findIndex(v => v.fleetId === fleetId);
+      if (vehicleIndex === -1) throw new Error('Vehicle not in fleet');
+
+      // Find driver (prefer driverId)
+      let driver;
+      if (data.driverId) {
+        driver = p.hiredDrivers.find(d => d.driverId === data.driverId);
+      } else if (data.driverName) {
+        driver = p.hiredDrivers.find(d => d.name === data.driverName);
+      }
+      if (!driver) throw new Error('Driver not found');
+
+      const vehicleName = p.taxiFleet[vehicleIndex].name;
+      const startTimeKey = `startTime_${vehicleName}`;
+
+      // === CRITICAL: FINALIZE ANY PREVIOUS TIME BEFORE CHANGING ASSIGNMENT ===
+      if (!driver.vehicleTime) driver.vehicleTime = {};
+      if (!driver.vehicleExperience) driver.vehicleExperience = {};
+
+      const oldStartTime = driver[startTimeKey];
+      if (oldStartTime) {
+        const elapsed = Date.now() - oldStartTime;
+        driver.vehicleTime[vehicleName] = (driver.vehicleTime[vehicleName] || 0) + elapsed;
+      }
+
+      // === NOW SET THE NEW START TIME ===
+      driver[startTimeKey] = Date.now();
+      driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
+
+      // Assign driver to vehicle
+      p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId || null;
+      p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;
+      p.taxiFleet[vehicleIndex].status = 'Finding customer';
+
+      // Write the whole thing back in one atomic transaction
+      transaction.set(docRef, p);
+    });
+
+    // Success path
+    const freshDoc = await docRef.get();
+    const freshData = freshDoc.data();
+
+    socket.emit('update-stats', freshData);
+    socket.emit('fleet-result', { 
+      success: true, 
+      message: `${data.driverName || 'Driver'} assigned successfully!` 
+    });
+
+  } catch (err) {
+    console.error('[ASSIGN ERROR]', err);
+    socket.emit('fleet-result', { success: false, message: err.message || 'Failed to assign driver' });
   }
-
-  const vehicleIndex = p.taxiFleet.findIndex(v => v.fleetId === fleetId);
-  if (vehicleIndex === -1) {
-    socket.emit('fleet-result', { success: false, message: 'Vehicle no longer in fleet' });
-    return;
-  }
-
-  // Prefer driverId, fallback to name for old drivers
-  let driver;
-  if (data.driverId) {
-    driver = p.hiredDrivers.find(d => d.driverId === data.driverId);
-  } else if (data.driverName) {
-    driver = p.hiredDrivers.find(d => d.name === data.driverName);
-    console.log(`[ASSIGN] Warning: Falling back to name matching for driver "${data.driverName}" (old data)`);
-  }
-
-  if (!driver) {
-    console.log('[ASSIGN] Driver not found');
-    socket.emit('fleet-result', { success: false, message: 'Driver not found' });
-    return;
-  }
-
-  const vehicleName = p.taxiFleet[vehicleIndex].name;
-
-  // === IMMEDIATE TIMER START ===
-  if (!driver.vehicleTime) driver.vehicleTime = {};
-  if (!driver.vehicleExperience) driver.vehicleExperience = {};
-
-  const startTimeKey = `startTime_${vehicleName}`;
-  driver[startTimeKey] = Date.now();
-  driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
-
-  // Assign
-  p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId || null;
-  p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;
-  p.taxiFleet[vehicleIndex].status = 'Finding customer';
-
-  await docRef.set(p);
-  socket.emit('update-stats', p);
-
-  socket.emit('fleet-result', { 
-    success: true, 
-    message: `${driver.name} assigned to ${vehicleName}!` 
-  });
-
-  console.log(`[ASSIGN SUCCESS] ${driver.name} → ${vehicleName}`);
 }
 
 // ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME + CLEAN JOB TIMERS) ====================
