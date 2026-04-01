@@ -458,7 +458,11 @@ async function handleClearScoutedDrivers(db, socket) {
 // ==================== ASSIGN DRIVER TO VEHICLE (IMMEDIATE TIMER START) ====================
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
-  if (!email || !data.driverName || !data.vehicle) return;
+  if (!email || !data.driverId || !data.vehicle) {
+    console.log('[ASSIGN] Missing driverId or vehicle data');
+    socket.emit('fleet-result', { success: false, message: 'Missing driver or vehicle data' });
+    return;
+  }
 
   const docRef = db.collection('players').doc(email);
   const doc = await docRef.get();
@@ -479,8 +483,12 @@ async function handleAssignDriverToVehicle(db, socket, data) {
     return;
   }
 
-  const driver = p.hiredDrivers.find(d => d.name === data.driverName);
-  if (!driver) return;
+  // Find driver by unique driverId (this was the missing piece)
+  const driver = p.hiredDrivers.find(d => d.driverId === data.driverId);
+  if (!driver) {
+    console.log('[ASSIGN] Driver not found by ID');
+    return;
+  }
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
 
@@ -493,8 +501,8 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
 
   // Assign using unique driverId
-  p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId;   // ← CHANGED
-  p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;     // keep for display
+  p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId;
+  p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;  // keep for display
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
 
   await docRef.set(p);
@@ -504,6 +512,8 @@ async function handleAssignDriverToVehicle(db, socket, data) {
     success: true, 
     message: `${driver.name} assigned to ${vehicleName}!` 
   });
+
+  console.log(`[ASSIGN SUCCESS] ${driver.name} (ID: ${driver.driverId}) → ${vehicleName}`);
 }
 
 // ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME + CLEAN JOB TIMERS) ====================
