@@ -123,41 +123,36 @@ function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
       const now = Date.now();
-      const snapshot = await db.collection('players')
-        .where('hiredDrivers', '!=', null)
-        .get();
+      const snapshot = await db.collection('players').get();
 
       const batch = db.batch();
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
-        if (!p.hiredDrivers || p.hiredDrivers.length === 0 || !p.taxiFleet) continue;
+        if (!p.hiredDrivers || !p.taxiFleet) continue;
 
         let changed = false;
 
-        // Build map: driverId → vehicleName (this is the fix)
-        const driverToVehicleMap = {};
         for (const vehicle of p.taxiFleet) {
-          if (vehicle.assignedDriverId) {
-            driverToVehicleMap[vehicle.assignedDriverId] = vehicle.name;
+          if (!vehicle.assignedDriverId && !vehicle.assignedDriverName) continue;
+
+          // FIXED: Prefer driverId
+          let driver = p.hiredDrivers.find(d => d.driverId === vehicle.assignedDriverId);
+          if (!driver && vehicle.assignedDriverName) {
+            driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
           }
-        }
+          if (!driver) continue;
 
-        for (const driver of p.hiredDrivers) {
-          const driverId = driver.driverId;
-          if (!driverId) continue;
+          const vehicleName = vehicle.name;
+          const startTimeKey = `startTime_${vehicleName}`;
 
-          const currentVehicleName = driverToVehicleMap[driverId];
-          if (!currentVehicleName) continue;
-
-          // === vehicleTime (exact ms) ===
           if (!driver.vehicleTime) driver.vehicleTime = {};
-          const startTimeKey = `startTime_${currentVehicleName}`;
-          const startTime = driver[startTimeKey];
+          if (!driver.vehicleExperience) driver.vehicleExperience = {};
 
+          const startTime = driver[startTimeKey];
           if (startTime) {
             const elapsed = now - startTime;
-            driver.vehicleTime[currentVehicleName] = (driver.vehicleTime[currentVehicleName] || 0) + elapsed;
+            driver.vehicleTime[vehicleName] = (driver.vehicleTime[vehicleName] || 0) + elapsed;
             driver[startTimeKey] = now;
             changed = true;
           } else {
@@ -165,13 +160,10 @@ function startDriverProgressChecker(db) {
             changed = true;
           }
 
-          // === vehicleExperience derived from time ===
-          if (!driver.vehicleExperience) driver.vehicleExperience = {};
-          const totalMs = driver.vehicleTime[currentVehicleName] || 0;
+          const totalMs = driver.vehicleTime[vehicleName] || 0;
           const newExp = Math.floor(totalMs / 120000);
-
-          if (driver.vehicleExperience[currentVehicleName] !== newExp) {
-            driver.vehicleExperience[currentVehicleName] = newExp;
+          if (driver.vehicleExperience[vehicleName] !== newExp) {
+            driver.vehicleExperience[vehicleName] = newExp;
             changed = true;
           }
         }
@@ -195,7 +187,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = [];   // players who need a live update-stats
+      const playersToNotify = [];
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -204,93 +196,79 @@ function startTaxiJobChecker(db, { onlineSockets }) {
         let changed = false;
 
         for (const vehicle of p.taxiFleet) {
-          if (!vehicle.assignedDriverName) continue;
+          if (!vehicle.assignedDriverId && !vehicle.assignedDriverName) continue;
 
-          const driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
+          // FIXED: Prefer driverId, fallback to name for legacy data
+          let driver = p.hiredDrivers.find(d => d.driverId === vehicle.assignedDriverId);
+          if (!driver && vehicle.assignedDriverName) {
+            driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
+          }
           if (!driver) continue;
 
           const skill = driver.drivingSkill || 1;
           const baseCooldown = Math.max(10, 53 - skill);
 
-          // ==================== JOB START ====================
           if (vehicle.status === 'Finding customer' || !vehicle.status) {
             if (!vehicle.nextCustomerTime) {
               vehicle.nextCustomerTime = now + baseCooldown * 1000;
               changed = true;
             }
-
             if (now >= vehicle.nextCustomerTime) {
               vehicle.status = 'Job ongoing';
-              const jobSeconds = Math.floor(Math.random() * 181) + 120; // 2–5 minutes
+              const jobSeconds = Math.floor(Math.random() * 181) + 120;
               vehicle.jobEndTime = now + jobSeconds * 1000;
               vehicle.jobDurationSeconds = jobSeconds;
-
               delete vehicle.nextCustomerTime;
               changed = true;
-
-              console.log(`[JOB START] ${vehicle.assignedDriverName} started job on ${vehicle.name}`);
             }
           } 
-          // ==================== JOB END + PAYOUT ====================
           else if (vehicle.status === 'Job ongoing' && vehicle.jobEndTime) {
             if (now >= vehicle.jobEndTime) {
               const seconds = vehicle.jobDurationSeconds || 180;
               const money = Math.round((seconds / 3) * ((skill / 100) + 1));
 
-              // Add money
               p.balance = (p.balance || 0) + money;
 
-              // Save permanent transaction
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
-                description: `Taxi Job Payout (${vehicle.assignedDriverName} on ${vehicle.name})`,
+                description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`,
                 balanceAfter: p.balance,
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Live transaction for online players
               const socket = onlineSockets.get(p.displayName);
               if (socket) {
                 socket.emit('new-transaction', {
                   amount: money,
-                  description: `Taxi Job Payout (${vehicle.assignedDriverName} on ${vehicle.name})`,
+                  description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`,
                   balanceAfter: p.balance
                 });
               }
 
-              // Reset for next job
               vehicle.status = 'Finding customer';
               vehicle.nextCustomerTime = now + baseCooldown * 1000;
               delete vehicle.jobEndTime;
               delete vehicle.jobDurationSeconds;
 
               changed = true;
-
-              console.log(`[JOB END] ${vehicle.assignedDriverName} completed job on ${vehicle.name} (+$${money})`);
             }
           }
         }
 
-        // If anything changed for this player, mark them for live update
         if (changed) {
           batch.update(doc.ref, { taxiFleet: p.taxiFleet });
-          if (p.displayName) {
-            playersToNotify.push(p.displayName);
-          }
+          if (p.displayName) playersToNotify.push(p.displayName);
         }
       }
 
       await batch.commit();
 
-      // ==================== LIVE UPDATES TO ALL AFFECTED PLAYERS ====================
       for (const displayName of playersToNotify) {
         const socket = onlineSockets.get(displayName);
         if (socket) {
           const freshDoc = await db.collection('players').doc(socket.data.email).get();
-          if (freshDoc.exists) {
-            socket.emit('update-stats', freshDoc.data());
-          }
+          if (freshDoc.exists) socket.emit('update-stats', freshDoc.data());
         }
       }
     } catch (e) {
@@ -516,7 +494,7 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 // ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME + CLEAN JOB TIMERS) ====================
 async function handleUnassignDriverFromVehicle(db, socket, data) {
   const email = socket.data.email;
-  if (!email || !data.driverName) return;
+  if (!email || !data.driverId && !data.driverName) return;
 
   const docRef = db.collection('players').doc(email);
   const doc = await docRef.get();
@@ -529,11 +507,18 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
 
   for (let i = 0; i < p.taxiFleet.length; i++) {
     const vehicle = p.taxiFleet[i];
-    if (vehicle.assignedDriverName === data.driverName) {
-      const vehicleName = vehicle.name;
 
-      // Finalize time
-      const driver = p.hiredDrivers.find(d => d.name === data.driverName);
+    // FIXED: Prefer driverId
+    const matches = (data.driverId && vehicle.assignedDriverId === data.driverId) ||
+                    (data.driverName && vehicle.assignedDriverName === data.driverName);
+
+    if (matches) {
+      const vehicleName = vehicle.name;
+      const driver = p.hiredDrivers.find(d => 
+        (data.driverId && d.driverId === data.driverId) || 
+        (data.driverName && d.name === data.driverName)
+      );
+
       if (driver) {
         const startTimeKey = `startTime_${vehicleName}`;
         const startTime = driver[startTimeKey];
@@ -545,7 +530,6 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
         }
       }
 
-      // Clean vehicle
       delete vehicle.assignedDriverId;
       delete vehicle.assignedDriverName;
       delete vehicle.status;
@@ -563,7 +547,7 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
     socket.emit('update-stats', p);
     socket.emit('fleet-result', { 
       success: true, 
-      message: `${data.driverName} has been unassigned from their vehicle.` 
+      message: `Driver unassigned from vehicle.` 
     });
   }
 }

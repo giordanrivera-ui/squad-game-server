@@ -73,7 +73,7 @@ class AssignVehicleScreen extends StatelessWidget {
                             ),
                             onTap: () {
                               // Assign vehicle
-                              SocketService().assignDriverToVehicle(driver, vehicle);
+                              SocketService().assignDriverToVehicle(driver, 'driverId': driver['driverId'], vehicle);
                               
                               // NEW: Automatically deselect the driver
                               onAssigned?.call();

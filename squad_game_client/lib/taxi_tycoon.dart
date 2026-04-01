@@ -101,14 +101,13 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
     if (index >= hired.length) return false;
     final driver = hired[index] as Map<String, dynamic>;
-    final driverId = driver['driverId'] as String?;   // ← use ID
-
-    if (driverId == null) return false; // fallback for very old data
 
     final fleet = SocketService().statsNotifier.value['taxiFleet'] as List<dynamic>? ?? [];
     return fleet.any((v) {
       final vehicle = v as Map<String, dynamic>;
-      return vehicle['assignedDriverId'] == driverId;   // ← changed to ID
+      // FIXED: Prefer driverId, fallback to name only for legacy data
+      return (vehicle['assignedDriverId'] != null && vehicle['assignedDriverId'] == driver['driverId']) ||
+             (vehicle['assignedDriverName'] == driver['name']);
     });
   }
 
@@ -492,6 +491,9 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                       final v = fleet[index] as Map<String, dynamic>;
                       final bool isSelected = _selectedIndices.contains(index);
 
+                      // NEW: Extract both ID and name for accurate assignment display
+                      final String? assignedDriverName = v['assignedDriverName'];
+
                       return GestureDetector(
                         onLongPress: () {
                           setState(() {
@@ -528,8 +530,8 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                       const SizedBox(height: 8),
                                       Text(v['description'] ?? '', style: const TextStyle(fontSize: 14)),
 
-                                      // ==================== STATUS + LIVE COUNTDOWN ====================
-                                      if (v['assignedDriverName'] != null && v['assignedDriverName'] != '')
+                                      // ==================== STATUS + LIVE COUNTDOWN (UPDATED) ====================
+                                      if (assignedDriverName != null && assignedDriverName.isNotEmpty)
                                         Padding(
                                           padding: const EdgeInsets.only(top: 12),
                                           child: Column(
@@ -555,7 +557,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                                 ],
                                               ),
 
-                                              // Live Job Countdown (only when Job ongoing)
+                                              // Live Job Countdown
                                               if (v['status'] == 'Job ongoing' && v['jobEndTime'] != null)
                                                 ValueListenableBuilder<Map<String, dynamic>>(
                                                   valueListenable: SocketService().statsNotifier,
