@@ -180,14 +180,14 @@ function startDriverProgressChecker(db) {
   }, 30000);
 }
 
-// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (FIXED - NO DOUBLE TRANSACTIONS) ====================
+// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (RELIABLE LIVE UPDATES) ====================
 function startTaxiJobChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = [];
+      const playersToNotify = [];   // Will contain every player whose taxiFleet or balance changed
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -226,10 +226,9 @@ function startTaxiJobChecker(db, { onlineSockets }) {
               const seconds = vehicle.jobDurationSeconds || 180;
               const money = Math.round((seconds / 3) * ((skill / 100) + 1));
 
-              // === ONLY update balance in memory for now ===
               p.balance = (p.balance || 0) + money;
 
-              // === Permanent transaction (Firestore) ===
+              // Permanent transaction record
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
@@ -238,9 +237,8 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // === Live update ONLY for online players (no duplication) ===
-              const socket = onlineSockets.get(p.displayName);
-              if (socket) {
+              // Mark this player for live update
+              if (p.displayName) {
                 playersToNotify.push({
                   displayName: p.displayName,
                   email: doc.id,
@@ -259,27 +257,29 @@ function startTaxiJobChecker(db, { onlineSockets }) {
           }
         }
 
+        // Update Firestore if anything changed (status OR payout)
         if (changed) {
           batch.update(doc.ref, { 
             taxiFleet: p.taxiFleet,
-            balance: p.balance   // ← IMPORTANT: now actually update balance in Firestore
+            balance: p.balance
           });
         }
       }
 
       await batch.commit();
 
-      // === SINGLE live emit after batch is committed ===
+      // === RELIABLE LIVE UPDATES FOR ALL CHANGED PLAYERS ===
       for (const player of playersToNotify) {
         const socket = onlineSockets.get(player.displayName);
         if (socket) {
           const freshDoc = await db.collection('players').doc(player.email).get();
           if (freshDoc.exists) {
-            socket.emit('update-stats', freshDoc.data());
+            const freshData = freshDoc.data();
+            socket.emit('update-stats', freshData);
             socket.emit('new-transaction', {
               amount: player.money,
               description: player.description,
-              balanceAfter: freshDoc.data().balance
+              balanceAfter: freshData.balance
             });
           }
         }
