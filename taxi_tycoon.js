@@ -187,7 +187,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = [];   // Will contain every player whose taxiFleet or balance changed
+      const playersToNotify = [];   // Every player who had ANY change (status or payout)
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -228,7 +228,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
 
               p.balance = (p.balance || 0) + money;
 
-              // Permanent transaction record
+              // Permanent transaction
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
@@ -237,7 +237,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Mark this player for live update
+              // Mark for live update
               if (p.displayName) {
                 playersToNotify.push({
                   displayName: p.displayName,
@@ -257,7 +257,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
           }
         }
 
-        // Update Firestore if anything changed (status OR payout)
+        // Update Firestore for ANY change (status OR payout)
         if (changed) {
           batch.update(doc.ref, { 
             taxiFleet: p.taxiFleet,
