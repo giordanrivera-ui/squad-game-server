@@ -30,6 +30,24 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     return earliest;
   }
 
+  // NEW: Individual live salary countdown for each driver
+  String _formatRemainingSalaryTime(Map<String, dynamic> driver) {
+    final nextTime = driver['nextSalaryPaymentTime'] as int?;
+    if (nextTime == null) return '';
+
+    final now = SocketService().currentServerTime;
+    final remainingMs = nextTime - now;
+
+    if (remainingMs <= 0) {
+      return 'Salary due now';
+    }
+
+    final minutes = (remainingMs / 60000).floor();
+    final seconds = ((remainingMs % 60000) / 1000).floor();
+
+    return 'Salary due in ${minutes}m ${seconds.toString().padLeft(2, '0')}s';
+  }
+
   Timer? _jobRefreshTimer;
 
   @override
@@ -152,7 +170,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
       ),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -374,7 +392,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                       ),
                                       const SizedBox(height: 8),
 
-                                      // ← NEW: Assignment indicator
+                                      // Assignment indicator
                                       if (assignedVehicleName != null)
                                         Row(
                                           children: [
@@ -395,6 +413,17 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
                                           'No vehicle assigned',
                                           style: TextStyle(fontSize: 15, color: Colors.grey),
                                         ),
+
+                                      // ==================== NEW: Individual live salary countdown ====================
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _formatRemainingSalaryTime(d),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),

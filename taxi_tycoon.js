@@ -458,10 +458,7 @@ async function handleClearScoutedDrivers(db, socket) {
 // ==================== ASSIGN DRIVER TO VEHICLE (IMMEDIATE TIMER START) ====================
 async function handleAssignDriverToVehicle(db, socket, data) {
   const email = socket.data.email;
-  if (!email || !data.driverName || !data.vehicle) {
-    console.log('[ASSIGN] Missing data');
-    return;
-  }
+  if (!email || !data.driverName || !data.vehicle) return;
 
   const docRef = db.collection('players').doc(email);
   const doc = await docRef.get();
@@ -470,33 +467,22 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   let p = doc.data();
   if (!p.hiredDrivers || !p.taxiFleet) return;
 
-  // ==================== Use stable fleetId ====================
   const fleetId = data.vehicle.fleetId;
-
   if (!fleetId) {
     socket.emit('fleet-result', { success: false, message: 'Vehicle missing fleetId' });
-    console.log('[ASSIGN] Missing fleetId');
     return;
   }
 
   const vehicleIndex = p.taxiFleet.findIndex(v => v.fleetId === fleetId);
-
   if (vehicleIndex === -1) {
     socket.emit('fleet-result', { success: false, message: 'Vehicle no longer in fleet' });
-    console.log('[ASSIGN] Vehicle not found in fleet');
     return;
   }
+
+  const driver = p.hiredDrivers.find(d => d.name === data.driverName);
+  if (!driver) return;
 
   const vehicleName = p.taxiFleet[vehicleIndex].name;
-
-  // ==================== Find driver (this line was missing) ====================
-  const driverIndex = p.hiredDrivers.findIndex(d => d.name === data.driverName);
-  if (driverIndex === -1) {
-    console.log('[ASSIGN] Driver not found');
-    return;
-  }
-
-  const driver = p.hiredDrivers[driverIndex];
 
   // === IMMEDIATE TIMER START ===
   if (!driver.vehicleTime) driver.vehicleTime = {};
@@ -506,8 +492,9 @@ async function handleAssignDriverToVehicle(db, socket, data) {
   driver[startTimeKey] = Date.now();
   driver.vehicleTime[vehicleName] = driver.vehicleTime[vehicleName] || 0;
 
-  // Assign driver + status
-  p.taxiFleet[vehicleIndex].assignedDriverName = data.driverName;
+  // Assign using unique driverId
+  p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId;   // ← CHANGED
+  p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;     // keep for display
   p.taxiFleet[vehicleIndex].status = 'Finding customer';
 
   await docRef.set(p);
@@ -515,10 +502,8 @@ async function handleAssignDriverToVehicle(db, socket, data) {
 
   socket.emit('fleet-result', { 
     success: true, 
-    message: `${data.driverName} assigned to ${vehicleName}!` 
+    message: `${driver.name} assigned to ${vehicleName}!` 
   });
-
-  console.log(`[ASSIGN SUCCESS] ${data.driverName} → ${vehicleName} (fleetId: ${fleetId})`);
 }
 
 // ==================== UNASSIGN DRIVER FROM VEHICLE (FINALIZE TIME + CLEAN JOB TIMERS) ====================
@@ -536,10 +521,12 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   let updated = false;
 
   for (let i = 0; i < p.taxiFleet.length; i++) {
-    if (p.taxiFleet[i].assignedDriverName === data.driverName) {
-      const vehicleName = p.taxiFleet[i].name;
-      const driver = p.hiredDrivers.find(d => d.name === data.driverName);
+    const vehicle = p.taxiFleet[i];
+    if (vehicle.assignedDriverName === data.driverName) {
+      const vehicleName = vehicle.name;
 
+      // Finalize time
+      const driver = p.hiredDrivers.find(d => d.name === data.driverName);
       if (driver) {
         const startTimeKey = `startTime_${vehicleName}`;
         const startTime = driver[startTimeKey];
@@ -550,11 +537,15 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
           delete driver[startTimeKey];
         }
       }
-      delete p.taxiFleet[i].jobEndTime;        // ← remove if mid-job
-      delete p.taxiFleet[i].nextCustomerTime;  // ← remove any pending customer search
 
-      delete p.taxiFleet[i].assignedDriverName;
-      delete p.taxiFleet[i].status;
+      // Clean vehicle
+      delete vehicle.assignedDriverId;
+      delete vehicle.assignedDriverName;
+      delete vehicle.status;
+      delete vehicle.jobEndTime;
+      delete vehicle.nextCustomerTime;
+      delete vehicle.jobDurationSeconds;
+
       updated = true;
       break;
     }
@@ -570,7 +561,6 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   }
 }
 
-// ==================== FIRE DRIVERS (FULL REMOVAL + CLEANUP) ====================
 async function handleFireDrivers(db, socket, payload) {
   const email = socket.data.email;
   if (!email) return;
@@ -590,19 +580,16 @@ async function handleFireDrivers(db, socket, payload) {
   if (!p.hiredDrivers) p.hiredDrivers = [];
   if (!p.taxiFleet) p.taxiFleet = [];
 
-  const driverNamesToFire = new Set(driversToFire.map(d => d.name || d));
+  const driverIdsToFire = new Set(driversToFire.map(d => d.driverId));
 
   // Remove from hiredDrivers
-  p.hiredDrivers = p.hiredDrivers.filter(d => !driverNamesToFire.has(d.name));
+  p.hiredDrivers = p.hiredDrivers.filter(d => !driverIdsToFire.has(d.driverId));
 
-  // Clean up any vehicles they were assigned to
+  // Clean up vehicles
   for (let i = 0; i < p.taxiFleet.length; i++) {
     const vehicle = p.taxiFleet[i];
-    if (vehicle.assignedDriverName && driverNamesToFire.has(vehicle.assignedDriverName)) {
-      // Finalize any time the driver had accumulated (optional but fair)
-      const driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName); // won't find them anymore, but we already removed
-      // Since we already removed the driver, we just clean the vehicle
-
+    if (vehicle.assignedDriverId && driverIdsToFire.has(vehicle.assignedDriverId)) {
+      delete vehicle.assignedDriverId;
       delete vehicle.assignedDriverName;
       delete vehicle.status;
       delete vehicle.jobEndTime;
@@ -636,33 +623,27 @@ async function handleHireDrivers(db, socket, payload) {
   if (!doc.exists) return;
 
   let p = doc.data();
-
   if (!p.hiredDrivers) p.hiredDrivers = [];
   if (!p.scoutedDrivers) p.scoutedDrivers = [];
 
   const now = Date.now();
   const cleanDrivers = driversToHire.map(d => ({
     ...d,
+    driverId: `driver_${Date.now()}_${Math.random().toString(36).slice(2)}`,  // ← UNIQUE ID
     hireTime: now,
-    nextSalaryPaymentTime: now + 2 * 60 * 1000
+    nextSalaryPaymentTime: now + 3600 * 1000   // 1 hour as you set earlier
   }));
 
   p.hiredDrivers = [...p.hiredDrivers, ...cleanDrivers];
   p.scoutedDrivers = [];
 
-  try {
-    await docRef.set(p);
-    console.log(`[HIRE SUCCESS] ${email} hired ${cleanDrivers.length} driver(s)`);
+  await docRef.set(p);
 
-    socket.emit('update-stats', p);
-    socket.emit('fleet-result', { 
-      success: true, 
-      message: `Hired ${cleanDrivers.length} driver${cleanDrivers.length > 1 ? 's' : ''}!` 
-    });
-  } catch (err) {
-    console.error('[HIRE ERROR]', err);
-    socket.emit('fleet-result', { success: false, message: 'Failed to hire drivers' });
-  }
+  socket.emit('update-stats', p);
+  socket.emit('fleet-result', { 
+    success: true, 
+    message: `Hired ${cleanDrivers.length} driver${cleanDrivers.length > 1 ? 's' : ''}!` 
+  });
 }
 
 module.exports = {

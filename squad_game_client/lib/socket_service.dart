@@ -549,6 +549,7 @@ class SocketService {
   void assignDriverToVehicle(Map<String, dynamic> driver, Map<String, dynamic> vehicle) {
     socket?.emit('assign-driver-to-vehicle', {
       'driverName': driver['name'],
+      'driverId': driver['driverId'],
       'vehicle': {
         'name': vehicle['name'],        // keep for display/debug
         'power': vehicle['power'],
@@ -556,7 +557,7 @@ class SocketService {
         'fleetId': vehicle['fleetId'],   // ← ADD THIS
       },
     });
-}
+  }
 
   void unassignDriverFromVehicle(String driverName) {
     socket?.emit('unassign-driver-from-vehicle', {
