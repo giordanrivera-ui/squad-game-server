@@ -180,14 +180,13 @@ function startDriverProgressChecker(db) {
   }, 30000);
 }
 
-// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (FIXED - NO DOUBLE TRANSACTIONS) ====================
+// ==================== TAXI JOB FINDER & COUNTDOWN CHECKER (RELIABLE LIVE UPDATES) ====================
 function startTaxiJobChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = [];
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -226,10 +225,10 @@ function startTaxiJobChecker(db, { onlineSockets }) {
               const seconds = vehicle.jobDurationSeconds || 180;
               const money = Math.round((seconds / 3) * ((skill / 100) + 1));
 
-              // === ONLY update balance in memory for now ===
+              // Update balance in memory
               p.balance = (p.balance || 0) + money;
 
-              // === Permanent transaction (Firestore) ===
+              // Permanent transaction record
               const txRef = doc.ref.collection('transactions').doc();
               batch.set(txRef, {
                 amount: money,
@@ -238,17 +237,17 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // === Live update ONLY for online players (no duplication) ===
+              // IMMEDIATE live update (this is what made previous builds work)
               const socket = onlineSockets.get(p.displayName);
               if (socket) {
-                playersToNotify.push({
-                  displayName: p.displayName,
-                  email: doc.id,
-                  money: money,
-                  description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`
+                socket.emit('new-transaction', {
+                  amount: money,
+                  description: `Taxi Job Payout (${driver.name} on ${vehicle.name})`,
+                  balanceAfter: p.balance
                 });
               }
 
+              // Reset for next job
               vehicle.status = 'Finding customer';
               vehicle.nextCustomerTime = now + baseCooldown * 1000;
               delete vehicle.jobEndTime;
@@ -262,28 +261,12 @@ function startTaxiJobChecker(db, { onlineSockets }) {
         if (changed) {
           batch.update(doc.ref, { 
             taxiFleet: p.taxiFleet,
-            balance: p.balance   // ← IMPORTANT: now actually update balance in Firestore
+            balance: p.balance   // make sure balance is saved
           });
         }
       }
 
       await batch.commit();
-
-      // === SINGLE live emit after batch is committed ===
-      for (const player of playersToNotify) {
-        const socket = onlineSockets.get(player.displayName);
-        if (socket) {
-          const freshDoc = await db.collection('players').doc(player.email).get();
-          if (freshDoc.exists) {
-            socket.emit('update-stats', freshDoc.data());
-            socket.emit('new-transaction', {
-              amount: player.money,
-              description: player.description,
-              balanceAfter: freshDoc.data().balance
-            });
-          }
-        }
-      }
     } catch (e) {
       console.error('Taxi Job Checker error:', e);
     }
