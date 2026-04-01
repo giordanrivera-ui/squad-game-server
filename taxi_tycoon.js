@@ -187,7 +187,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
       const now = Date.now();
       const snapshot = await db.collection('players').get();
       const batch = db.batch();
-      const playersToNotify = [];   // Every player who had ANY change (status or payout)
+      const playersToNotify = [];   // Every player who had ANY status change OR payout
 
       for (const doc of snapshot.docs) {
         let p = doc.data();
@@ -237,7 +237,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
               });
 
-              // Mark for live update
+              // Mark for live update (this player definitely needs update-stats)
               if (p.displayName) {
                 playersToNotify.push({
                   displayName: p.displayName,
@@ -257,18 +257,28 @@ function startTaxiJobChecker(db, { onlineSockets }) {
           }
         }
 
-        // Update Firestore for ANY change (status OR payout)
+        // CRITICAL FIX: Any status change (including job start) now triggers live update
         if (changed) {
           batch.update(doc.ref, { 
             taxiFleet: p.taxiFleet,
             balance: p.balance
           });
+
+          // Make sure this player is in the notify list even if no payout happened
+          if (p.displayName && !playersToNotify.some(p => p.displayName === p.displayName)) {
+            playersToNotify.push({
+              displayName: p.displayName,
+              email: doc.id,
+              money: null,           // no transaction
+              description: null
+            });
+          }
         }
       }
 
       await batch.commit();
 
-      // === RELIABLE LIVE UPDATES FOR ALL CHANGED PLAYERS ===
+      // ==================== LIVE UPDATES TO ALL AFFECTED PLAYERS ====================
       for (const player of playersToNotify) {
         const socket = onlineSockets.get(player.displayName);
         if (socket) {
@@ -276,11 +286,15 @@ function startTaxiJobChecker(db, { onlineSockets }) {
           if (freshDoc.exists) {
             const freshData = freshDoc.data();
             socket.emit('update-stats', freshData);
-            socket.emit('new-transaction', {
-              amount: player.money,
-              description: player.description,
-              balanceAfter: freshData.balance
-            });
+
+            // Only send transaction if there was money
+            if (player.money !== null) {
+              socket.emit('new-transaction', {
+                amount: player.money,
+                description: player.description,
+                balanceAfter: freshData.balance
+              });
+            }
           }
         }
       }
