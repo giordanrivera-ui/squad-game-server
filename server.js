@@ -320,6 +320,7 @@ io.on('connection', (socket) => {
         taxiFleet: [],
         scoutedDrivers: [],
         hiredDrivers: [],
+        hasActiveTaxiJobs: false,
       };
     }
 
@@ -469,6 +470,7 @@ socket.on('respawn', async () => {
       taxiFleet: [],
       scoutedDrivers: [],
       hiredDrivers: [],
+      hasActiveTaxiJobs: false,
     };
 
     await docRef.set(p);

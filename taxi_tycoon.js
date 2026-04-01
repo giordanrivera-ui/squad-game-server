@@ -185,7 +185,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
   setInterval(async () => {
     try {
       const now = Date.now();
-      const snapshot = await db.collection('players').get();
+      const snapshot = await db.collection('players').where('hasActiveTaxiJobs', '==', true).get();
       const batch = db.batch();
       const playersToNotify = [];   // Every player who had ANY status change OR payout
 
@@ -264,15 +264,18 @@ function startTaxiJobChecker(db, { onlineSockets }) {
             balance: p.balance
           });
 
-          // Make sure this player is in the notify list even if no payout happened
-          if (p.displayName && !playersToNotify.some(p => p.displayName === p.displayName)) {
-            playersToNotify.push({
-              displayName: p.displayName,
-              email: doc.id,
-              money: null,           // no transaction
-              description: null
-            });
-          }
+          // CRITICAL: still send live update even on pure status changes
+            if (changed && p.displayName) {
+            // Only push if we haven't already pushed this player for a payout
+                if (!playersToNotify.some(n => n.displayName === p.displayName)) {
+                    playersToNotify.push({
+                    displayName: p.displayName,
+                    email: doc.id,
+                    money: null,           // no transaction
+                    description: null
+                    });
+                }
+            }
         }
       }
 
@@ -386,6 +389,8 @@ async function handleRemoveFromFleet(db, socket, payload) {
 
   if (removedVehicles.length > 0) {
     p.inventory = [...p.inventory, ...removedVehicles];
+    const stillHasJobs = p.taxiFleet.some(v => v.assignedDriverId || v.assignedDriverName);
+    p.hasActiveTaxiJobs = stillHasJobs;
     await docRef.set(p);
     socket.emit('update-stats', p);
     socket.emit('fleet-result', { 
@@ -501,6 +506,8 @@ async function handleAssignDriverToVehicle(db, socket, data) {
       p.taxiFleet[vehicleIndex].assignedDriverId = driver.driverId || null;
       p.taxiFleet[vehicleIndex].assignedDriverName = driver.name;
       p.taxiFleet[vehicleIndex].status = 'Finding customer';
+      const stillHasJobs = p.taxiFleet.some(v => v.assignedDriverId || v.assignedDriverName);
+      p.hasActiveTaxiJobs = stillHasJobs;
 
       // Write the whole thing back in one atomic transaction
       transaction.set(docRef, p);
@@ -567,6 +574,8 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
       delete vehicle.jobEndTime;
       delete vehicle.nextCustomerTime;
       delete vehicle.jobDurationSeconds;
+      const stillHasJobs = p.taxiFleet.some(v => v.assignedDriverId || v.assignedDriverName);
+      p.hasActiveTaxiJobs = stillHasJobs;   // ← ADD THIS
 
       updated = true;
       break;
@@ -617,6 +626,8 @@ async function handleFireDrivers(db, socket, payload) {
       delete vehicle.jobEndTime;
       delete vehicle.nextCustomerTime;
       delete vehicle.jobDurationSeconds;
+      const stillHasJobs = p.taxiFleet.some(v => v.assignedDriverId || v.assignedDriverName);
+      p.hasActiveTaxiJobs = stillHasJobs;
     }
   }
 
