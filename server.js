@@ -16,7 +16,7 @@ const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
-const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker  } = require('./taxi_tycoon.js');
+const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 
 // Firebase Admin
@@ -555,6 +555,8 @@ socket.on('respawn', async () => {
   socket.on('unassign-driver-from-vehicle', async (data) => { await handleUnassignDriverFromVehicle(db, socket, data); });
 
   socket.on('hire-drivers', async (payload) => { await handleHireDrivers(db, socket, payload); });
+
+  socket.on('fire-drivers', async (payload) => { await handleFireDrivers(db, socket, payload); });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
