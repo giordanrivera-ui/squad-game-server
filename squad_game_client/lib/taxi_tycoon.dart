@@ -3,6 +3,8 @@ import 'garage_screen.dart';
 import 'hr_screen.dart';
 import 'socket_service.dart';
 import 'assign_vehicle_screen.dart';
+import 'status_app_bar.dart';
+import 'constants.dart';
 import 'dart:async';
 
 class TaxiTycoonScreen extends StatefulWidget {
@@ -15,6 +17,8 @@ class TaxiTycoonScreen extends StatefulWidget {
 class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   final Set<int> _selectedIndices = {};
   final Set<int> _selectedDriverIndices = {};
+
+  String _time = 'Loading...';
 
   int? _getNextSalaryTime() {
     final hired = SocketService().statsNotifier.value['hiredDrivers'] as List<dynamic>? ?? [];
@@ -30,7 +34,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
     return earliest;
   }
 
-  // NEW: Individual live salary countdown for each driver
+  // Individual live salary countdown for each driver
   String _formatRemainingSalaryTime(Map<String, dynamic> driver) {
     final nextTime = driver['nextSalaryPaymentTime'] as int?;
     if (nextTime == null) return '';
@@ -54,9 +58,16 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   void initState() {
     super.initState();
     
-    // NEW: Refresh UI every second so countdowns are live
+    // Refresh UI every second so countdowns are live
     _jobRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
+    });
+
+    // Listen for real-time server time (exactly like main.dart)
+    SocketService().socket?.on(SocketEvents.time, (data) {
+      if (data is String && mounted) {
+        setState(() => _time = data);
+      }
     });
 
     // NEW: Listen for real server response (fleet-result)
@@ -77,6 +88,7 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
   @override
   void dispose() {
     _jobRefreshTimer?.cancel();   // ← NEW: Clean up timer
+    SocketService().socket?.off(SocketEvents.time);
     SocketService().socket?.off('fleet-result');
     super.dispose();
   }
@@ -189,9 +201,11 @@ class _TaxiTycoonScreenState extends State<TaxiTycoonScreen> {
         return true;
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('🚕 Taxi Tycoon'),
-          backgroundColor: Colors.blue[900],
+        appBar: StatusAppBar(
+          title: '🚕 Taxi Tycoon',
+          statsNotifier: SocketService().statsNotifier,
+          time: _time,
+          onMenuPressed: () => Navigator.pop(context),
         ),
         body: Column(
           children: [
