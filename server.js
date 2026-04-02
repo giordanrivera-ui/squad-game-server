@@ -882,6 +882,42 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
+  // ==================== ASSIGN SPECIAL-OP WEAPON (removes from leader's inventory) ====================
+  socket.on('assign-special-weapon', async (data) => {
+    const email = socket.data.email;
+    if (!email || !data?.weapon || !data?.position) {
+      socket.emit('error', { message: 'Invalid special weapon assignment.' });
+      return;
+    }
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Find and remove the weapon from inventory (same logic as equip-armor)
+    const weaponToAssign = data.weapon;
+    const index = p.inventory.findIndex(i =>
+      i.name === weaponToAssign.name &&
+      i.type === 'weapon' &&
+      i.power === weaponToAssign.power
+    );
+
+    if (index === -1) {
+      socket.emit('error', { message: 'Weapon not found in inventory.' });
+      return;
+    }
+
+    // Remove it permanently
+    p.inventory.splice(index, 1);
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    console.log(`[SPECIAL-OP] ${p.displayName} assigned ${weaponToAssign.name} to ${data.position} (removed from inventory)`);
+  });
+
   socket.on('unequip-armor', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.slot !== 'string') return;

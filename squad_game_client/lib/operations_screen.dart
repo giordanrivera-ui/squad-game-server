@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -22,7 +23,7 @@ class OperationsScreen extends StatefulWidget {
     required this.lastLowLevelOp,
     required this.prisonEndTime,
     required this.lastMidLevelOp,
-    required this.lastHighLevelOp, 
+    required this.lastHighLevelOp,
     required this.skill,
   });
 
@@ -30,10 +31,17 @@ class OperationsScreen extends StatefulWidget {
   State<OperationsScreen> createState() => _OperationsScreenState();
 }
 
-class _OperationsScreenState extends State<OperationsScreen> {
+class _OperationsScreenState extends State<OperationsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   int _prisonEndTime = 0;
   Timer? _countdownTimer;
-  String? _selectedOperation;
+  String? _selectedRegularOperation;
+  String? _selectedSpecialOperation;
+
+  // NEW: Store assigned special-op weapons per position
+  final Map<String, Map<String, dynamic>> _assignedWeapons = {};
 
   bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
 
@@ -49,11 +57,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
     super.initState();
     _prisonEndTime = widget.prisonEndTime;
 
+    _tabController = TabController(length: 2, vsync: this);
+
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
 
-    // ←←← FIXED: Attach listener ONLY ONCE here (stable context)
     SocketService().socket?.on('operation-result', _onOperationResult);
   }
 
@@ -83,9 +92,14 @@ class _OperationsScreenState extends State<OperationsScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
-    setState(() => _selectedOperation = null);
-  }
 
+    setState(() {
+      _selectedRegularOperation = null;
+      _selectedSpecialOperation = null;
+      _assignedWeapons.clear(); // reset for next op
+    });
+  }
+  
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -97,19 +111,90 @@ class _OperationsScreenState extends State<OperationsScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _tabController.dispose();
     SocketService().socket?.off('operation-result', _onOperationResult);
     super.dispose();
   }
 
-  // ==================== PRISON OVERLAY + NORMAL UI (always inside Scaffold) ====================
+  void _executeOperation() {
+    final String? op = _tabController.index == 0
+        ? _selectedRegularOperation
+        : _selectedSpecialOperation;
+
+    if (op == null) return;
+
+    SocketService().executeOperation(op);
+  }
+
+  void _onSpecialOpChanged(String? value) {
+    setState(() => _selectedSpecialOperation = value);
+  }
+
+  // ==================== EQUIP SPECIAL-OP WEAPON ====================
+  void _equipSpecialWeapon(String positionTitle) {
+    final inventory = SocketService().statsNotifier.value['inventory'] as List<dynamic>? ?? [];
+    final weapons = inventory.where((item) => (item['type'] as String?) == 'weapon').toList();
+
+    if (weapons.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have no weapons in your inventory.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Equip $positionTitle with weapon'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: weapons.length,
+            itemBuilder: (context, index) {
+              final weapon = weapons[index] as Map<String, dynamic>;
+              return ListTile(
+                leading: Image.asset(
+                  'assets/${weapon['name']}.jpg',
+                  width: 40,
+                  height: 40,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.whatshot, size: 40),
+                ),
+                title: Text(weapon['name'] as String),
+                subtitle: Text('Power: ${weapon['power'] ?? 0}'),
+                onTap: () {
+                  // NEW: Send to server so weapon is removed from inventory
+                  SocketService().socket?.emit('assign-special-weapon', {
+                    'position': positionTitle,
+                    'weapon': weapon,
+                  });
+
+                  setState(() {
+                    _assignedWeapons[positionTitle] = weapon;
+                  });
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ← Conditional background: dark only when in prison, otherwise normal app background
       backgroundColor: _isInPrison ? Colors.grey[900] : null,
       body: _isInPrison
           ? Center(
-              child: Column(
+            child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
@@ -133,9 +218,6 @@ class _OperationsScreenState extends State<OperationsScreen> {
               ),
             )
           : Column(
-            
-            
-            // Normal operations UI (now on light/normal background again)
               children: [
                 Container(
                   width: double.infinity,
@@ -150,62 +232,292 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 ),
 
                 Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GestureDetector(
-                          onTap: _showOperationBottomSheet,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade400),
-                              borderRadius: BorderRadius.circular(8),
+                  child: Column(
+                    children: [
+                      TabBar(
+                        controller: _tabController,
+                        labelColor: Colors.orange,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: Colors.orange,
+                        tabs: const [
+                          Tab(text: 'Regular Ops'),
+                          Tab(text: 'Special Ops'),
+                        ],
+                      ),
+
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      // Regular Ops Tab (unchanged)
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  GestureDetector(
+                                    onTap: _showRegularOperationBottomSheet,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey.shade400),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _selectedRegularOperation ?? 'Select an operation',
+                                            style: const TextStyle(fontSize: 16),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Icon(Icons.arrow_drop_down),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 30),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: ElevatedButton(
+                                        onPressed: _selectedRegularOperation != null ? _executeOperation : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _selectedRegularOperation != null ? Colors.orange : Colors.grey,
+                                          padding: const EdgeInsets.symmetric(vertical: 18),
+                                        ),
+                                        child: const Text(
+                                          'Execute Operation',
+                                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _selectedOperation ?? 'Select an operation',
-                                  style: const TextStyle(fontSize: 16),
+
+                            // ==================== SPECIAL OPS TAB ====================
+                      Center(
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 20),
+                            Container(
+                              width: 300,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                hint: const Text('Select Special Op'),
+                                value: _selectedSpecialOperation,
+                                items: const [
+                                  DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
+                                  DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
+                                  DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
+                                ],
+                                onChanged: _onSpecialOpChanged,
+                              ),
+                            ),
+
+                            if (_selectedSpecialOperation != null) ...[
+                              const SizedBox(height: 24),
+                              Text(
+                                _selectedSpecialOperation!,
+                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _getPartySizeText(),
+                                style: const TextStyle(fontSize: 16, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 32),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                                  child: _buildPartyLayout(),
                                 ),
-                                const SizedBox(width: 8),
-                                const Icon(Icons.arrow_drop_down),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 30),
-
-                        SizedBox(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: ElevatedButton(
-                              onPressed: _selectedOperation != null ? _executeOperation : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _selectedOperation != null ? Colors.orange : Colors.grey,
-                                padding: const EdgeInsets.symmetric(vertical: 18),
                               ),
-                              child: const Text(
-                                'Execute Operation',
-                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            ] else
+                              const Padding(
+                                padding: EdgeInsets.only(top: 40),
+                                child: Text(
+                                  '(Select a Special Op above)', 
+                                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                                ),
                               ),
-                            ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
-  void _showOperationBottomSheet() {
+
+  // ==================== DYNAMIC PARTY SIZE TEXT ====================
+  String _getPartySizeText() {
+    switch (_selectedSpecialOperation) {
+      case 'Raid cartel supply line':
+        return 'Assemble your crew (3/3 required)';
+      case 'Bank Heist':
+        return 'Assemble your crew (4/4 required)';
+      case 'Siege military base':
+        return 'Assemble your crew (5/5 required)';
+      default:
+        return '';
+    }
+  }
+
+  // ==================== DYNAMIC PARTY LAYOUT ====================
+  Widget _buildPartyLayout() {
+    final currentPlayer = FirebaseAuth.instance.currentUser;
+    final stats = SocketService().statsNotifier.value;
+
+    List<String> positions;
+    switch (_selectedSpecialOperation) {
+      case 'Raid cartel supply line':
+        positions = ['Operation Leader', 'Rifleman', 'Driver'];
+        break;
+      case 'Bank Heist':
+        positions = ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver'];
+        break;
+      case 'Siege military base':
+        positions = ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver', 'Artilleryman'];
+        break;
+      default:
+        positions = [];
+    }
+
+    return Column(
+      children: positions.map((title) {
+        final bool isLeader = title == 'Operation Leader';
+        return Column(
+          children: [
+            _buildPositionCard(
+              title: title,
+              playerName: isLeader ? (currentPlayer?.displayName ?? 'You') : null,
+              photoURL: isLeader ? currentPlayer?.photoURL : null,
+              rank: isLeader ? _getRankTitle(stats['experience'] ?? 0) : null,
+              isFilled: isLeader,
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  // ==================== UPDATED POSITION CARD WITH CLICKABLE WEAPON SLOT ====================
+  Widget _buildPositionCard({
+    required String title,
+    String? playerName,
+    String? photoURL,
+    String? rank,
+    required bool isFilled,
+  }) {
+    final assignedWeapon = _assignedWeapons[title];
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Player info
+            Row(
+              children: [
+                if (isFilled && photoURL != null)
+                  CircleAvatar(radius: 28, backgroundImage: NetworkImage(photoURL))
+                else if (isFilled)
+                  const CircleAvatar(radius: 28, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 32))
+                else
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.person_add, size: 32, color: Colors.grey),
+                  ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      if (isFilled)
+                        Text(playerName ?? '', style: const TextStyle(fontSize: 16))
+                      else
+                        const Text('Vacant — Invite another player',
+                            style: TextStyle(fontSize: 15, color: Colors.grey, fontStyle: FontStyle.italic)),
+                      if (isFilled && rank != null)
+                        Text(rank, style: const TextStyle(fontSize: 14, color: Colors.orangeAccent)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Clickable weapon rectangle
+            GestureDetector(
+              onTap: () => _equipSpecialWeapon(title),
+              child: Container(
+                width: 112,
+                height: 60,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.orange.withOpacity(0.6), width: 2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: assignedWeapon != null
+                      ? Image.asset(
+                          'assets/${assignedWeapon['name']}.jpg',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
+                        )
+                      : Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getRankTitle(int exp) {
+    if (exp <= 49) return 'Beggar';
+    if (exp <= 514) return 'Thug';
+    if (exp <= 1264) return 'Recruit';
+    if (exp <= 2314) return 'Private';
+    if (exp <= 3514) return 'Private First Class';
+    if (exp <= 5014) return 'Corporal';
+    if (exp <= 6864) return 'Sergeant';
+    if (exp <= 8864) return 'Sergeant First Class';
+    if (exp <= 10214) return 'Warrant Officer';
+    if (exp <= 11464) return 'First Lieutenant';
+    if (exp <= 14214) return 'Captain';
+    if (exp <= 17414) return 'Major';
+    if (exp <= 21364) return 'Lieutenant Colonel';
+    if (exp <= 25864) return 'Colonel';
+    if (exp <= 31514) return 'General';
+    if (exp <= 38214) return 'General of the Army';
+    return 'Supreme Commander';
+  }
+
+  void _showRegularOperationBottomSheet() {
     if (_isInPrison) return;
-    // ... your existing _BottomSheetContent code (unchanged)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -216,20 +528,15 @@ class _OperationsScreenState extends State<OperationsScreen> {
         lastHighLevelOp: widget.lastHighLevelOp,
         skill: widget.skill,
         onSelected: (operation) {
-          setState(() => _selectedOperation = operation);
+          setState(() => _selectedRegularOperation = operation);
           Navigator.pop(context);
         },
       ),
     );
   }
-
-  void _executeOperation() {
-    if (_selectedOperation == null) return;
-    SocketService().executeOperation(_selectedOperation!);
-  }
 }
 
-// ==================== _BottomSheetContent (unchanged) ====================
+// _BottomSheetContent remains exactly the same as before
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final int lastMidLevelOp;
@@ -243,7 +550,7 @@ class _BottomSheetContent extends StatefulWidget {
     required this.lastHighLevelOp,
     required this.skill,
     required this.onSelected,
-    });
+  });
 
   @override
   State<_BottomSheetContent> createState() => _BottomSheetContentState();
@@ -254,7 +561,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   double _midRemaining = 0.0;
   double _highRemaining = 0.0;
 
-  // Per-level bone penalty timers
   double _boneLow = 0.0;
   double _boneMid = 0.0;
   double _boneHigh = 0.0;
@@ -276,7 +582,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     final reduction = skill * 0.5;
     final stats = SocketService().statsNotifier.value;
 
-    // Per-level bone timers
     _boneLow = (stats['bonePenaltyEndTimeLow'] ?? 0) > now
         ? (((stats['bonePenaltyEndTimeLow'] ?? 0) - now) / 1000).clamp(0.0, 10.0)
         : 0.0;
@@ -287,21 +592,18 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
         ? (((stats['bonePenaltyEndTimeHigh'] ?? 0) - now) / 1000).clamp(0.0, 10.0)
         : 0.0;
 
-    // Low level
     if (_boneLow > 0.1) {
-      _lowRemaining = (60 - reduction).clamp(0.0, 60.0); // frozen
+      _lowRemaining = (60 - reduction).clamp(0.0, 60.0);
     } else {
       _lowRemaining = ((60000 - (now - widget.lastLowLevelOp)) / 1000 - reduction).clamp(0.0, 60.0);
     }
 
-    // Mid level
     if (_boneMid > 0.1) {
       _midRemaining = (72 - reduction).clamp(0.0, 72.0);
     } else {
       _midRemaining = ((72000 - (now - widget.lastMidLevelOp)) / 1000 - reduction).clamp(0.0, 72.0);
     }
 
-    // High level
     if (_boneHigh > 0.1) {
       _highRemaining = (80 - reduction).clamp(0.0, 80.0);
     } else {
@@ -342,7 +644,6 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Group title + red bone timer (clean & compact)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
@@ -353,11 +654,7 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
                   padding: const EdgeInsets.only(left: 8),
                   child: Text(
                     '🦴 ${boneRemaining.toStringAsFixed(1)} s',
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15),
                   ),
                 ),
             ],
