@@ -626,6 +626,49 @@ socket.on('respawn', async () => {
     });
   });
 
+  // ==================== INITIATE SPECIAL OPERATION (costs $100) ====================
+  socket.on('initiate-special-op', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data?.operation !== 'string') {
+      socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
+      return;
+    }
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
+      return;
+    }
+
+    let p = doc.data();
+    const cost = 100;
+
+    if ((p.balance || 0) < cost) {
+      socket.emit('special-op-initiated', { 
+        success: false, 
+        message: 'Not enough money to initiate this special operation ($100 required).' 
+      });
+      return;
+    }
+
+    // Deduct cost with proper transaction logging
+    await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
+
+    p.balance -= cost;
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    // Confirm to client that the operation is now active
+    socket.emit('special-op-initiated', { 
+      success: true, 
+      message: 'Special Operation initiated successfully!' 
+    });
+
+    console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
+  });
+
   // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
