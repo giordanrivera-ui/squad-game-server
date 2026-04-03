@@ -256,6 +256,7 @@ io.on('connection', (socket) => {
       if (playerData.taxiFleet === undefined) playerData.taxiFleet = [];
       if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
       if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
+      if (playerData.activeSpecialOperation === undefined) playerData.activeSpecialOperation = null;
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -321,6 +322,7 @@ io.on('connection', (socket) => {
         scoutedDrivers: [],
         hiredDrivers: [],
         hasActiveTaxiJobs: false,
+        activeSpecialOperation: null,
       };
     }
 
@@ -471,6 +473,7 @@ socket.on('respawn', async () => {
       scoutedDrivers: [],
       hiredDrivers: [],
       hasActiveTaxiJobs: false,
+      activeSpecialOperation: null,
     };
 
     await docRef.set(p);
@@ -626,48 +629,48 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== INITIATE SPECIAL OPERATION (costs $100) ====================
-  socket.on('initiate-special-op', async (data) => {
-    const email = socket.data.email;
-    if (!email || typeof data?.operation !== 'string') {
-      socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
-      return;
-    }
+  // ==================== INITIATE SPECIAL OPERATION (now persistent) ====================
+socket.on('initiate-special-op', async (data) => {
+  const email = socket.data.email;
+  if (!email || typeof data?.operation !== 'string') {
+    socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
+    return;
+  }
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
-      return;
-    }
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
+    return;
+  }
 
-    let p = doc.data();
-    const cost = 100;
+  let p = doc.data();
+  const cost = 100;
 
-    if ((p.balance || 0) < cost) {
-      socket.emit('special-op-initiated', { 
-        success: false, 
-        message: 'Not enough money to initiate this special operation ($100 required).' 
-      });
-      return;
-    }
-
-    // Deduct cost with proper transaction logging
-    await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
-
-    p.balance -= cost;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    // Confirm to client that the operation is now active
+  if ((p.balance || 0) < cost) {
     socket.emit('special-op-initiated', { 
-      success: true, 
-      message: 'Special Operation initiated successfully!' 
+      success: false, 
+      message: 'Not enough money to initiate this special operation ($100 required).' 
     });
+    return;
+  }
 
-    console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
+  // Deduct cost with proper transaction logging
+  await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
+
+  p.balance -= cost;
+  p.activeSpecialOperation = data.operation;   // ← PERSISTENT STATE
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+
+  socket.emit('special-op-initiated', { 
+    success: true, 
+    message: 'Special Operation initiated successfully!' 
   });
+
+  console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
+});
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {

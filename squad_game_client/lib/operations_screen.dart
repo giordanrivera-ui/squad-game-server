@@ -40,7 +40,6 @@ class _OperationsScreenState extends State<OperationsScreen>
   String? _selectedRegularOperation;
   String? _selectedSpecialOperation;
 
-  bool _isOperationInitiated = false;
   bool _isInitiating = false;
 
   Timer? _initiateTimer;
@@ -48,6 +47,9 @@ class _OperationsScreenState extends State<OperationsScreen>
   final Map<String, Map<String, dynamic>> _assignedWeapons = {};
 
   bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
+
+  bool get _isOperationInitiated => 
+    (SocketService().statsNotifier.value['activeSpecialOperation'] ?? '').toString().isNotEmpty;
 
   int get _remainingSeconds {
     if (!_isInPrison) return 0;
@@ -102,7 +104,6 @@ class _OperationsScreenState extends State<OperationsScreen>
       _selectedRegularOperation = null;
       _selectedSpecialOperation = null;
       _assignedWeapons.clear(); // reset for next op
-      _isOperationInitiated = false; // NEW: reset flag after any operation finishes
     });
   }
 
@@ -114,35 +115,15 @@ class _OperationsScreenState extends State<OperationsScreen>
     }
   }
 
-  // NEW: Server confirmation handler
   void _onSpecialOpInitiated(dynamic data) {
     if (data is! Map || !mounted) return;
-
     _initiateTimer?.cancel();
+    setState(() => _isInitiating = false);
 
-    final bool success = data['success'] == true;
-    final String serverMessage = data['message'] ?? '';
-
-    setState(() {
-      _isInitiating = false;                    // stop spinner in all cases
-
-      if (success) {
-        _isOperationInitiated = true;           // now show party layout + enable weapons
-      } else {
-        _isOperationInitiated = false;          // keep button visible
-      }
-    });
-
-    // Show appropriate snackbar
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(serverMessage.isNotEmpty 
-            ? serverMessage 
-            : success 
-                ? 'Special Operation initiated! You may now equip weapons.' 
-                : 'Not enough money to initiate this operation.'),
-        backgroundColor: success ? Colors.green : Colors.red[700],
-        duration: const Duration(seconds: 2),
+        content: Text(data['message'] ?? 'Special Operation initiated!'),
+        backgroundColor: (data['success'] == true) ? Colors.green : Colors.red,
       ),
     );
   }
@@ -168,9 +149,9 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   void _onSpecialOpChanged(String? value) {
+    if (_isOperationInitiated) return;
     setState(() {
       _selectedSpecialOperation = value;
-      _isOperationInitiated = false; // Reset when changing op
       _isInitiating = false;
       _assignedWeapons.clear();
     });
@@ -412,8 +393,8 @@ class _OperationsScreenState extends State<OperationsScreen>
                                           padding: const EdgeInsets.symmetric(horizontal: 24),
                                           child: ElevatedButton(
                                             onPressed: _isInitiating 
-                                                ? null 
-                                                : _initiateSpecialOperation,
+                                            ? null 
+                                            : _initiateSpecialOperation,
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: Colors.red[700],
                                               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -421,17 +402,17 @@ class _OperationsScreenState extends State<OperationsScreen>
                                             ),
                                             child: _isInitiating
                                                 ? const SizedBox(
-                                                    height: 22,
-                                                    width: 22,
-                                                    child: CircularProgressIndicator(
+                                                  height: 22, 
+                                                  width: 22, 
+                                                  child: CircularProgressIndicator(
                                                       color: Colors.white,
                                                       strokeWidth: 2.5,
                                                     ),
                                                   )
                                                 : const Text(
-                                                    'Initiate Special Operation',
-                                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                                                  ),
+                                                  'Initiate Special Operation', 
+                                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                                ),
                                           ),
                                         ),
                                       )
