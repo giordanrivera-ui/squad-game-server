@@ -40,7 +40,11 @@ class _OperationsScreenState extends State<OperationsScreen>
   String? _selectedRegularOperation;
   String? _selectedSpecialOperation;
 
-  // NEW: Store assigned special-op weapons per position
+  bool _isOperationInitiated = false;
+  bool _isInitiating = false;
+
+  Timer? _initiateTimer;
+
   final Map<String, Map<String, dynamic>> _assignedWeapons = {};
 
   bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
@@ -64,6 +68,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     });
 
     SocketService().socket?.on('operation-result', _onOperationResult);
+    SocketService().socket?.on('special-op-initiated', _onSpecialOpInitiated);
   }
 
   void _onOperationResult(dynamic data) {
@@ -97,9 +102,10 @@ class _OperationsScreenState extends State<OperationsScreen>
       _selectedRegularOperation = null;
       _selectedSpecialOperation = null;
       _assignedWeapons.clear(); // reset for next op
+      _isOperationInitiated = false; // NEW: reset flag after any operation finishes
     });
   }
-  
+
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -108,11 +114,46 @@ class _OperationsScreenState extends State<OperationsScreen>
     }
   }
 
+  // NEW: Server confirmation handler
+  void _onSpecialOpInitiated(dynamic data) {
+    if (data is! Map || !mounted) return;
+
+    _initiateTimer?.cancel();
+
+    final bool success = data['success'] == true;
+    final String serverMessage = data['message'] ?? '';
+
+    setState(() {
+      _isInitiating = false;                    // stop spinner in all cases
+
+      if (success) {
+        _isOperationInitiated = true;           // now show party layout + enable weapons
+      } else {
+        _isOperationInitiated = false;          // keep button visible
+      }
+    });
+
+    // Show appropriate snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(serverMessage.isNotEmpty 
+            ? serverMessage 
+            : success 
+                ? 'Special Operation initiated! You may now equip weapons.' 
+                : 'Not enough money to initiate this operation.'),
+        backgroundColor: success ? Colors.green : Colors.red[700],
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _initiateTimer?.cancel();
     _countdownTimer?.cancel();
     _tabController.dispose();
     SocketService().socket?.off('operation-result', _onOperationResult);
+    SocketService().socket?.off('special-op-initiated', _onSpecialOpInitiated);
     super.dispose();
   }
 
@@ -127,7 +168,41 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   void _onSpecialOpChanged(String? value) {
-    setState(() => _selectedSpecialOperation = value);
+    setState(() {
+      _selectedSpecialOperation = value;
+      _isOperationInitiated = false; // Reset when changing op
+      _isInitiating = false;
+      _assignedWeapons.clear();
+    });
+  }
+
+  // NEW: Initiate the special operation – now shows loading instead of optimistic UI
+  void _initiateSpecialOperation() {
+    if (_selectedSpecialOperation == null || _isInitiating) return;
+
+    setState(() => _isInitiating = true);
+
+    // Cancel any previous timer
+    _initiateTimer?.cancel();
+
+    SocketService().socket?.emit('initiate-special-op', {
+      'operation': _selectedSpecialOperation,
+    });
+
+    // === TIMEOUT SAFETY NET ===
+    _initiateTimer = Timer(const Duration(seconds: 10), () {
+      if (!mounted || !_isInitiating) return;
+
+      setState(() => _isInitiating = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No response from server. Please try again.'),
+          backgroundColor: Colors.red[700],
+          duration: Duration(seconds: 3),
+        ),
+      );
+    });
   }
 
   // ==================== EQUIP SPECIAL-OP WEAPON ====================
@@ -163,7 +238,6 @@ class _OperationsScreenState extends State<OperationsScreen>
                 title: Text(weapon['name'] as String),
                 subtitle: Text('Power: ${weapon['power'] ?? 0}'),
                 onTap: () {
-                  // NEW: Send to server so weapon is removed from inventory
                   SocketService().socket?.emit('assign-special-weapon', {
                     'position': positionTitle,
                     'weapon': weapon,
@@ -194,7 +268,7 @@ class _OperationsScreenState extends State<OperationsScreen>
       backgroundColor: _isInPrison ? Colors.grey[900] : null,
       body: _isInPrison
           ? Center(
-            child: Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
@@ -245,11 +319,11 @@ class _OperationsScreenState extends State<OperationsScreen>
                         ],
                       ),
 
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      // Regular Ops Tab (unchanged)
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // Regular Ops Tab (unchanged)
                             Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -298,56 +372,97 @@ class _OperationsScreenState extends State<OperationsScreen>
                             ),
 
                             // ==================== SPECIAL OPS TAB ====================
-                      Center(
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 20),
-                            Container(
-                              width: 300,
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                hint: const Text('Select Special Op'),
-                                value: _selectedSpecialOperation,
-                                items: const [
-                                  DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
-                                  DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
-                                  DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    width: 300,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade400),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: DropdownButton<String>(
+                                      isExpanded: true,
+                                      hint: const Text('Select Special Op'),
+                                      value: _selectedSpecialOperation,
+                                      items: const [
+                                        DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
+                                        DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
+                                        DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
+                                      ],
+                                      onChanged: _onSpecialOpChanged,
+                                    ),
+                                  ),
+
+                                  if (_selectedSpecialOperation != null) ...[
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      _selectedSpecialOperation!,
+                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
+                                    ),
+                                    const SizedBox(height: 24),
+
+                                    // ==================== LOADING / BUTTON / PARTY TEXT ====================
+                                    if (!_isOperationInitiated)
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                                          child: ElevatedButton(
+                                            onPressed: _isInitiating 
+                                                ? null 
+                                                : _initiateSpecialOperation,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.red[700],
+                                              padding: const EdgeInsets.symmetric(vertical: 18),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            ),
+                                            child: _isInitiating
+                                                ? const SizedBox(
+                                                    height: 22,
+                                                    width: 22,
+                                                    child: CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2.5,
+                                                    ),
+                                                  )
+                                                : const Text(
+                                                    'Initiate Special Operation',
+                                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                                  ),
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                                        child: Text(
+                                          _getPartySizeText(),
+                                          style: const TextStyle(fontSize: 16, color: Colors.grey),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+
+                                    const SizedBox(height: 32),
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                                        child: _buildPartyLayout(),
+                                      ),
+                                    ),
+                                  ] else
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 40),
+                                      child: Text(
+                                        '(Select a Special Op above)',
+                                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                                      ),
+                                    ),
                                 ],
-                                onChanged: _onSpecialOpChanged,
                               ),
                             ),
-
-                            if (_selectedSpecialOperation != null) ...[
-                              const SizedBox(height: 24),
-                              Text(
-                                _selectedSpecialOperation!,
-                                style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _getPartySizeText(),
-                                style: const TextStyle(fontSize: 16, color: Colors.grey),
-                              ),
-                              const SizedBox(height: 32),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                                  child: _buildPartyLayout(),
-                                ),
-                              ),
-                            ] else
-                              const Padding(
-                                padding: EdgeInsets.only(top: 40),
-                                child: Text(
-                                  '(Select a Special Op above)', 
-                                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -356,9 +471,6 @@ class _OperationsScreenState extends State<OperationsScreen>
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -468,14 +580,17 @@ class _OperationsScreenState extends State<OperationsScreen>
 
             const SizedBox(height: 16),
 
-            // Clickable weapon rectangle
+            // Weapon rectangle - DISABLED until operation is initiated
             GestureDetector(
-              onTap: () => _equipSpecialWeapon(title),
+              onTap: _isOperationInitiated ? () => _equipSpecialWeapon(title) : null,
               child: Container(
                 width: 112,
                 height: 60,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.orange.withOpacity(0.6), width: 2),
+                  border: Border.all(
+                    color: _isOperationInitiated ? Colors.orange.withOpacity(0.6) : Colors.grey.withOpacity(0.3),
+                    width: 2,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: ClipRRect(
