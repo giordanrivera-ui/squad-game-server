@@ -645,6 +645,15 @@ socket.on('respawn', async () => {
     }
 
     let p = doc.data();
+
+    if (p.activeSpecialOperation && p.activeSpecialOperation !== data.operation) {
+      socket.emit('special-op-initiated', { 
+        success: false, 
+        message: 'You already have an active special operation.' 
+      });
+      return;
+    }
+
     const cost = 100;
 
     if ((p.balance || 0) < cost) {

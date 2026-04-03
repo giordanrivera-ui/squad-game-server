@@ -369,39 +369,43 @@ class _OperationsScreenState extends State<OperationsScreen>
                               ),
                             ),
 
-                            // ==================== SPECIAL OPS TAB ====================
+                            // ==================== SPECIAL OPS TAB (updated with locked dropdown) ====================
                             Center(
                               child: Column(
                                 children: [
                                   const SizedBox(height: 20),
-                                  Container(
-                                    width: 300,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade400), 
-                                      borderRadius: BorderRadius.circular(8),
+
+                                  // ==================== DROPDOWN ONLY VISIBLE BEFORE INITIATION ====================
+                                  if (!_isOperationInitiated)
+                                    Container(
+                                      width: 300,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey.shade400),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: DropdownButton<String>(
+                                        isExpanded: true,
+                                        hint: const Text('Select Special Op'),
+                                        value: _selectedSpecialOperation,
+                                        items: const [
+                                          DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
+                                          DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
+                                          DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
+                                        ],
+                                        onChanged: _onSpecialOpChanged,
+                                      ),
                                     ),
-                                    child: DropdownButton<String>(
-                                      isExpanded: true,
-                                      hint: const Text('Select Special Op'),
-                                      value: _selectedSpecialOperation,
-                                      items: const [
-                                        DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
-                                        DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
-                                        DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
-                                      ],
-                                      onChanged: _onSpecialOpChanged,
-                                    ),
-                                  ),
 
                                   if (_selectedSpecialOperation != null) ...[
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 12),
                                     Text(
-                                      _selectedSpecialOperation!, 
+                                      _selectedSpecialOperation!,
                                       style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
                                     ),
-                                    const SizedBox(height: 24),
+                                    const SizedBox(height: 6),
 
+                                    // ==================== LOADING / BUTTON / PARTY TEXT ====================
                                     if (!_isOperationInitiated)
                                       SizedBox(
                                         width: double.infinity,
@@ -421,8 +425,8 @@ class _OperationsScreenState extends State<OperationsScreen>
                                                   height: 22, 
                                                   width: 22, 
                                                   child: CircularProgressIndicator(
-                                                      color: Colors.white,
-                                                      strokeWidth: 2.5,
+                                                    color: Colors.white, 
+                                                    strokeWidth: 2.5,
                                                     ),
                                                   )
                                                 : const Text(
@@ -448,9 +452,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
                                         child: Column(
                                           children: [
-                                            _buildPartyLayout(),   // ← all position cards
+                                            _buildPartyLayout(),
 
-                                            // ==================== NEW CANCEL BUTTON ====================
+                                            // Cancel button (already added in previous step)
                                             if (_isOperationInitiated) ...[
                                               const SizedBox(height: 32),
                                               SizedBox(
@@ -478,12 +482,12 @@ class _OperationsScreenState extends State<OperationsScreen>
                                     ),
                                   ] else
                                     const Padding(
-                                      padding: EdgeInsets.only(top: 40), 
+                                      padding: EdgeInsets.only(top: 40),
                                       child: Text(
                                         '(Select a Special Op above)', 
                                         style: TextStyle(fontSize: 16, color: Colors.grey),
-                                        ),
                                       ),
+                                    ),
                                 ],
                               ),
                             ),
