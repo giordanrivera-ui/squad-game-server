@@ -48,8 +48,8 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   bool get _isInPrison => _prisonEndTime > SocketService().currentServerTime;
 
-  bool get _isOperationInitiated => 
-    (SocketService().statsNotifier.value['activeSpecialOperation'] ?? '').toString().isNotEmpty;
+  bool get _isOperationInitiated =>
+      (SocketService().statsNotifier.value['activeSpecialOperation'] ?? '').toString().isNotEmpty;
 
   int get _remainingSeconds {
     if (!_isInPrison) return 0;
@@ -71,6 +71,19 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     SocketService().socket?.on('operation-result', _onOperationResult);
     SocketService().socket?.on('special-op-initiated', _onSpecialOpInitiated);
+
+    _syncSelectedSpecialOpFromServer();
+    SocketService().statsNotifier.addListener(_syncSelectedSpecialOpFromServer);
+  }
+
+  void _syncSelectedSpecialOpFromServer() {
+    if (!mounted) return;
+
+    final String? activeOp = SocketService().statsNotifier.value['activeSpecialOperation'] as String?;
+
+    setState(() {
+      _selectedSpecialOperation = (activeOp != null && activeOp.isNotEmpty) ? activeOp : null;
+    });
   }
 
   void _onOperationResult(dynamic data) {
@@ -128,10 +141,20 @@ class _OperationsScreenState extends State<OperationsScreen>
     );
   }
 
+  // ==================== NEW: CANCEL OPERATION ====================
+  void _cancelSpecialOperation() {
+    SocketService().socket?.emit('cancel-special-op');
+    setState(() {
+      _selectedSpecialOperation = null;
+      _assignedWeapons.clear();
+    });
+  }
+
   @override
   void dispose() {
     _initiateTimer?.cancel();
     _countdownTimer?.cancel();
+    SocketService().statsNotifier.removeListener(_syncSelectedSpecialOpFromServer);
     _tabController.dispose();
     SocketService().socket?.off('operation-result', _onOperationResult);
     SocketService().socket?.off('special-op-initiated', _onSpecialOpInitiated);
@@ -157,20 +180,17 @@ class _OperationsScreenState extends State<OperationsScreen>
     });
   }
 
-  // NEW: Initiate the special operation – now shows loading instead of optimistic UI
   void _initiateSpecialOperation() {
     if (_selectedSpecialOperation == null || _isInitiating) return;
 
     setState(() => _isInitiating = true);
 
-    // Cancel any previous timer
     _initiateTimer?.cancel();
 
     SocketService().socket?.emit('initiate-special-op', {
       'operation': _selectedSpecialOperation,
     });
 
-    // === TIMEOUT SAFETY NET ===
     _initiateTimer = Timer(const Duration(seconds: 10), () {
       if (!mounted || !_isInitiating) return;
 
@@ -186,7 +206,6 @@ class _OperationsScreenState extends State<OperationsScreen>
     });
   }
 
-  // ==================== EQUIP SPECIAL-OP WEAPON ====================
   void _equipSpecialWeapon(String positionTitle) {
     final inventory = SocketService().statsNotifier.value['inventory'] as List<dynamic>? ?? [];
     final weapons = inventory.where((item) => (item['type'] as String?) == 'weapon').toList();
@@ -211,22 +230,20 @@ class _OperationsScreenState extends State<OperationsScreen>
               final weapon = weapons[index] as Map<String, dynamic>;
               return ListTile(
                 leading: Image.asset(
-                  'assets/${weapon['name']}.jpg',
-                  width: 40,
+                  'assets/${weapon['name']}.jpg', 
+                  width: 40, 
                   height: 40,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.whatshot, size: 40),
+                    errorBuilder: (_, __, ___) => const Icon(Icons.whatshot, size: 40),
                 ),
                 title: Text(weapon['name'] as String),
                 subtitle: Text('Power: ${weapon['power'] ?? 0}'),
                 onTap: () {
                   SocketService().socket?.emit('assign-special-weapon', {
-                    'position': positionTitle,
+                    'position': positionTitle, 
                     'weapon': weapon,
                   });
 
-                  setState(() {
-                    _assignedWeapons[positionTitle] = weapon;
-                  });
+                  setState(() => _assignedWeapons[positionTitle] = weapon);
                   Navigator.pop(ctx);
                 },
               );
@@ -235,10 +252,10 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(ctx), 
             child: const Text('Cancel'),
-          ),
-        ],
+            ),
+          ],
       ),
     );
   }
@@ -361,7 +378,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                                     width: 300,
                                     padding: const EdgeInsets.symmetric(horizontal: 16),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey.shade400),
+                                      border: Border.all(color: Colors.grey.shade400), 
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: DropdownButton<String>(
@@ -380,12 +397,11 @@ class _OperationsScreenState extends State<OperationsScreen>
                                   if (_selectedSpecialOperation != null) ...[
                                     const SizedBox(height: 24),
                                     Text(
-                                      _selectedSpecialOperation!,
+                                      _selectedSpecialOperation!, 
                                       style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
                                     ),
                                     const SizedBox(height: 24),
 
-                                    // ==================== LOADING / BUTTON / PARTY TEXT ====================
                                     if (!_isOperationInitiated)
                                       SizedBox(
                                         width: double.infinity,
@@ -430,17 +446,44 @@ class _OperationsScreenState extends State<OperationsScreen>
                                     Expanded(
                                       child: SingleChildScrollView(
                                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                                        child: _buildPartyLayout(),
+                                        child: Column(
+                                          children: [
+                                            _buildPartyLayout(),   // ← all position cards
+
+                                            // ==================== NEW CANCEL BUTTON ====================
+                                            if (_isOperationInitiated) ...[
+                                              const SizedBox(height: 32),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                                                  child: ElevatedButton(
+                                                    onPressed: _cancelSpecialOperation,
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.red[700],
+                                                      padding: const EdgeInsets.symmetric(vertical: 18),
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                    ),
+                                                    child: const Text(
+                                                      'Cancel Operation',
+                                                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ] else
                                     const Padding(
-                                      padding: EdgeInsets.only(top: 40),
+                                      padding: EdgeInsets.only(top: 40), 
                                       child: Text(
-                                        '(Select a Special Op above)',
+                                        '(Select a Special Op above)', 
                                         style: TextStyle(fontSize: 16, color: Colors.grey),
+                                        ),
                                       ),
-                                    ),
                                 ],
                               ),
                             ),
