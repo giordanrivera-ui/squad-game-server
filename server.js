@@ -630,47 +630,67 @@ socket.on('respawn', async () => {
   });
 
   // ==================== INITIATE SPECIAL OPERATION (now persistent) ====================
-socket.on('initiate-special-op', async (data) => {
-  const email = socket.data.email;
-  if (!email || typeof data?.operation !== 'string') {
-    socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
-    return;
-  }
+  socket.on('initiate-special-op', async (data) => {
+    const email = socket.data.email;
+    if (!email || typeof data?.operation !== 'string') {
+      socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
+      return;
+    }
 
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
-    return;
-  }
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) {
+      socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
+      return;
+    }
 
-  let p = doc.data();
-  const cost = 100;
+    let p = doc.data();
+    const cost = 100;
 
-  if ((p.balance || 0) < cost) {
+    if ((p.balance || 0) < cost) {
+      socket.emit('special-op-initiated', { 
+        success: false, 
+        message: 'Not enough money to initiate this special operation ($100 required).' 
+      });
+      return;
+    }
+
+    // Deduct cost with proper transaction logging
+    await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
+
+    p.balance -= cost;
+    p.activeSpecialOperation = data.operation;   // ← PERSISTENT STATE
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
     socket.emit('special-op-initiated', { 
-      success: false, 
-      message: 'Not enough money to initiate this special operation ($100 required).' 
+      success: true, 
+      message: 'Special Operation initiated successfully!' 
     });
-    return;
-  }
 
-  // Deduct cost with proper transaction logging
-  await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
-
-  p.balance -= cost;
-  p.activeSpecialOperation = data.operation;   // ← PERSISTENT STATE
-
-  await docRef.set(p);
-  socket.emit('update-stats', p);
-
-  socket.emit('special-op-initiated', { 
-    success: true, 
-    message: 'Special Operation initiated successfully!' 
+    console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
   });
 
-  console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
-});
+  // ==================== CANCEL SPECIAL OPERATION ====================
+  socket.on('cancel-special-op', async () => {
+    const email = socket.data.email;
+    if (!email) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+
+    // Clear the persistent flag
+    if (p.activeSpecialOperation) {
+      console.log(`[SPECIAL-OP] ${p.displayName || email} cancelled "${p.activeSpecialOperation}"`);
+      p.activeSpecialOperation = null;
+      await docRef.set(p);
+      socket.emit('update-stats', p);   // Refresh client UI instantly
+    }
+  });
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
   socket.on('request-prison-list', () => {
