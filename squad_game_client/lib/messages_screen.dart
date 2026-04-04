@@ -134,14 +134,36 @@ class MessagesScreen extends StatelessWidget {
     final List<Map<String, dynamic>> result = [];
     groups.forEach((partner, msgs) {
       msgs.sort((a, b) => (b['timestamp'] ?? '').compareTo(a['timestamp'] ?? ''));
+
+      // NEW: Safe preview that works for both normal messages AND special invites
+      final rawMsg = msgs.first['data']['msg'];
+      String lastPreview;
+
+      if (rawMsg is String) {
+        lastPreview = rawMsg;
+      } else if (rawMsg is Map && rawMsg['type'] == 'special_invite') {
+        lastPreview = "🎟️ Invited you to ${_getOperationShortName(rawMsg['operation'])} as ${rawMsg['position']}";
+      } else {
+        lastPreview = "Special message";
+      }
+
       result.add({
         'partner': partner,
-        'lastPreview': msgs.first['data']['msg'] ?? '',
+        'lastPreview': lastPreview,
         'lastTimestamp': msgs.first['timestamp'] ?? '',
       });
     });
 
     result.sort((a, b) => (b['lastTimestamp'] ?? '').compareTo(a['lastTimestamp'] ?? ''));
     return result;
+  }
+
+  // Tiny helper for nice preview text
+  String _getOperationShortName(String? op) {
+    if (op == null) return 'Special Op';
+    if (op.contains('cartel')) return 'Cartel Raid';
+    if (op.contains('Bank')) return 'Bank Heist';
+    if (op.contains('Siege')) return 'Military Siege';
+    return op;
   }
 }
