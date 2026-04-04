@@ -1143,22 +1143,32 @@ socket.on('respawn', async () => {
     await handleBuyBond(db, socket, bondData);
   });
 
-  // ==================== PRIVATE MESSAGES ====================
-  socket.on('private-message', async (data) => {
-    if (!data || typeof data.to !== 'string' || typeof data.msg !== 'string') return;
+// ==================== PRIVATE MESSAGES (supports text + structured invites) ====================
+socket.on('private-message', async (data) => {
+  if (!data || typeof data.to !== 'string') return;
 
-    const from = socket.data.displayName;
-    if (!from) return;
+  const from = socket.data.displayName;
+  if (!from) return;
 
-    const msgId = data.id || Date.now().toString();
+  const msgId = data.id || Date.now().toString();
 
-    const baseMsg = {
-      from: from,
-      msg: data.msg,
-      id: msgId
-    };
+  // Support BOTH classic string messages AND structured objects (special invites, etc.)
+  let messageContent;
+  if (typeof data.msg === 'string') {
+    messageContent = data.msg;                    // normal chat message
+  } else if (data.type === 'special_invite' || data.type) {
+    messageContent = { ...data };                 // keep the full structured object
+  } else {
+    return; // invalid payload
+  }
 
-    // NEW: Find recipient by name (assume unique)
+  const baseMsg = {
+    from: from,
+    msg: messageContent,     // ← can now be string OR object
+    id: msgId
+  };
+
+  // NEW: Find recipient by name (assume unique)
     const querySnapshot = await db.collection('players').where('displayName', '==', data.to).limit(1).get();
     if (querySnapshot.empty) return;
 
