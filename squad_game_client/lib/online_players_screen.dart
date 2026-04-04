@@ -1,7 +1,8 @@
-// In online_players_screen.dart (updated full file)
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';   // ← NEW import (important!)
-import 'view_profile.dart';  // Import for profile viewing
+import 'chat_screen.dart';
+import 'view_profile.dart';
+import 'socket_service.dart';
+import 'invite_to_special_op_screen.dart';   // ← NEW IMPORT
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OnlinePlayersScreen extends StatefulWidget {
@@ -30,29 +31,21 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
 
   Future<void> _searchPlayers(String query) async {
     if (query.isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _searchError = '';
-      });
+      setState(() { _searchResults = []; _searchError = ''; });
       return;
     }
 
-    setState(() {
-      _isSearching = true;
-      _searchError = '';
-    });
+    setState(() { _isSearching = true; _searchError = ''; });
 
     try {
       final searchLower = query.toLowerCase();
 
-      // Query alive players
       final playersQuery = await FirebaseFirestore.instance
           .collection('players')
           .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)
           .where('displayNameLower', isLessThan: searchLower + '\uf8ff')
           .get();
 
-      // Query dead profiles (NEW)
       final deadQuery = await FirebaseFirestore.instance
           .collection('deadProfiles')
           .where('displayNameLower', isGreaterThanOrEqualTo: searchLower)
@@ -60,34 +53,29 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
           .get();
 
       setState(() {
-        // Combine results with type
         _searchResults = [
-          ...playersQuery.docs.map((doc) => {
-            'displayName': doc.data()['displayName'],
-            'type': 'alive',  // NEW: Mark as alive
-          }),
-          ...deadQuery.docs.map((doc) => {
-            'displayName': doc.data()['displayName'],
-            'type': 'dead',   // NEW: Mark as dead
-          }),
+          ...playersQuery.docs.map((doc) => {'displayName': doc.data()['displayName'], 'type': 'alive'}),
+          ...deadQuery.docs.map((doc) => {'displayName': doc.data()['displayName'], 'type': 'dead'}),
         ];
         _isSearching = false;
-        if (_searchResults.isEmpty) {
-          _searchError = 'No players found.';
-        }
+        if (_searchResults.isEmpty) _searchError = 'No players found.';
       });
     } catch (e) {
-      setState(() {
-        _searchError = 'Error searching: $e';
-        _isSearching = false;
-      });
+      setState(() { _searchError = 'Error searching: $e'; _isSearching = false; });
     }
   }
 
   void _showPlayerMenu(BuildContext context, String name) {
+    final stats = SocketService().statsNotifier.value;
+    final String currentDisplayName = (stats['displayName'] ?? '').toString();
+    final bool hasActiveSpecialOp = 
+    (stats['activeSpecialOperation'] ?? '').toString().isNotEmpty;
+    final bool isSelf = name == currentDisplayName;
+
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -97,36 +85,38 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
-                context,
+                context, 
                 MaterialPageRoute(
-                  builder: (context) => ViewProfileScreen(displayName: name),
-                ),
-              );
+                  builder: (_) => ViewProfileScreen(displayName: name)));
             },
           ),
           ListTile(
             leading: const Icon(Icons.message),
             title: const Text('Message'),
             onTap: () {
-              Navigator.pop(context);           // close menu
-              Navigator.push(                   // ← NEW: go straight to full chat
-                context,
+              Navigator.pop(context);
+              Navigator.push(
+                context, 
                 MaterialPageRoute(
                   builder: (_) => ChatScreen(partner: name),
-                ),
-              );
+                  ),
+                  );
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.group_add),
-            title: const Text('Invite to Operation'),
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Invite sent to $name!')),
-              );
-            },
-          ),
+          if (hasActiveSpecialOp && !isSelf)
+            ListTile(
+              leading: const Icon(Icons.group_add),
+              title: const Text('Invite to Special Operation'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => InviteToSpecialOpScreen(targetName: name),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -136,17 +126,13 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // NEW: Search section above the list
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
               labelText: 'Search for players',
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: () => _searchPlayers(_searchController.text),
-              ),
+              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => _searchPlayers(_searchController.text)),
               border: const OutlineInputBorder(),
             ),
             onSubmitted: _searchPlayers,
@@ -163,18 +149,9 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
                 final name = player['displayName'] as String;
                 final type = player['type'] as String;
                 final displayText = type == 'dead' ? '$name (Dead)' : name;
-
                 return ListTile(
                   title: Text(displayText),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ViewProfileScreen(
-                        displayName: name,
-                        isDead: type == 'dead',  // NEW: Pass if dead
-                      ),
-                    ),
-                  ),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewProfileScreen(displayName: name, isDead: type == 'dead'))),
                 );
               },
             ),
