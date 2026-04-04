@@ -28,6 +28,17 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  void _handleDecline(Map<String, dynamic> inviteData) {
+    final String leaderName = inviteData['leader'] ?? 'the leader';
+    final String declineMsg = "${SocketService().statsNotifier.value['displayName'] ?? 'A player'} has declined the invitation.";
+
+    SocketService().sendPrivateMessage(leaderName, declineMsg);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You declined the invitation.'), backgroundColor: Colors.red),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final socketService = SocketService();
@@ -43,13 +54,13 @@ class _ChatScreenState extends State<ChatScreen> {
             final data = item['data'] as Map<String, dynamic>;
             final bool isFromMe = data['isFromMe'] ?? false;
             return isFromMe 
-                ? (data['to'] == widget.partner)
-                : (data['from'] == widget.partner);
+              ? (data['to'] == widget.partner) 
+              : (data['from'] == widget.partner);
           }).toList();
 
           // Oldest at top for nice chat flow
-          chatMessages.sort((a, b) =>
-              (a['timestamp'] ?? '').compareTo(b['timestamp'] ?? ''));
+          chatMessages.sort((a, b) => 
+            (a['timestamp'] ?? '').compareTo(b['timestamp'] ?? ''));
 
           if (chatMessages.isEmpty) {
             return const Center(child: Text('No messages yet. Say hi! 👋'));
@@ -63,34 +74,85 @@ class _ChatScreenState extends State<ChatScreen> {
               final item = chatMessages[chatMessages.length - 1 - index];
               final data = item['data'] as Map<String, dynamic>;
               final bool isFromMe = data['isFromMe'] ?? false;
-              final String msgText = data['msg'] ?? '';
-              final String msgId = data['id'] ?? '';
 
-              return Align(
-                alignment: isFromMe ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isFromMe ? Colors.blue[100] : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(18),
+              // ==================== SPECIAL INVITATION CARD ====================
+              if (data['type'] == 'special_invite') {
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(16),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange, width: 2),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${data['leader']} has invited you to occupy the ${data['position']} position in the Special Operation:',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(data['operation'] ?? '', style: const TextStyle(fontSize: 18, color: Colors.orange, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {}, // Accept does nothing for now
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 14)),
+                                child: const Text('Accept', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => _handleDecline(data),
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: const EdgeInsets.symmetric(vertical: 14)),
+                                child: const Text('Decline', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: isFromMe 
-                        ? CrossAxisAlignment.end 
-                        : CrossAxisAlignment.start,
-                    children: [
-                      Text(msgText, style: const TextStyle(fontSize: 16)),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => socketService.deleteMessage(msgId),
-                      ),
-                    ],
+                );
+              }
+
+              else {
+                final String msgText = data['msg'] ?? '';
+                final String msgId = data['id'] ?? '';
+              
+                return Align(
+                  alignment: isFromMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isFromMe ? Colors.blue[100] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isFromMe 
+                          ? CrossAxisAlignment.end 
+                          : CrossAxisAlignment.start,
+                      children: [
+                        Text(msgText, style: const TextStyle(fontSize: 16)),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () => socketService.deleteMessage(msgId),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             },
           );
         },

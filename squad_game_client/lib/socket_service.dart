@@ -447,15 +447,12 @@ class SocketService {
   }
   void travel(String destination) => socket?.emit(SocketEvents.travel, destination);
 
-  void sendPrivateMessage(String to, String msg) {
-    if (to.isNotEmpty && msg.isNotEmpty) {
-      final id = DateTime.now().millisecondsSinceEpoch.toString();
-      socket?.emit(SocketEvents.privateMessage, {
-        'to': to,
-        'msg': msg,
-        'id': id
-      });
-    }
+  void sendPrivateMessage(String to, dynamic content) {  // content can be String or Map
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final payload = content is String
+        ? {'to': to, 'msg': content, 'id': id}
+        : {'to': to, 'id': id, ...content};  // spread the invite map
+    socket?.emit(SocketEvents.privateMessage, payload);
   }
 
   void sendAnnouncement(String text) {

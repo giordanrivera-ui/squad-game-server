@@ -30,14 +30,10 @@ class _InviteToSpecialOpScreenState extends State<InviteToSpecialOpScreen> {
   String _getPartySizeText() {
     final positions = _getPositions();
     switch (positions.length) {
-      case 3:
-        return 'Raid cartel supply line (3/3)';
-      case 4:
-        return 'Bank Heist (4/4)';
-      case 5:
-        return 'Siege military base (5/5)';
-      default:
-        return 'Special Operation';
+      case 3: return 'Raid cartel supply line (3/3)';
+      case 4: return 'Bank Heist (4/4)';
+      case 5: return 'Siege military base (5/5)';
+      default: return 'Special Operation';
     }
   }
 
@@ -48,18 +44,17 @@ class _InviteToSpecialOpScreenState extends State<InviteToSpecialOpScreen> {
     final String leaderName = stats['displayName']?.toString() ?? 'A player';
     final String operationName = stats['activeSpecialOperation']?.toString() ?? 'Special Operation';
 
-    final String message = """
-$leaderName has invited you to occupy the $_selectedPosition position in the Special Operation: $operationName
+    // Send structured invitation (type = special_invite)
+    final inviteData = {
+      'type': 'special_invite',
+      'leader': leaderName,
+      'position': _selectedPosition,
+      'operation': operationName,
+      'target': widget.targetName,
+    };
 
-Please reply with:
-✅ Accept
-❌ Decline
-""".trim();
+    SocketService().sendPrivateMessage(widget.targetName, inviteData); // now accepts Map too
 
-    // Send private message (goes to existing chat or starts new one)
-    SocketService().sendPrivateMessage(widget.targetName, message);
-
-    // Close screen and show feedback
     Navigator.pop(context);
     
     ScaffoldMessenger.of(context).showSnackBar(
@@ -82,8 +77,8 @@ Please reply with:
           Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              'Choose position for ${widget.targetName}',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              'Choose position for ${widget.targetName}', 
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), 
               textAlign: TextAlign.center,
             ),
           ),
@@ -103,9 +98,9 @@ Please reply with:
                   return Column(
                     children: [
                       GestureDetector(
-                        onTap: isLeader
-                            ? null
-                            : () => setState(() => _selectedPosition = title),
+                        onTap: isLeader 
+                          ? null 
+                          : () => setState(() => _selectedPosition = title),
                         child: Card(
                           elevation: isSelected ? 8 : 4,
                           color: isSelected ? Colors.orange[100] : null,
@@ -116,18 +111,18 @@ Please reply with:
                               children: [
                                 if (isLeader)
                                   const CircleAvatar(
-                                    radius: 28,
-                                    backgroundColor: Colors.grey,
+                                    radius: 28, 
+                                    backgroundColor: Colors.grey, 
                                     child: Icon(Icons.person, size: 32),
-                                  )
+                                    )
                                 else
                                   Container(
-                                    width: 56,
-                                    height: 56,
+                                    width: 56, 
+                                    height: 56, 
                                     decoration: BoxDecoration(
-                                      color: Colors.grey[300],
+                                      color: Colors.grey[300], 
                                       borderRadius: BorderRadius.circular(12),
-                                    ),
+                                    ), 
                                     child: const Icon(Icons.person_add, size: 32, color: Colors.grey),
                                   ),
                                 const SizedBox(width: 16),
@@ -158,24 +153,14 @@ Please reply with:
             ),
           ),
 
-          // Confirm button
           Padding(
             padding: const EdgeInsets.all(24),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _selectedPosition == null ? null : _sendInvitation,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(
-                  _selectedPosition == null
-                      ? 'Select a position'
-                      : 'Confirm Invitation — $_selectedPosition',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, padding: const EdgeInsets.symmetric(vertical: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(_selectedPosition == null ? 'Select a position' : 'Confirm Invitation — $_selectedPosition', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               ),
             ),
           ),
