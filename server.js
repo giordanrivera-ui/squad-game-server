@@ -18,6 +18,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
+const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon } = require('./specialOperations.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -186,6 +187,22 @@ const travelCosts = { // ==================== TRAVEL COSTS ====================
   "Cawayan Heights": 55
 };
 
+// ==================== SPECIAL OPERATION PARTY CONFIG ====================
+const specialOperationConfigs = {
+  "Raid cartel supply line": {
+    positions: ["Operation Leader", "Rifleman", "Driver"],
+    maxPlayers: 3
+  },
+  "Bank Heist": {
+    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver"],
+    maxPlayers: 4
+  },
+  "Siege military base": {
+    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver", "Artilleryman"],
+    maxPlayers: 5
+  }
+};
+
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
@@ -257,6 +274,7 @@ io.on('connection', (socket) => {
       if (playerData.scoutedDrivers === undefined) playerData.scoutedDrivers = [];
       if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
       if (playerData.activeSpecialOperation === undefined) playerData.activeSpecialOperation = null;
+      if (playerData.activeSpecialOperationParty === undefined) playerData.activeSpecialOperationParty = null;
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -323,6 +341,7 @@ io.on('connection', (socket) => {
         hiredDrivers: [],
         hasActiveTaxiJobs: false,
         activeSpecialOperation: null,
+        activeSpecialOperationParty: null,
       };
     }
 
@@ -474,6 +493,7 @@ socket.on('respawn', async () => {
       hiredDrivers: [],
       hasActiveTaxiJobs: false,
       activeSpecialOperation: null,
+      activeSpecialOperationParty: null,
     };
 
     await docRef.set(p);
@@ -629,76 +649,17 @@ socket.on('respawn', async () => {
     });
   });
 
-  // ==================== INITIATE SPECIAL OPERATION (now persistent) ====================
+  // ==================== INITIATE SPECIAL OPERATION (now modular) ====================
   socket.on('initiate-special-op', async (data) => {
-    const email = socket.data.email;
-    if (!email || typeof data?.operation !== 'string') {
-      socket.emit('special-op-initiated', { success: false, message: 'Invalid request.' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      socket.emit('special-op-initiated', { success: false, message: 'Player not found.' });
-      return;
-    }
-
-    let p = doc.data();
-
-    if (p.activeSpecialOperation && p.activeSpecialOperation !== data.operation) {
-      socket.emit('special-op-initiated', { 
-        success: false, 
-        message: 'You already have an active special operation.' 
-      });
-      return;
-    }
-
-    const cost = 100;
-
-    if ((p.balance || 0) < cost) {
-      socket.emit('special-op-initiated', { 
-        success: false, 
-        message: 'Not enough money to initiate this special operation ($100 required).' 
-      });
-      return;
-    }
-
-    // Deduct cost with proper transaction logging
-    await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
-
-    p.balance -= cost;
-    p.activeSpecialOperation = data.operation;   // ← PERSISTENT STATE
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    socket.emit('special-op-initiated', { 
-      success: true, 
-      message: 'Special Operation initiated successfully!' 
-    });
-
-    console.log(`[SPECIAL-OP] ${p.displayName || email} initiated "${data.operation}" for $100`);
+    await handleInitiateSpecialOp(db, socket, data, logTransaction);
   });
 
-  // ==================== CANCEL SPECIAL OPERATION ====================
   socket.on('cancel-special-op', async () => {
-    const email = socket.data.email;
-    if (!email) return;
+    await handleCancelSpecialOp(db, socket);
+  });
 
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // Clear the persistent flag
-    if (p.activeSpecialOperation) {
-      console.log(`[SPECIAL-OP] ${p.displayName || email} cancelled "${p.activeSpecialOperation}"`);
-      p.activeSpecialOperation = null;
-      await docRef.set(p);
-      socket.emit('update-stats', p);   // Refresh client UI instantly
-    }
+  socket.on('assign-special-weapon', async (data) => {
+    await handleAssignSpecialWeapon(db, socket, data);
   });
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================
@@ -955,42 +916,6 @@ socket.on('respawn', async () => {
 
     await docRef.set(p);
     socket.emit('update-stats', p);
-  });
-
-  // ==================== ASSIGN SPECIAL-OP WEAPON (removes from leader's inventory) ====================
-  socket.on('assign-special-weapon', async (data) => {
-    const email = socket.data.email;
-    if (!email || !data?.weapon || !data?.position) {
-      socket.emit('error', { message: 'Invalid special weapon assignment.' });
-      return;
-    }
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // Find and remove the weapon from inventory (same logic as equip-armor)
-    const weaponToAssign = data.weapon;
-    const index = p.inventory.findIndex(i =>
-      i.name === weaponToAssign.name &&
-      i.type === 'weapon' &&
-      i.power === weaponToAssign.power
-    );
-
-    if (index === -1) {
-      socket.emit('error', { message: 'Weapon not found in inventory.' });
-      return;
-    }
-
-    // Remove it permanently
-    p.inventory.splice(index, 1);
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-
-    console.log(`[SPECIAL-OP] ${p.displayName} assigned ${weaponToAssign.name} to ${data.position} (removed from inventory)`);
   });
 
   socket.on('unequip-armor', async (data) => {
