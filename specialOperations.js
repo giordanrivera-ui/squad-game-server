@@ -101,7 +101,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   console.log(`[SPECIAL-OP] ${p.displayName || email} started "${data.operation}" with full party tracking`);
 }
 
-// ==================== ACCEPT INVITE HANDLER (NEW) ====================
+// ==================== ACCEPT INVITE HANDLER ====================
 async function handleAcceptSpecialOpInvite(db, socket, data) {
   const joinerEmail = socket.data.email;
   const joinerName = socket.data.displayName;
@@ -127,7 +127,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data) {
   let leaderData = leaderQuery.docs[0].data();
 
   const party = leaderData.activeSpecialOperationParty;
-  if (!party || party.operation !== operation || !party.positions[position] === null) {
+  if (!party || party.operation !== operation || party.positions[position] != null) {  // ← FIXED
     socket.emit('special-op-join-result', { success: false, message: 'Position already taken or operation no longer exists.' });
     return;
   }
@@ -136,31 +136,29 @@ async function handleAcceptSpecialOpInvite(db, socket, data) {
   party.positions[position] = {
     email: joinerEmail,
     displayName: joinerName,
-    photoURL: socket.data.photoURL || '', // will be updated on next register if needed
-    rank: '' // optional - can compute from exp if you want
+    photoURL: socket.data.photoURL || '',
+    rank: '' 
   };
 
   // Update leader
-  await leaderDocRef.update({
-    activeSpecialOperationParty: party
-  });
+  await leaderDocRef.update({ activeSpecialOperationParty: party });
 
-  // Give the JOINER the full party object too (so they see the layout)
+  // Give joiner the full party object
   const joinerDocRef = db.collection('players').doc(joinerEmail);
   await joinerDocRef.update({
     activeSpecialOperation: operation,
     activeSpecialOperationParty: party
   });
 
-  // Notify both players
+  // Notify both
   socket.emit('special-op-join-result', { 
     success: true, 
     message: `You joined as ${position}!`,
     party 
   });
 
-  // Notify leader
-  const leaderSocket = onlineSockets.get(leaderName); // global from server.js
+  // Notify leader (live update)
+  const leaderSocket = onlineSockets.get(leaderName);
   if (leaderSocket) {
     leaderSocket.emit('special-op-party-update', { party });
   }
