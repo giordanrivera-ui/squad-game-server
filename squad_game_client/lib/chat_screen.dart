@@ -79,72 +79,79 @@ class _ChatScreenState extends State<ChatScreen> {
     final bool isFromMe = data['isFromMe'] ?? false;
 
     // ==================== SPECIAL INVITATION CARD ====================
-    if (rawMsg is Map && rawMsg['type'] == 'special_invite') {
-      final invite = rawMsg as Map<String, dynamic>;
+if (rawMsg is Map && rawMsg['type'] == 'special_invite') {
+  final invite = rawMsg as Map<String, dynamic>;
 
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          padding: const EdgeInsets.all(16),
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.orange[50],
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.orange, width: 2),
+  return Align(
+    alignment: Alignment.centerLeft,
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${invite['leader']} has invited you to occupy the ${invite['position']} position in:',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          const SizedBox(height: 4),
+          Text(
+            invite['operation'] ?? 'Special Operation',
+            style: const TextStyle(fontSize: 18, color: Colors.orange, fontWeight: FontWeight.bold),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          Row(
             children: [
-              Text(
-                '${invite['leader']} has invited you to occupy the ${invite['position']} position in:',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                invite['operation'] ?? 'Special Operation',
-                style: const TextStyle(fontSize: 18, color: Colors.orange, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: Later - full join logic
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ You joined the Special Operation!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        Navigator.pop(context); // optional: close chat
-                      },
-                      style: ElevatedButton.styleFrom(
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    // SEND ACCEPT TO SERVER
+                    SocketService().socket?.emit('accept-special-op-invite', {
+                      'leaderName': invite['leader'],
+                      'leaderEmail': invite['leaderEmail'],   // optional but useful
+                      'position': invite['position'],
+                      'operation': invite['operation'],
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ Joined the Special Operation!'), 
                         backgroundColor: Colors.green,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('Accept', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
+                    );
+                    Navigator.pop(context); // close chat
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green, 
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _handleDecline(invite),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Decline', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ),
+                  child: const Text('Accept', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _handleDecline(invite),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red, 
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                ],
+                  child: const Text('Decline', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
               ),
             ],
           ),
-        ),
-      );
-    }
+        ],
+      ),
+    ),
+  );
+}
 
     // Normal text message
     else {

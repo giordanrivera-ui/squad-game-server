@@ -1,3 +1,5 @@
+const admin = require('firebase-admin');
+
 // ====================== SPECIAL OPERATIONS MODULE ======================
 const specialOperationConfigs = {
   "Raid cartel supply line": {
@@ -99,6 +101,73 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   console.log(`[SPECIAL-OP] ${p.displayName || email} started "${data.operation}" with full party tracking`);
 }
 
+// ==================== ACCEPT INVITE HANDLER (NEW) ====================
+async function handleAcceptSpecialOpInvite(db, socket, data) {
+  const joinerEmail = socket.data.email;
+  const joinerName = socket.data.displayName;
+  const { leaderName, position, operation } = data;
+
+  if (!joinerEmail || !leaderName || !position || !operation) {
+    socket.emit('special-op-join-result', { success: false, message: 'Invalid invite data.' });
+    return;
+  }
+
+  // Find leader
+  const leaderQuery = await db.collection('players')
+    .where('displayName', '==', leaderName)
+    .limit(1)
+    .get();
+
+  if (leaderQuery.empty) {
+    socket.emit('special-op-join-result', { success: false, message: 'Leader no longer online or operation cancelled.' });
+    return;
+  }
+
+  const leaderDocRef = leaderQuery.docs[0].ref;
+  let leaderData = leaderQuery.docs[0].data();
+
+  const party = leaderData.activeSpecialOperationParty;
+  if (!party || party.operation !== operation || !party.positions[position] === null) {
+    socket.emit('special-op-join-result', { success: false, message: 'Position already taken or operation no longer exists.' });
+    return;
+  }
+
+  // Fill the position
+  party.positions[position] = {
+    email: joinerEmail,
+    displayName: joinerName,
+    photoURL: socket.data.photoURL || '', // will be updated on next register if needed
+    rank: '' // optional - can compute from exp if you want
+  };
+
+  // Update leader
+  await leaderDocRef.update({
+    activeSpecialOperationParty: party
+  });
+
+  // Give the JOINER the full party object too (so they see the layout)
+  const joinerDocRef = db.collection('players').doc(joinerEmail);
+  await joinerDocRef.update({
+    activeSpecialOperation: operation,
+    activeSpecialOperationParty: party
+  });
+
+  // Notify both players
+  socket.emit('special-op-join-result', { 
+    success: true, 
+    message: `You joined as ${position}!`,
+    party 
+  });
+
+  // Notify leader
+  const leaderSocket = onlineSockets.get(leaderName); // global from server.js
+  if (leaderSocket) {
+    leaderSocket.emit('special-op-party-update', { party });
+  }
+
+  console.log(`[SPECIAL-OP] ${joinerName} joined ${operation} as ${position}`);
+}
+
 // ==================== CANCEL SPECIAL OPERATION ====================
 async function handleCancelSpecialOp(db, socket) {
   const email = socket.data.email;
@@ -160,5 +229,6 @@ async function handleAssignSpecialWeapon(db, socket, data) {
 module.exports = {
   handleInitiateSpecialOp,
   handleCancelSpecialOp,
-  handleAssignSpecialWeapon
+  handleAssignSpecialWeapon,
+  handleAcceptSpecialOpInvite
 };

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class InviteToSpecialOpScreen extends StatefulWidget {
   final String targetName;
@@ -42,26 +43,23 @@ class _InviteToSpecialOpScreenState extends State<InviteToSpecialOpScreen> {
 
     final stats = SocketService().statsNotifier.value;
     final String leaderName = stats['displayName']?.toString() ?? 'A player';
+    final String leaderEmail = FirebaseAuth.instance.currentUser?.email ?? ''; // safe
     final String operationName = stats['activeSpecialOperation']?.toString() ?? 'Special Operation';
 
-    // Send structured invitation (type = special_invite)
     final inviteData = {
       'type': 'special_invite',
       'leader': leaderName,
+      'leaderEmail': leaderEmail,           // ← NEW
       'position': _selectedPosition,
       'operation': operationName,
       'target': widget.targetName,
     };
 
-    SocketService().sendPrivateMessage(widget.targetName, inviteData); // now accepts Map too
+    SocketService().sendPrivateMessage(widget.targetName, inviteData);
 
     Navigator.pop(context);
-    
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Invitation sent to ${widget.targetName} as $_selectedPosition!'),
-        backgroundColor: Colors.orange,
-      ),
+      SnackBar(content: Text('Invitation sent to ${widget.targetName} as $_selectedPosition!'), backgroundColor: Colors.orange),
     );
   }
 

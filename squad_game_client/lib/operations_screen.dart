@@ -71,6 +71,13 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     SocketService().socket?.on('operation-result', _onOperationResult);
     SocketService().socket?.on('special-op-initiated', _onSpecialOpInitiated);
+    SocketService().socket?.on('special-op-party-update', (data) {
+      if (data is Map && data['party'] != null && mounted) {
+        final stats = SocketService().statsNotifier.value;
+        stats['activeSpecialOperationParty'] = data['party'];
+        SocketService().statsNotifier.value = {...stats}; // force rebuild
+      }
+    });
 
     _syncSelectedSpecialOpFromServer();
     SocketService().statsNotifier.addListener(_syncSelectedSpecialOpFromServer);
@@ -262,6 +269,9 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   @override
   Widget build(BuildContext context) {
+
+    final bool isLeader = (SocketService().statsNotifier.value['activeSpecialOperationParty']?['leaderEmail'] == FirebaseAuth.instance.currentUser?.email);
+
     return Scaffold(
       backgroundColor: _isInPrison ? Colors.grey[900] : null,
       body: _isInPrison
@@ -445,7 +455,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                                           textAlign: TextAlign.center,
                                         ),
                                       ),
-
+                                    
                                     const SizedBox(height: 32),
                                     Expanded(
                                       child: SingleChildScrollView(
@@ -454,7 +464,7 @@ class _OperationsScreenState extends State<OperationsScreen>
                                           children: [
                                             _buildPartyLayout(),
 
-                                            // Cancel button (already added in previous step)
+                                                        // Cancel button - ONLY visible to the leader
                                             if (_isOperationInitiated) ...[
                                               const SizedBox(height: 32),
                                               SizedBox(
@@ -462,9 +472,9 @@ class _OperationsScreenState extends State<OperationsScreen>
                                                 child: Padding(
                                                   padding: const EdgeInsets.symmetric(horizontal: 24),
                                                   child: ElevatedButton(
-                                                    onPressed: _cancelSpecialOperation,
+                                                    onPressed: isLeader ? _cancelSpecialOperation : null,   // ← CHANGED
                                                     style: ElevatedButton.styleFrom(
-                                                      backgroundColor: Colors.red[700],
+                                                      backgroundColor: isLeader ? Colors.red[700] : Colors.grey,
                                                       padding: const EdgeInsets.symmetric(vertical: 18),
                                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                                     ),
@@ -518,35 +528,29 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   // ==================== DYNAMIC PARTY LAYOUT ====================
   Widget _buildPartyLayout() {
-    final currentPlayer = FirebaseAuth.instance.currentUser;
     final stats = SocketService().statsNotifier.value;
+    final party = stats['activeSpecialOperationParty'] as Map<String, dynamic>?;
 
-    List<String> positions;
-    switch (_selectedSpecialOperation) {
-      case 'Raid cartel supply line':
-        positions = ['Operation Leader', 'Rifleman', 'Driver'];
-        break;
-      case 'Bank Heist':
-        positions = ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver'];
-        break;
-      case 'Siege military base':
-        positions = ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver', 'Artilleryman'];
-        break;
-      default:
-        positions = [];
-    }
+    if (party == null) return const SizedBox.shrink();
+
+    final positions = party['positions'] as Map<String, dynamic>? ?? {};
+
+    final bool isLeader = party['leaderEmail'] == FirebaseAuth.instance.currentUser?.email;
 
     return Column(
-      children: positions.map((title) {
-        final bool isLeader = title == 'Operation Leader';
+      children: positions.entries.map((entry) {
+        final title = entry.key;
+        final occupant = entry.value as Map<String, dynamic>?;
+
         return Column(
           children: [
             _buildPositionCard(
               title: title,
-              playerName: isLeader ? (currentPlayer?.displayName ?? 'You') : null,
-              photoURL: isLeader ? currentPlayer?.photoURL : null,
-              rank: isLeader ? _getRankTitle(stats['experience'] ?? 0) : null,
-              isFilled: isLeader,
+              playerName: occupant?['displayName'] ?? (title == 'Operation Leader' ? 'You' : null),
+              photoURL: occupant?['photoURL'],
+              rank: occupant?['rank'],
+              isFilled: occupant != null,
+              isLeaderView: isLeader,           // new flag
             ),
             const SizedBox(height: 16),
           ],
@@ -555,13 +559,14 @@ class _OperationsScreenState extends State<OperationsScreen>
     );
   }
 
-  // ==================== UPDATED POSITION CARD WITH CLICKABLE WEAPON SLOT ====================
+  // ==================== UPDATED POSITION CARD (read-only for non-leaders) ====================
   Widget _buildPositionCard({
     required String title,
     String? playerName,
     String? photoURL,
     String? rank,
     required bool isFilled,
+    required bool isLeaderView,          // ← NEW PARAMETER
   }) {
     final assignedWeapon = _assignedWeapons[title];
 
@@ -608,15 +613,19 @@ class _OperationsScreenState extends State<OperationsScreen>
 
             const SizedBox(height: 16),
 
-            // Weapon rectangle - DISABLED until operation is initiated
+            // Weapon rectangle - DISABLED for non-leaders
             GestureDetector(
-              onTap: _isOperationInitiated ? () => _equipSpecialWeapon(title) : null,
+              onTap: (_isOperationInitiated && isLeaderView)
+                  ? () => _equipSpecialWeapon(title)
+                  : null,
               child: Container(
                 width: 112,
                 height: 60,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _isOperationInitiated ? Colors.orange.withOpacity(0.6) : Colors.grey.withOpacity(0.3),
+                    color: _isOperationInitiated && isLeaderView
+                        ? Colors.orange.withOpacity(0.6)
+                        : Colors.grey.withOpacity(0.3),
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(8),
@@ -637,26 +646,6 @@ class _OperationsScreenState extends State<OperationsScreen>
         ),
       ),
     );
-  }
-
-  String _getRankTitle(int exp) {
-    if (exp <= 49) return 'Beggar';
-    if (exp <= 514) return 'Thug';
-    if (exp <= 1264) return 'Recruit';
-    if (exp <= 2314) return 'Private';
-    if (exp <= 3514) return 'Private First Class';
-    if (exp <= 5014) return 'Corporal';
-    if (exp <= 6864) return 'Sergeant';
-    if (exp <= 8864) return 'Sergeant First Class';
-    if (exp <= 10214) return 'Warrant Officer';
-    if (exp <= 11464) return 'First Lieutenant';
-    if (exp <= 14214) return 'Captain';
-    if (exp <= 17414) return 'Major';
-    if (exp <= 21364) return 'Lieutenant Colonel';
-    if (exp <= 25864) return 'Colonel';
-    if (exp <= 31514) return 'General';
-    if (exp <= 38214) return 'General of the Army';
-    return 'Supreme Commander';
   }
 
   void _showRegularOperationBottomSheet() {
