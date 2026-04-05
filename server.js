@@ -662,9 +662,8 @@ socket.on('respawn', async () => {
     await handleAssignSpecialWeapon(db, socket, data);
   });
 
-  // ==================== ACCEPT SPECIAL OP INVITE ====================
   socket.on('accept-special-op-invite', async (data) => {
-    await handleAcceptSpecialOpInvite(db, socket, data);
+    await handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets });
   });
 
   // ==================== REQUEST PRISON LIST (This was missing) ====================

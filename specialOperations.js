@@ -102,7 +102,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
 }
 
 // ==================== ACCEPT INVITE HANDLER ====================
-async function handleAcceptSpecialOpInvite(db, socket, data) {
+async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) {
   const joinerEmail = socket.data.email;
   const joinerName = socket.data.displayName;
   const { leaderName, position, operation } = data;
@@ -127,7 +127,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data) {
   let leaderData = leaderQuery.docs[0].data();
 
   const party = leaderData.activeSpecialOperationParty;
-  if (!party || party.operation !== operation || party.positions[position] != null) {  // ← FIXED
+  if (!party || party.operation !== operation || party.positions[position] != null) {
     socket.emit('special-op-join-result', { success: false, message: 'Position already taken or operation no longer exists.' });
     return;
   }
