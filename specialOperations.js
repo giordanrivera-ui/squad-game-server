@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { getRankTitle } = require('./combat.js');
 
 // ====================== SPECIAL OPERATIONS MODULE ======================
 const specialOperationConfigs = {
@@ -17,7 +18,7 @@ const specialOperationConfigs = {
 };
 
 // Helper to create a fresh party object
-function createSpecialOperationParty(operation, email, displayName) {
+function createSpecialOperationParty(operation, email, displayName, experience = 0, photoURL = '') {
   const config = specialOperationConfigs[operation];
   if (!config) throw new Error(`Unknown special operation: ${operation}`);
 
@@ -31,9 +32,16 @@ function createSpecialOperationParty(operation, email, displayName) {
   };
 
   config.positions.forEach(pos => {
-    party.positions[pos] = (pos === 'Operation Leader')
-      ? { email, displayName: displayName || 'Leader' }
-      : null;
+    if (pos === 'Operation Leader') {
+      party.positions[pos] = {
+        email,
+        displayName: displayName || 'Leader',
+        photoURL: photoURL || '',
+        rank: getRankTitle(experience)
+      };
+    } else {
+      party.positions[pos] = null;
+    }
   });
 
   return party;
@@ -66,7 +74,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   }
 
   const config = specialOperationConfigs[data.operation];
-  if (!config) {
+ if (!config) {
     socket.emit('special-op-initiated', { success: false, message: 'Unknown special operation.' });
     return;
   }
@@ -81,7 +89,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   }
 
   // Create full party tracking object
-  const party = createSpecialOperationParty(data.operation, email, p.displayName);
+  const party = createSpecialOperationParty(data.operation, email, p.displayName, p.experience || 0, p.photoURL || '');
 
   // Deduct cost
   await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
@@ -112,11 +120,11 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     return;
   }
 
-  // Find leader
+    // Find leader
   const leaderQuery = await db.collection('players')
-    .where('displayName', '==', leaderName)
-    .limit(1)
-    .get();
+  .where('displayName', '==', leaderName)
+  .limit(1)
+  .get();
 
   if (leaderQuery.empty) {
     socket.emit('special-op-join-result', { success: false, message: 'Leader no longer online or operation cancelled.' });
@@ -132,20 +140,21 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     return;
   }
 
-  // Fill the position
+  // Calculate joiner's real rank
+  const joinerDoc = await db.collection('players').doc(joinerEmail).get();
+  const joinerExp = joinerDoc.data()?.experience || 0;
+
   party.positions[position] = {
     email: joinerEmail,
     displayName: joinerName,
     photoURL: socket.data.photoURL || '',
-    rank: '' 
+    rank: getRankTitle(joinerExp)
   };
 
   // Update leader
   await leaderDocRef.update({ activeSpecialOperationParty: party });
 
-  // Give joiner the full party object
-  const joinerDocRef = db.collection('players').doc(joinerEmail);
-  await joinerDocRef.update({
+  await db.collection('players').doc(joinerEmail).update({
     activeSpecialOperation: operation,
     activeSpecialOperationParty: party
   });
@@ -157,7 +166,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     party 
   });
 
-  // Notify leader (live update)
+    // Notify leader (live update)
   const leaderSocket = onlineSockets.get(leaderName);
   if (leaderSocket) {
     leaderSocket.emit('special-op-party-update', { party });
