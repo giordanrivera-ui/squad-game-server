@@ -37,6 +37,8 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> hitExpiredNotifier = ValueNotifier(null);
 
+  final ValueNotifier<Map<String, dynamic>?> specialOpPartyNotifier = ValueNotifier(null);
+
     final ValueNotifier<List<Map<String, dynamic>>> _bondMarketNotifier = ValueNotifier([]);
   List<Map<String, dynamic>> get bondMarket => _bondMarketNotifier.value;
 
@@ -265,13 +267,22 @@ class SocketService {
         }
       });
 
+      socket?.on('special-op-party-update', (data) {
+        if (data is Map && data['party'] != null) {
+          specialOpPartyNotifier.value = Map<String, dynamic>.from(data['party']);
+          
+          // Also keep statsNotifier in sync (for backward compatibility)
+          final currentStats = Map<String, dynamic>.from(statsNotifier.value);
+          currentStats['activeSpecialOperationParty'] = data['party'];
+          statsNotifier.value = currentStats;
+        }
+      });
+
       socket?.on('income-claimed', (data) {
         if (data is Map && data['amount'] is int) {
           incomeClaimedNotifier.value = data['amount'];  // Trigger snackbar in main.dart
         }
       });
-
-      
 
       socket?.on('player-died', (_) {
         deathNotifier.value = true;  // Trigger death UI

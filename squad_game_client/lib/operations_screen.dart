@@ -71,13 +71,6 @@ class _OperationsScreenState extends State<OperationsScreen>
 
     SocketService().socket?.on('operation-result', _onOperationResult);
     SocketService().socket?.on('special-op-initiated', _onSpecialOpInitiated);
-    SocketService().socket?.on('special-op-party-update', (data) {
-      if (data is Map && data['party'] != null && mounted) {
-        final stats = SocketService().statsNotifier.value;
-        stats['activeSpecialOperationParty'] = data['party'];
-        SocketService().statsNotifier.value = {...stats}; // force rebuild
-      }
-    });
 
     _syncSelectedSpecialOpFromServer();
     SocketService().statsNotifier.addListener(_syncSelectedSpecialOpFromServer);
@@ -270,8 +263,6 @@ class _OperationsScreenState extends State<OperationsScreen>
   @override
   Widget build(BuildContext context) {
 
-    final bool isLeader = (SocketService().statsNotifier.value['activeSpecialOperationParty']?['leaderEmail'] == FirebaseAuth.instance.currentUser?.email);
-
     return Scaffold(
       backgroundColor: _isInPrison ? Colors.grey[900] : null,
       body: _isInPrison
@@ -379,128 +370,141 @@ class _OperationsScreenState extends State<OperationsScreen>
                               ),
                             ),
 
-                            // ==================== SPECIAL OPS TAB (updated with locked dropdown) ====================
+                            // ==================== SPECIAL OPS TAB (fixed with instant rank updates) ====================
                             Center(
-                              child: Column(
-                                children: [
-                                  const SizedBox(height: 20),
+                              child: ValueListenableBuilder<Map<String, dynamic>?>(   // ← NEW WRAPPER
+                                valueListenable: SocketService().specialOpPartyNotifier,
+                                builder: (context, partyFromNotifier, child) {
+                                  // Prefer live notifier, fall back to stats (safety)
+                                  final party = partyFromNotifier ?? 
+                                              SocketService().statsNotifier.value['activeSpecialOperationParty'] as Map<String, dynamic>?;
 
-                                  // ==================== DROPDOWN ONLY VISIBLE BEFORE INITIATION ====================
-                                  if (!_isOperationInitiated)
-                                    Container(
-                                      width: 300,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.grey.shade400),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: DropdownButton<String>(
-                                        isExpanded: true,
-                                        hint: const Text('Select Special Op'),
-                                        value: _selectedSpecialOperation,
-                                        items: const [
-                                          DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
-                                          DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
-                                          DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
-                                        ],
-                                        onChanged: _onSpecialOpChanged,
-                                      ),
-                                    ),
+                                  final bool isLeader = (party?['leaderEmail'] as String?) == FirebaseAuth.instance.currentUser?.email;
 
-                                  if (_selectedSpecialOperation != null) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      _selectedSpecialOperation!,
-                                      style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
-                                    ),
-                                    const SizedBox(height: 6),
+                                  return Column(
+                                    children: [
+                                      const SizedBox(height: 20),
 
-                                    // ==================== LOADING / BUTTON / PARTY TEXT ====================
-                                    if (!_isOperationInitiated)
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                                          child: ElevatedButton(
-                                            onPressed: _isInitiating 
-                                            ? null 
-                                            : _initiateSpecialOperation,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red[700],
-                                              padding: const EdgeInsets.symmetric(vertical: 18),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            ),
-                                            child: _isInitiating
-                                                ? const SizedBox(
-                                                  height: 22, 
-                                                  width: 22, 
-                                                  child: CircularProgressIndicator(
-                                                    color: Colors.white, 
-                                                    strokeWidth: 2.5,
-                                                    ),
-                                                  )
-                                                : const Text(
-                                                  'Initiate Special Operation', 
-                                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                                                ),
+                                                              // ==================== DROPDOWN ONLY VISIBLE BEFORE INITIATION ====================
+                                      if (!_isOperationInitiated)
+                                        Container(
+                                          width: 300,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: Colors.grey.shade400),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            isExpanded: true,
+                                            hint: const Text('Select Special Op'),
+                                            value: _selectedSpecialOperation,
+                                            items: const [
+                                              DropdownMenuItem(value: 'Raid cartel supply line', child: Text('Raid cartel supply line')),
+                                              DropdownMenuItem(value: 'Bank Heist', child: Text('Bank Heist')),
+                                              DropdownMenuItem(value: 'Siege military base', child: Text('Siege military base')),
+                                            ],
+                                            onChanged: _onSpecialOpChanged,
                                           ),
                                         ),
-                                      )
-                                    else
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                                        child: Text(
-                                          _getPartySizeText(),
-                                          style: const TextStyle(fontSize: 16, color: Colors.grey),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                    
-                                    const SizedBox(height: 32),
-                                    Expanded(
-                                      child: SingleChildScrollView(
-                                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                                        child: Column(
-                                          children: [
-                                            _buildPartyLayout(),
 
-                                                        // Cancel button - ONLY visible to the leader
-                                            if (_isOperationInitiated) ...[
-                                              const SizedBox(height: 32),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                                                  child: ElevatedButton(
-                                                    onPressed: isLeader ? _cancelSpecialOperation : null,   // ← CHANGED
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: isLeader ? Colors.red[700] : Colors.grey,
-                                                      padding: const EdgeInsets.symmetric(vertical: 18),
-                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                    ),
-                                                    child: const Text(
-                                                      'Cancel Operation',
+                                      if (_selectedSpecialOperation != null) ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          _selectedSpecialOperation!,
+                                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
+                                        ),
+                                        const SizedBox(height: 6),
+
+                                        if (!_isOperationInitiated)
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                                              child: ElevatedButton(
+                                                onPressed: _isInitiating 
+                                                ? null 
+                                                : _initiateSpecialOperation,
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red[700],
+                                                  padding: const EdgeInsets.symmetric(vertical: 18),
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                ),
+                                                child: _isInitiating
+                                                    ? const SizedBox(
+                                                        height: 22, 
+                                                        width: 22, 
+                                                        child: CircularProgressIndicator(
+                                                          color: Colors.white, 
+                                                          strokeWidth: 2.5,
+                                                        ),
+                                                      )
+                                                    : const Text(
+                                                      'Initiate Special Operation', 
                                                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                                                     ),
-                                                  ),
-                                                ),
                                               ),
-                                            ],
-                                          ],
+                                            ),
+                                          )
+                                        else
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                                            child: Text(
+                                              _getPartySizeText(), 
+                                              style: const TextStyle(fontSize: 16, color: Colors.grey),
+                                              textAlign: TextAlign.center,
+                                              ),
+                                          ),
+
+                                        const SizedBox(height: 32),
+                                        Expanded(
+                                          child: SingleChildScrollView(
+                                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                                            child: Column(
+                                              children: [
+                                                if (party != null)
+                                                  _buildPartyLayout(party, isLeader: isLeader)   // ← pass explicitly
+                                                else
+                                                  const Text('Party data not available', style: TextStyle(color: Colors.grey)),
+
+                                                if (_isOperationInitiated) ...[
+                                                  const SizedBox(height: 32),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                                                      child: ElevatedButton(
+                                                        onPressed: isLeader ? _cancelSpecialOperation : null,
+                                                        style: ElevatedButton.styleFrom(
+                                                          backgroundColor: isLeader ? Colors.red[700] : Colors.grey,
+                                                          padding: const EdgeInsets.symmetric(vertical: 18),
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                                        ),
+                                                        child: const Text(
+                                                          'Cancel Operation', 
+                                                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  ] else
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 40),
-                                      child: Text(
-                                        '(Select a Special Op above)', 
-                                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                                      ),
-                                    ),
-                                ],
+                                      ] else
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 40),
+                                          child: Text(
+                                            '(Select a Special Op above)', 
+                                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
                               ),
                             ),
+
                           ],
                         ),
                       ),
@@ -527,38 +531,34 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 
   // ==================== DYNAMIC PARTY LAYOUT ====================
-  Widget _buildPartyLayout() {
-    final stats = SocketService().statsNotifier.value;
-    final party = stats['activeSpecialOperationParty'] as Map<String, dynamic>?;
+Widget _buildPartyLayout(Map<String, dynamic>? party, {required bool isLeader}) {
+  if (party == null) return const SizedBox.shrink();
 
-    if (party == null) return const SizedBox.shrink();
+  final positions = party['positions'] as Map<String, dynamic>? ?? {};
 
-    final positions = party['positions'] as Map<String, dynamic>? ?? {};
+  // No need to calculate isLeader again — we receive it as a parameter
 
-    final bool isLeader = party['leaderEmail'] == FirebaseAuth.instance.currentUser?.email;
+  return Column(
+    children: positions.entries.map((entry) {
+      final title = entry.key;
+      final occupant = entry.value as Map<String, dynamic>?;
 
-    return Column(
-      children: positions.entries.map((entry) {
-        final title = entry.key;
-        final occupant = entry.value as Map<String, dynamic>?;
-
-        return Column(
-          children: [
-            _buildPositionCard(
-              title: title,
-              playerName: occupant?['displayName'] ?? (title == 'Operation Leader' ? 'You' : null),
-              photoURL: occupant?['photoURL'],
-              rank: occupant?['rank'],
-              isFilled: occupant != null,
-              isLeaderView: isLeader,           // new flag
-            ),
-            const SizedBox(height: 16),
-          ],
-        );
-      }).toList(),
-    );
-  }
-
+      return Column(
+        children: [
+          _buildPositionCard(
+            title: title,
+            playerName: occupant?['displayName'] ?? (title == 'Operation Leader' ? 'You' : null),
+            photoURL: occupant?['photoURL'],
+            rank: occupant?['rank'],
+            isFilled: occupant != null,
+            isLeaderView: isLeader,        // ← now uses the consistent one we passed
+          ),
+          const SizedBox(height: 16),
+        ],
+      );
+    }).toList(),
+  );
+}
   // ==================== UPDATED POSITION CARD (read-only for non-leaders) ====================
   Widget _buildPositionCard({
     required String title,
