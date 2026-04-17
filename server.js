@@ -19,7 +19,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
-const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite } = require('./specialOperations.js');
+const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank } = require('./specialOperations.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -41,6 +41,14 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
     playerData.unallocatedAttributePoints += 3;
     console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
+
+    if (playerData.activeSpecialOperationParty) {
+      await require('./specialOperations.js').syncPartyMemberRank(
+        db, 
+        docRef.id,           // player email
+        newRank
+      );
+    }
   }
 
   return playerData;   // IMPORTANT: returns the updated object

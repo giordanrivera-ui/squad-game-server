@@ -233,9 +233,66 @@ async function handleAssignSpecialWeapon(db, socket, data) {
   console.log(`[SPECIAL-OP] ${p.displayName} assigned ${weaponToAssign.name} to ${data.position} (removed from inventory)`);
 }
 
+// ==================== LIVE RANK SYNC FOR SPECIAL OPS PARTY ====================
+async function syncPartyMemberRank(db, playerEmail, newRank) {
+  try {
+    const playerDoc = await db.collection('players').doc(playerEmail).get();
+    const p = playerDoc.data();
+    if (!p?.activeSpecialOperationParty) return;
+
+    const party = p.activeSpecialOperationParty;
+    const leaderEmail = party.leaderEmail;
+
+    let changed = false;
+
+    // Update this player's rank in the party object
+    for (const [position, occupant] of Object.entries(party.positions)) {
+      if (occupant && occupant.email === playerEmail) {
+        if (occupant.rank !== newRank) {
+          occupant.rank = newRank;
+          changed = true;
+        }
+        break;
+      }
+    }
+
+    if (!changed) return;
+
+    // Save the updated party to EVERY member of the party
+    const batch = db.batch();
+    const emailsInParty = Object.values(party.positions)
+      .filter(o => o && o.email)
+      .map(o => o.email);
+
+    for (const email of emailsInParty) {
+      const docRef = db.collection('players').doc(email);
+      batch.update(docRef, { activeSpecialOperationParty: party });
+    }
+
+    await batch.commit();
+
+    // Notify all online party members
+    for (const email of emailsInParty) {
+      const memberDoc = await db.collection('players').doc(email).get();
+      const memberName = memberDoc.data()?.displayName;
+      if (memberName) {
+        const socket = onlineSockets.get(memberName); // onlineSockets is in server.js
+        if (socket) {
+          socket.emit('special-op-party-update', { party });
+        }
+      }
+    }
+
+    console.log(`[SPECIAL-OP] Rank sync: ${playerEmail} → ${newRank}`);
+  } catch (e) {
+    console.error('[SPECIAL-OP] Rank sync error:', e);
+  }
+}
+
 module.exports = {
   handleInitiateSpecialOp,
   handleCancelSpecialOp,
   handleAssignSpecialWeapon,
-  handleAcceptSpecialOpInvite
+  handleAcceptSpecialOpInvite,
+  syncPartyMemberRank   // ← NEW EXPORT
 };
