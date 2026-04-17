@@ -22,13 +22,13 @@ class SocketService {
   // Global live prison list (used by PrisonScreen)
   final ValueNotifier<List<Map<String, dynamic>>> imprisonedPlayersNotifier = ValueNotifier([]);
 
-  // NEW: Rescue celebration trigger (for the nice animation)
+  // Rescue celebration trigger (for the nice animation)
   final ValueNotifier<Map<String, String>?> rescueNotifier = ValueNotifier(null);
 
-    // NEW: Rank-up celebration trigger
+  // Rank-up celebration trigger
   final ValueNotifier<Map<String, String>?> rankUpNotifier = ValueNotifier(null);
 
-    // NEW: Notifier for income claimed (for optional snackbar/UI feedback)
+  // Notifier for income claimed (for optional snackbar/UI feedback)
   final ValueNotifier<int?> incomeClaimedNotifier = ValueNotifier(null);
   
   final ValueNotifier<bool> deathNotifier = ValueNotifier(false);

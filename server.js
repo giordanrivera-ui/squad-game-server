@@ -628,7 +628,7 @@ socket.on('respawn', async () => {
   });
 
   socket.on('cancel-special-op', async () => {
-    await handleCancelSpecialOp(db, socket);
+    await handleCancelSpecialOp(db, socket, { onlineSockets });  // ← NEW: pass onlineSockets
   });
 
   socket.on('assign-special-weapon', async (data) => {

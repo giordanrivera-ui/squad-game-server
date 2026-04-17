@@ -176,7 +176,9 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
 }
 
 // ==================== CANCEL SPECIAL OPERATION ====================
-async function handleCancelSpecialOp(db, socket) {
+async function handleCancelSpecialOp(db, socket, deps = {}) {
+  const { onlineSockets } = deps;   // ← NEW: receive onlineSockets
+
   const email = socket.data.email;
   if (!email) return;
 
@@ -187,12 +189,33 @@ async function handleCancelSpecialOp(db, socket) {
   let p = doc.data();
 
   if (p.activeSpecialOperationParty) {
-    console.log(`[SPECIAL-OP] ${p.displayName || email} cancelled "${p.activeSpecialOperationParty.operation}"`);
+    const leaderName = p.displayName || 'The leader';
+    const operationName = p.activeSpecialOperationParty.operation || 'the operation';
+    const cancelText = `${leaderName} has cancelled the operation.`;
 
-    // Clear both fields
+    console.log(`[SPECIAL-OP] ${leaderName} cancelled "${operationName}"`);
+
+    // ==================== NEW: Notify ALL party members ====================
+    const party = p.activeSpecialOperationParty; // capture before we delete it
+    Object.values(party.positions || {}).forEach((member) => {
+      if (!member || !member.displayName) return;
+
+      const memberSocket = onlineSockets?.get(member.displayName);
+      if (memberSocket) {
+        memberSocket.emit('private-message', {
+          from: leaderName,
+          msg: cancelText,
+          id: `cancel-${Date.now()}`,
+          isSystemCancel: true   // optional flag (client will treat as normal message)
+        });
+      }
+    });
+    // =====================================================================
+
+    // Leader is still cleared exactly as before (members are NOT cleared)
     p.activeSpecialOperation = null;
     delete p.activeSpecialOperationParty;
-
+    
     await docRef.set(p);
     socket.emit('update-stats', p);
   }
