@@ -234,7 +234,8 @@ async function handleAssignSpecialWeapon(db, socket, data) {
 }
 
 // ==================== LIVE RANK SYNC FOR SPECIAL OPS PARTY ====================
-async function syncPartyMemberRank(db, playerEmail, newRank) {
+async function syncPartyMemberRank(db, playerEmail, newRank, { onlineSockets }) {
+  // ← Added { onlineSockets } as 4th parameter
   try {
     const playerDoc = await db.collection('players').doc(playerEmail).get();
     const p = playerDoc.data();
@@ -276,7 +277,7 @@ async function syncPartyMemberRank(db, playerEmail, newRank) {
       const memberDoc = await db.collection('players').doc(email).get();
       const memberName = memberDoc.data()?.displayName;
       if (memberName) {
-        const socket = onlineSockets.get(memberName); // onlineSockets is in server.js
+        const socket = onlineSockets.get(memberName);
         if (socket) {
           socket.emit('special-op-party-update', { party });
         }

@@ -43,11 +43,7 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
 
     if (playerData.activeSpecialOperationParty) {
-      await require('./specialOperations.js').syncPartyMemberRank(
-        db, 
-        docRef.id,           // player email
-        newRank
-      );
+      syncPartyMemberRank(db, docRef.id, newRank, { onlineSockets });
     }
   }
 
