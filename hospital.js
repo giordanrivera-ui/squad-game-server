@@ -1,36 +1,5 @@
 const admin = require('firebase-admin');
-
-// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
-async function logTransaction(socket, amount, description, playerData, docRef) {
-  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
-    console.warn('[TX] Invalid logTransaction call - missing params');
-    return;
-  }
-
-  const newBalance = (playerData.balance || 0) + amount;
-
-  const txData = {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  };
-
-  // Live update to client
-  socket.emit('new-transaction', {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance)
-  });
-
-  // Permanent storage
-  try {
-    await docRef.collection('transactions').add(txData);
-    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
-  } catch (err) {
-    console.error('[TX ERROR] Failed to save transaction:', err);
-  }
-}
+const { logTransaction } = require('./utils');
 
 // ==================== HEAL HANDLER ====================
 async function handleHeal(db, socket) {

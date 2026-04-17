@@ -1,4 +1,3 @@
-// ====================== drivers.js ======================
 const admin = require('firebase-admin');
 
 // ==================== LOCATION-SPECIFIC NAME LISTS ====================
@@ -19,7 +18,7 @@ const valleoraNames = [
   'Alberto', 'Fernando', 'Pablo', 'Pedro', 'Manuel', 'Enrique', 'Andres', 'Raul',
   'Joaquin', 'Alonzo', 'Cristiano', 'Rodrigo', 'Vicente', 'Roberto', 'Gabriel', 'Ricardo',
   'Hugo', 'Julio', 'Tomas', 'Dario', 'Armando', 'Felipe', 'Rolando', 'Esteban', 'Arturo',
-  'Gregorio', 'Álvaro'
+  'Gregorio', 'Álvaro', 'Isidro', 'Ignacio'
 ];
 
 const riverstoneNames = [

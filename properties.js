@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { logTransaction } = require('./utils');
 
 const properties = [
   {
@@ -62,38 +63,6 @@ const properties = [
     description: "A towering architectural marvel housing luxury apartments and offices, representing pinnacle urban development and investment potential."
   }
 ];
-
-// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
-async function logTransaction(socket, amount, description, playerData, docRef) {
-  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
-    console.warn('[TX] Invalid logTransaction call - missing params');
-    return;
-  }
-
-  const newBalance = (playerData.balance || 0) + amount;
-
-  const txData = {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  };
-
-  // Live update to client (for immediate UI)
-  socket.emit('new-transaction', {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance)
-  });
-
-  // Permanent storage on server (always succeeds, uses admin SDK)
-  try {
-    await docRef.collection('transactions').add(txData);
-    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
-  } catch (err) {
-    console.error('[TX ERROR] Failed to save transaction:', err);
-  }
-}
 
 const upgradeCosts = {
   "Fiber Optic": {
@@ -270,60 +239,87 @@ async function handleClaimIncome(db, socket) {
   if (!email) return;
 
   const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
 
-  let p = doc.data();
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(docRef);
+      if (!doc.exists) {
+        return { totalAward: 0 };
+      }
 
-  const now = Date.now();
-  const intervalMs = 2 * 60 * 1000;  // 2 min test; 4*60*60*1000 for prod
+      const p = doc.data();
+      const now = Date.now();
+      const intervalMs = 2 * 60 * 1000;  // 2 min test; 4*60*60*1000 for prod
 
-  let totalAward = 0;
-  let updatedClaims = [];
+      let totalAward = 0;
+      let updatedClaims = [];
 
-  const claims = p.propertyClaims || [];
-  const owned = p.ownedProperties || [];
+      const claims = p.propertyClaims || [];
+      const owned = p.ownedProperties || [];
 
-  // Only process owned properties (in case of future sell/remove)
-  for (const claim of claims) {
-    if (!owned.includes(claim.name)) continue;
+      for (const claim of claims) {
+        if (!owned.includes(claim.name)) continue;
 
-    const prop = properties.find(pr => pr.name === claim.name);
-    if (!prop) continue;
+        const prop = properties.find(pr => pr.name === claim.name);
+        if (!prop) continue;
 
-    const lastClaim = claim.lastClaim || 0;
-    const elapsedMs = now - lastClaim;
-    if (elapsedMs < intervalMs) {
-      updatedClaims.push(claim);  // No change
-      continue;
-    }
+        const lastClaim = claim.lastClaim || 0;
+        const elapsedMs = now - lastClaim;
+        if (elapsedMs < intervalMs) {
+          updatedClaims.push(claim);  // No change
+          continue;
+        }
 
-    const intervals = Math.floor(elapsedMs / intervalMs);
+        const intervals = Math.floor(elapsedMs / intervalMs);
 
-    // Calculate boost
-    const ownedUps = p.ownedUpgrades?.[claim.name] || [];
-    let boost = 0;
-    for (const up of ownedUps) {
-      boost += upgradeBoosts[up]?.[claim.name] || 0;
-    }
+        // Calculate boost (exactly as in original)
+        const ownedUps = p.ownedUpgrades?.[claim.name] || [];
+        let boost = 0;
+        for (const up of ownedUps) {
+          boost += upgradeBoosts[up]?.[claim.name] || 0;
+        }
 
-    const award = intervals * (prop.income + boost);
-    totalAward += award;
+        const award = intervals * (prop.income + boost);
+        totalAward += award;
 
-    // Update this property's lastClaim
-    updatedClaims.push({
-      name: claim.name,
-      lastClaim: lastClaim + (intervals * intervalMs)
+        // Advance this property's lastClaim
+        updatedClaims.push({
+          name: claim.name,
+          lastClaim: lastClaim + (intervals * intervalMs)
+        });
+      }
+
+      // Atomic write — only happens if income was earned
+      if (totalAward > 0) {
+        transaction.update(docRef, {
+          balance: admin.firestore.FieldValue.increment(totalAward),
+          propertyClaims: updatedClaims
+        });
+      }
+
+      return {
+        totalAward,
+        playerBefore: p   // snapshot before the income update (for logging)
+      };
     });
-  }
 
-  if (totalAward > 0) {
-    await logTransaction(socket, totalAward, 'Property Income', p, docRef);   // p = playerData, docRef = the Firestore reference
-    p.balance += totalAward;
-    p.propertyClaims = updatedClaims;  // Save updated per-property claims
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    socket.emit('income-claimed', { amount: totalAward });  // Optional notify
+    const { totalAward, playerBefore } = result;
+
+    // Only proceed with logging + emit if income was actually awarded
+    if (totalAward > 0) {
+      await logTransaction(socket, totalAward, 'Property Income', playerBefore, docRef);
+
+      // Send fresh player data to client (one final read after the atomic update)
+      const freshDoc = await docRef.get();
+      socket.emit('update-stats', freshDoc.data());
+      socket.emit('income-claimed', { amount: totalAward });
+    }
+  } catch (error) {
+    console.error('[CLAIM ERROR] Transaction failed for', email, error);
+    socket.emit('income-claimed', { 
+      success: false, 
+      message: 'Claim failed — please try again.' 
+    });
   }
 }
 

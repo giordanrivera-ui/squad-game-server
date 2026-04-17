@@ -1,42 +1,10 @@
 const admin = require('firebase-admin');
-
+const { logTransaction } = require('./utils');
 const { markPlayerAsDead } = require('./combat.js');
 
 const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
-
-// ==================== IMPROVED TRANSACTION LOGGER (Server-side persistence) ====================
-async function logTransaction(socket, amount, description, playerData, docRef) {
-  if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
-    console.warn('[TX] Invalid logTransaction call - missing params');
-    return;
-  }
-
-  const newBalance = (playerData.balance || 0) + amount;
-
-  const txData = {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  };
-
-  // Live update to client (for immediate UI)
-  socket.emit('new-transaction', {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance)
-  });
-
-  // Permanent storage on server (always succeeds, uses admin SDK)
-  try {
-    await docRef.collection('transactions').add(txData);
-    console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
-  } catch (err) {
-    console.error('[TX ERROR] Failed to save transaction:', err);
-  }
-}
 
 async function handleExecuteOperation(db, socket, data, deps) {
   const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
