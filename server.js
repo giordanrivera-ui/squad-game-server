@@ -593,7 +593,7 @@ socket.on('respawn', async () => {
 
     // Deduct from poster
     await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-    await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, p, docRef);   // p = playerData, docRef = the Firestore reference
+    await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, posterDoc.data(), posterDoc.ref);
 
     const updatedPoster = await posterDoc.ref.get();
     socket.emit('update-stats', updatedPoster.data());
