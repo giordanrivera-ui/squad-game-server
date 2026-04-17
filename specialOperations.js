@@ -177,48 +177,86 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
 
 // ==================== CANCEL SPECIAL OPERATION ====================
 async function handleCancelSpecialOp(db, socket, deps = {}) {
-  const { onlineSockets } = deps;   // ← NEW: receive onlineSockets
+  const { onlineSockets } = deps;
 
   const email = socket.data.email;
   if (!email) return;
 
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
+  // Fetch the player who is trying to cancel
+  const callerDocRef = db.collection('players').doc(email);
+  const callerDoc = await callerDocRef.get();
+  if (!callerDoc.exists) return;
 
-  let p = doc.data();
+  let callerData = callerDoc.data();
 
-  if (p.activeSpecialOperationParty) {
-    const leaderName = p.displayName || 'The leader';
-    const operationName = p.activeSpecialOperationParty.operation || 'the operation';
-    const cancelText = `${leaderName} has cancelled the operation.`;
+  const party = callerData.activeSpecialOperationParty;
+  if (!party) return;   // not in any operation
 
-    console.log(`[SPECIAL-OP] ${leaderName} cancelled "${operationName}"`);
+  // ==================== NEW: ONLY LEADER CAN CANCEL ====================
+  if (party.leaderEmail !== email) {
+    socket.emit('error', { 
+      message: '❌ Only the Operation Leader can cancel this special operation.' 
+    });
+    console.log(`[SPECIAL-OP] Non-leader ${callerData.displayName || email} tried to cancel — blocked`);
+    return;
+  }
+  // ===================================================================
 
-    // ==================== NEW: Notify ALL party members ====================
-    const party = p.activeSpecialOperationParty; // capture before we delete it
+  const leaderName = callerData.displayName || 'The leader';
+  const cancelText = `${leaderName} has cancelled the operation.`;
+
+  console.log(`[SPECIAL-OP] ${leaderName} cancelled "${party.operation || 'operation'}"`);
+
+  // Collect all member emails (including leader)
+  const memberEmails = Object.values(party.positions || {})
+    .filter(m => m && m.email)
+    .map(m => m.email);
+
+  // === BATCH CLEAR FOR EVERY MEMBER ===
+  const batch = db.batch();
+  for (const memberEmail of memberEmails) {
+    const memberRef = db.collection('players').doc(memberEmail);
+    batch.update(memberRef, {
+      activeSpecialOperation: null,
+      activeSpecialOperationParty: admin.firestore.FieldValue.delete()
+    });
+  }
+  await batch.commit();
+
+  // Send the cancellation message to all online members
+  if (onlineSockets) {
     Object.values(party.positions || {}).forEach((member) => {
-      if (!member || !member.displayName) return;
+      if (!member?.displayName) return;
 
-      const memberSocket = onlineSockets?.get(member.displayName);
+      const memberSocket = onlineSockets.get(member.displayName);
       if (memberSocket) {
         memberSocket.emit('private-message', {
           from: leaderName,
           msg: cancelText,
           id: `cancel-${Date.now()}`,
-          isSystemCancel: true   // optional flag (client will treat as normal message)
+          isSystemCancel: true
         });
       }
     });
-    // =====================================================================
-
-    // Leader is still cleared exactly as before (members are NOT cleared)
-    p.activeSpecialOperation = null;
-    delete p.activeSpecialOperationParty;
-    
-    await docRef.set(p);
-    socket.emit('update-stats', p);
   }
+
+  // === LIVE UI UPDATE FOR ALL ONLINE MEMBERS ===
+  if (onlineSockets) {
+    Object.values(party.positions || {}).forEach((member) => {
+      if (!member?.displayName) return;
+      const memberSocket = onlineSockets.get(member.displayName);
+      if (memberSocket) {
+        memberSocket.emit('update-stats', {
+          activeSpecialOperation: null,
+          activeSpecialOperationParty: null
+        });
+
+        memberSocket.emit('special-op-party-update', { party: null });
+      }
+    });
+  }
+
+  console.log(`[SPECIAL-OP] Cleared special operation for all ${memberEmails.length} party members`);
 }
 
 // ==================== ASSIGN SPECIAL-OP WEAPON ====================
