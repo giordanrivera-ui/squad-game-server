@@ -159,18 +159,16 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     activeSpecialOperationParty: party
   });
 
-  // Notify both
-  socket.emit('special-op-join-result', { 
-    success: true, 
-    message: `You joined as ${position}!`,
-    party 
-  });
+  // ==================== NEW BROADCAST TO EVERYONE ====================
+  const updatedPartyPayload = { party };
 
-    // Notify leader (live update)
-  const leaderSocket = onlineSockets.get(leaderName);
-  if (leaderSocket) {
-    leaderSocket.emit('special-op-party-update', { party });
-  }
+  Object.values(party.positions || {}).forEach((member) => {
+    if (!member?.displayName) return;
+    const memberSocket = onlineSockets.get(member.displayName);
+    if (memberSocket) {
+      memberSocket.emit('special-op-party-update', updatedPartyPayload);
+    }
+  });
 
   console.log(`[SPECIAL-OP] ${joinerName} joined ${operation} as ${position}`);
 }
