@@ -19,7 +19,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
-const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank } = require('./specialOperations.js');
+const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp } = require('./specialOperations.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -630,6 +630,8 @@ socket.on('respawn', async () => {
   socket.on('cancel-special-op', async () => {
     await handleCancelSpecialOp(db, socket, { onlineSockets });  // ← NEW: pass onlineSockets
   });
+
+  socket.on('leave-special-op', () => handleLeaveSpecialOp(db, socket, { onlineSockets }));
 
   socket.on('assign-special-weapon', async (data) => {
     await handleAssignSpecialWeapon(db, socket, data);

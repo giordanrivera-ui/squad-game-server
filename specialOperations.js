@@ -358,10 +358,91 @@ async function syncPartyMemberRank(db, playerEmail, newRank, { onlineSockets }) 
   }
 }
 
+// ==================== LEAVE SPECIAL OPERATION (Non-leader only) ====================
+async function handleLeaveSpecialOp(db, socket, deps = {}) {
+  const { onlineSockets } = deps;
+  const email = socket.data.email;
+  const displayName = socket.data.displayName || 'A player';
+
+  if (!email) return;
+
+  const playerDocRef = db.collection('players').doc(email);
+  const playerDoc = await playerDocRef.get();
+  if (!playerDoc.exists) return;
+
+  let playerData = playerDoc.data();
+  const party = playerData.activeSpecialOperationParty;
+
+  if (!party) {
+    socket.emit('error', { message: 'You are not in any special operation.' });
+    return;
+  }
+
+  // Safety: leaders must use Cancel instead
+  if (party.leaderEmail === email) {
+    socket.emit('error', { message: '❌ Leaders must use "Cancel Operation".' });
+    return;
+  }
+
+  // Find which position this player occupies
+  let positionToRemove = null;
+  for (const [pos, occupant] of Object.entries(party.positions || {})) {
+    if (occupant && occupant.email === email) {
+      positionToRemove = pos;
+      break;
+    }
+  }
+  if (!positionToRemove) return;
+
+  // Remove player from party
+  party.positions[positionToRemove] = null;
+
+  // Clear the leaver completely
+  await playerDocRef.update({
+    activeSpecialOperation: admin.firestore.FieldValue.delete(),
+    activeSpecialOperationParty: admin.firestore.FieldValue.delete()
+  });
+
+  // Update remaining members with the new (smaller) party
+  const remainingEmails = Object.values(party.positions)
+    .filter(m => m && m.email)
+    .map(m => m.email);
+
+  if (remainingEmails.length > 0) {
+    const batch = db.batch();
+    for (const remEmail of remainingEmails) {
+      const ref = db.collection('players').doc(remEmail);
+      batch.update(ref, { activeSpecialOperationParty: party });
+    }
+    await batch.commit();
+  }
+
+  // Broadcast updated party to everyone still in the party
+  if (onlineSockets) {
+    Object.values(party.positions).forEach((member) => {
+      if (!member?.displayName) return;
+      const memberSocket = onlineSockets.get(member.displayName);
+      if (memberSocket) {
+        memberSocket.emit('special-op-party-update', { party });
+      }
+    });
+  }
+
+  // Clear UI for the player who just left
+  socket.emit('special-op-party-update', { party: null });
+  socket.emit('update-stats', {
+    activeSpecialOperation: null,
+    activeSpecialOperationParty: null
+  });
+
+  console.log(`[SPECIAL-OP] ${displayName} left the operation (removed from ${positionToRemove})`);
+}
+
 module.exports = {
   handleInitiateSpecialOp,
   handleCancelSpecialOp,
   handleAssignSpecialWeapon,
   handleAcceptSpecialOpInvite,
-  syncPartyMemberRank   // ← NEW EXPORT
+  syncPartyMemberRank,
+  handleLeaveSpecialOp,
 };

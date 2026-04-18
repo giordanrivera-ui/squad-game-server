@@ -617,6 +617,11 @@ class SocketService {
     });
   }
 
+  // ==================== LEAVE SPECIAL OPERATION ====================
+  void leaveSpecialOperation() {
+    socket?.emit('leave-special-op');
+  }
+
   void buyProperty(String name) => socket?.emit('buy-property', name);
 
   void buyUpgrade(String propertyName, String upgradeName) {
