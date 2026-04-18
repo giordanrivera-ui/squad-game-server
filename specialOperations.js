@@ -170,6 +170,15 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     }
   });
 
+  const joinerSocket = onlineSockets.get(joinerName);
+  if (joinerSocket) {
+    // Send the full player object (or at least the relevant fields) so statsNotifier updates
+    joinerSocket.emit('update-stats', {
+      activeSpecialOperation: operation,
+      activeSpecialOperationParty: party
+    });
+  }
+
   console.log(`[SPECIAL-OP] ${joinerName} joined ${operation} as ${position}`);
 }
 
