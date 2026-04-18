@@ -150,6 +150,13 @@ class _OperationsScreenState extends State<OperationsScreen>
     });
   }
 
+  // ==================== LEAVE OPERATION (for non-leaders) ====================
+  void _leaveSpecialOperation() {
+    // For now, clicking does nothing (exactly as you requested)
+    // TODO: Later we will add the real logic here (notify server, remove player from party, etc.)
+    print('🔹 Non-leader clicked "Leave Operation"');
+  }
+
   @override
   void dispose() {
     _initiateTimer?.cancel();
@@ -467,26 +474,30 @@ class _OperationsScreenState extends State<OperationsScreen>
                                                   const Text('Party data not available', style: TextStyle(color: Colors.grey)),
 
                                                 if (_isOperationInitiated) ...[
-                                                  const SizedBox(height: 32),
-                                                  SizedBox(
-                                                    width: double.infinity,
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                                                      child: ElevatedButton(
-                                                        onPressed: isLeader ? _cancelSpecialOperation : null,
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: isLeader ? Colors.red[700] : Colors.grey,
-                                                          padding: const EdgeInsets.symmetric(vertical: 18),
-                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                                        ),
-                                                        child: const Text(
-                                                          'Cancel Operation', 
-                                                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+  const SizedBox(height: 32),
+  SizedBox(
+    width: double.infinity,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: ElevatedButton(
+        onPressed: isLeader ? _cancelSpecialOperation : _leaveSpecialOperation,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isLeader ? Colors.red[700] : Colors.orange[600],
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Text(
+          isLeader ? 'Cancel Operation' : 'Leave Operation',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    ),
+  ),
+],
                                               ],
                                             ),
                                           ),
