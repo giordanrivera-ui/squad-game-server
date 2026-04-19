@@ -20,6 +20,7 @@ const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = requ
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp } = require('./specialOperations.js');
+const { courseTemplates, handleRequestCourses } = require('./courses.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -537,6 +538,11 @@ socket.on('respawn', async () => {
     } catch (error) {
       console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
     }
+  });
+
+  // ==================== COURSES ====================
+  socket.on('request-courses', () => {
+    handleRequestCourses(socket);
   });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================

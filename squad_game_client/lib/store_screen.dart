@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'armor_page.dart';
 import 'vehicles_page.dart';
 import 'weapons_page.dart';
+import 'courses_page.dart';
 
 class StoreScreen extends StatelessWidget {
   final int currentBalance;
@@ -76,9 +77,9 @@ class StoreScreen extends StatelessWidget {
         'title': 'Courses',
         'image': 'assets/store_courses.jpg',
         'onTap': () {
-          // TODO: implement Courses page later
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Courses coming soon!')),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CoursesPage()),
           );
         },
       },

@@ -7,8 +7,10 @@ class SocketEvents {
   static const String updateStats = 'update-stats';
   static const String onlinePlayers = 'online-players';
   static const String travel = 'travel';
-  static const String privateMessage = 'private-message';   // ← NEW
-  static const String announcement = 'announcement';        // ← NEW for mods
+  static const String privateMessage = 'private-message';
+  static const String announcement = 'announcement';
+  static const String coursesList = 'courses-list';
+  static const String requestCourses = 'request-courses';
 }
 
 class GameConstants {

@@ -633,7 +633,7 @@ Widget _buildPositionCard({
                 ? () => _equipSpecialWeapon(title)
                 : null,
             child: Container(
-              width: 112,
+              width: 115,
               height: 60,
               decoration: BoxDecoration(
                 border: Border.all(
@@ -642,7 +642,7 @@ Widget _buildPositionCard({
                       : Colors.grey.withOpacity(0.3),
                   width: 2,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(9.5),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),

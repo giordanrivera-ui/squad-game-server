@@ -39,6 +39,8 @@ class SocketService {
 
   final ValueNotifier<Map<String, dynamic>?> specialOpPartyNotifier = ValueNotifier(null);
 
+  final ValueNotifier<List<Map<String, dynamic>>> coursesNotifier = ValueNotifier([]);
+
     final ValueNotifier<List<Map<String, dynamic>>> _bondMarketNotifier = ValueNotifier([]);
   List<Map<String, dynamic>> get bondMarket => _bondMarketNotifier.value;
 
@@ -239,6 +241,12 @@ class SocketService {
           if (data['cooldownEndTime'] is num) {
             bondMarketCooldownEndNotifier.value = (data['cooldownEndTime'] as num).toInt();
           }
+        }
+      });
+
+      socket?.on(SocketEvents.coursesList, (data) {
+        if (data is List) {
+          coursesNotifier.value = List<Map<String, dynamic>>.from(data);
         }
       });
 
@@ -511,6 +519,10 @@ class SocketService {
       'items': items,
       'totalCost': totalCost,
     });
+  }
+
+  void requestCourses() {
+    socket?.emit(SocketEvents.requestCourses);
   }
 
   void equipArmor(String slot, Map<String, dynamic> item) {
