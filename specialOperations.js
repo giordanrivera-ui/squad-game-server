@@ -309,14 +309,22 @@ async function handleAssignSpecialWeapon(db, socket, data, { onlineSockets }) {
   // === MOVE WEAPON TO PARTY ===
   const removedWeapon = p.inventory.splice(index, 1)[0];
 
- // Store full weapon object inside the position
+  // ==================== NEW: RETURN OLD WEAPON TO INVENTORY ====================
+  const existingWeapon = party.positions[position].weapon;
+  if (existingWeapon) {
+    p.inventory.push(existingWeapon);
+    console.log(`[SPECIAL-OP] Returned old weapon "${existingWeapon.name}" to ${p.displayName}'s inventory`);
+  }
+  // =====================================================================
+
+  // Store full weapon object inside the position
   party.positions[position].weapon = removedWeapon;
 
   // === SAVE LEADER'S INVENTORY FIRST ===
   await docRef.set(p);
 
   // === CRITICAL: DEEP CLONE BEFORE BROADCAST ===
-  const freshParty = JSON.parse(JSON.stringify(party));   // ← NEW
+  const freshParty = JSON.parse(JSON.stringify(party));
 
   // Save to all members
   const memberEmails = Object.values(party.positions)
@@ -335,7 +343,7 @@ async function handleAssignSpecialWeapon(db, socket, data, { onlineSockets }) {
     if (!member?.displayName) return;
     const memberSocket = onlineSockets.get(member.displayName);
     if (memberSocket) {
-      memberSocket.emit('special-op-party-update', { party: freshParty });   // ← use freshParty
+      memberSocket.emit('special-op-party-update', { party: freshParty });
     }
   });
 
