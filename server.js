@@ -634,7 +634,7 @@ socket.on('respawn', async () => {
   socket.on('leave-special-op', () => handleLeaveSpecialOp(db, socket, { onlineSockets }));
 
   socket.on('assign-special-weapon', async (data) => {
-    await handleAssignSpecialWeapon(db, socket, data);
+    await handleAssignSpecialWeapon(db, socket, data, { onlineSockets });
   });
 
   socket.on('accept-special-op-invite', async (data) => {
