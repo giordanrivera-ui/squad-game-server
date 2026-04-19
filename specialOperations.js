@@ -267,7 +267,7 @@ async function handleCancelSpecialOp(db, socket, deps = {}) {
 }
 
 // ==================== ASSIGN SPECIAL-OP WEAPON (UPDATED - STORES WEAPON IN PARTY) ====================
-async function handleAssignSpecialWeapon(db, socket, data) {
+async function handleAssignSpecialWeapon(db, socket, data, { onlineSockets }) {
   const email = socket.data.email;
   if (!email || !data?.weapon || !data?.position) {
     socket.emit('error', { message: 'Invalid special weapon assignment.' });
@@ -309,13 +309,16 @@ async function handleAssignSpecialWeapon(db, socket, data) {
   // === MOVE WEAPON TO PARTY ===
   const removedWeapon = p.inventory.splice(index, 1)[0];
 
-  // Store full weapon object inside the position
+ // Store full weapon object inside the position
   party.positions[position].weapon = removedWeapon;
 
-  // Save updated inventory for the assigner
+  // === SAVE LEADER'S INVENTORY FIRST ===
   await docRef.set(p);
 
-  // === UPDATE PARTY FOR ALL MEMBERS ===
+  // === CRITICAL: DEEP CLONE BEFORE BROADCAST ===
+  const freshParty = JSON.parse(JSON.stringify(party));   // ← NEW
+
+  // Save to all members
   const memberEmails = Object.values(party.positions)
     .filter(m => m && m.email)
     .map(m => m.email);
@@ -323,24 +326,19 @@ async function handleAssignSpecialWeapon(db, socket, data) {
   const batch = db.batch();
   for (const memberEmail of memberEmails) {
     const memberRef = db.collection('players').doc(memberEmail);
-    batch.update(memberRef, { 
-      activeSpecialOperationParty: party 
-    });
+    batch.update(memberRef, { activeSpecialOperationParty: freshParty });
   }
   await batch.commit();
 
-  // Notify everyone in the party (including leader)
-  if (onlineSockets) {
-    Object.values(party.positions).forEach((member) => {
-      if (!member?.displayName) return;
-      const memberSocket = onlineSockets.get(member.displayName);
-      if (memberSocket) {
-        memberSocket.emit('special-op-party-update', { party });
-      }
-    });
-  }
+  // Emit fresh copy to everyone
+  Object.values(party.positions).forEach((member) => {
+    if (!member?.displayName) return;
+    const memberSocket = onlineSockets.get(member.displayName);
+    if (memberSocket) {
+      memberSocket.emit('special-op-party-update', { party: freshParty });   // ← use freshParty
+    }
+  });
 
-  // Also update leader's own stats (inventory is now smaller)
   socket.emit('update-stats', p);
 
   console.log(`[SPECIAL-OP] ${p.displayName} assigned ${removedWeapon.name} to ${position}`);

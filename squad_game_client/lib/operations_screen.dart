@@ -566,6 +566,7 @@ Widget _buildPartyLayout(Map<String, dynamic>? party, {required bool isLeader}) 
             rank: occupant?['rank'],
             isFilled: occupant != null,
             isLeaderView: isLeader,        // ← now uses the consistent one we passed
+            weapon: occupant?['weapon'],
           ),
           const SizedBox(height: 16),
         ],

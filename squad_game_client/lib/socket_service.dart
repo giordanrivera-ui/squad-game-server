@@ -268,27 +268,26 @@ class SocketService {
       });
 
       socket?.on('special-op-party-update', (data) {
-        if (data is Map) {
-          final partyData = data['party'];
+  if (data is Map) {
+    final partyData = data['party'];
 
-          if (partyData != null) {
-            specialOpPartyNotifier.value = Map<String, dynamic>.from(partyData);
-            
-            // Also keep statsNotifier in sync (for backward compatibility)
-            final currentStats = Map<String, dynamic>.from(statsNotifier.value);
-            currentStats['activeSpecialOperationParty'] = partyData;
-            statsNotifier.value = currentStats;
-          } else {
-            // NEW: Clear the notifier when party is explicitly null (cancel case)
-            specialOpPartyNotifier.value = null;
-            
-            // Optional but nice: also make sure stats is cleared
-            final currentStats = Map<String, dynamic>.from(statsNotifier.value);
-            currentStats['activeSpecialOperationParty'] = null;
-            statsNotifier.value = currentStats;
-          }
-        }
-      });
+    if (partyData != null) {
+      // Force a completely new object to guarantee rebuild
+      final freshParty = Map<String, dynamic>.from(partyData);   // deep enough for our needs
+      specialOpPartyNotifier.value = freshParty;
+
+      // Also sync to statsNotifier
+      final currentStats = Map<String, dynamic>.from(statsNotifier.value);
+      currentStats['activeSpecialOperationParty'] = freshParty;
+      statsNotifier.value = currentStats;
+    } else {
+      specialOpPartyNotifier.value = null;
+      final currentStats = Map<String, dynamic>.from(statsNotifier.value);
+      currentStats['activeSpecialOperationParty'] = null;
+      statsNotifier.value = currentStats;
+    }
+  }
+});
 
       socket?.on('special-op-join-result', (data) {
         if (data is Map && data['success'] == true && data['party'] != null) {
