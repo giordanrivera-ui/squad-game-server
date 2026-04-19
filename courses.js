@@ -126,5 +126,6 @@ module.exports = {
 
 module.exports = {
   courseTemplates,
-  handleRequestCourses
+  handleRequestCourses,
+  handlePurchaseCourse
 };
