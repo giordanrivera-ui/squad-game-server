@@ -38,7 +38,7 @@ const courseTemplates = [
     id: "hr-research",
     name: "Human Resource Research",
     cost: 2500,
-    durationMinutes: 5,
+    durationMinutes: 2,
     effect: "Increases the average quality of the drivers you will scout in Taxi Tycoon.",
     requirements: "None"
   },
