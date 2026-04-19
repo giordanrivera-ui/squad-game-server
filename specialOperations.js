@@ -266,7 +266,7 @@ async function handleCancelSpecialOp(db, socket, deps = {}) {
   console.log(`[SPECIAL-OP] Cleared special operation for all ${memberEmails.length} party members`);
 }
 
-// ==================== ASSIGN SPECIAL-OP WEAPON ====================
+// ==================== ASSIGN SPECIAL-OP WEAPON (UPDATED - STORES WEAPON IN PARTY) ====================
 async function handleAssignSpecialWeapon(db, socket, data) {
   const email = socket.data.email;
   if (!email || !data?.weapon || !data?.position) {
@@ -279,8 +279,21 @@ async function handleAssignSpecialWeapon(db, socket, data) {
   if (!doc.exists) return;
 
   let p = doc.data();
+  if (!p.activeSpecialOperationParty) {
+    socket.emit('error', { message: 'You are not in a special operation.' });
+    return;
+  }
 
-  // Find and remove the weapon from inventory
+  const party = p.activeSpecialOperationParty;
+  const position = data.position;
+
+  // Check position actually exists and is occupied by someone (including self)
+  if (!party.positions[position]) {
+    socket.emit('error', { message: 'Invalid position.' });
+    return;
+  }
+
+  // Find and remove weapon from inventory
   const weaponToAssign = data.weapon;
   const index = p.inventory.findIndex(i =>
     i.name === weaponToAssign.name &&
@@ -293,12 +306,44 @@ async function handleAssignSpecialWeapon(db, socket, data) {
     return;
   }
 
-  p.inventory.splice(index, 1);
+  // === MOVE WEAPON TO PARTY ===
+  const removedWeapon = p.inventory.splice(index, 1)[0];
 
+  // Store full weapon object inside the position
+  party.positions[position].weapon = removedWeapon;
+
+  // Save updated inventory for the assigner
   await docRef.set(p);
+
+  // === UPDATE PARTY FOR ALL MEMBERS ===
+  const memberEmails = Object.values(party.positions)
+    .filter(m => m && m.email)
+    .map(m => m.email);
+
+  const batch = db.batch();
+  for (const memberEmail of memberEmails) {
+    const memberRef = db.collection('players').doc(memberEmail);
+    batch.update(memberRef, { 
+      activeSpecialOperationParty: party 
+    });
+  }
+  await batch.commit();
+
+  // Notify everyone in the party (including leader)
+  if (onlineSockets) {
+    Object.values(party.positions).forEach((member) => {
+      if (!member?.displayName) return;
+      const memberSocket = onlineSockets.get(member.displayName);
+      if (memberSocket) {
+        memberSocket.emit('special-op-party-update', { party });
+      }
+    });
+  }
+
+  // Also update leader's own stats (inventory is now smaller)
   socket.emit('update-stats', p);
 
-  console.log(`[SPECIAL-OP] ${p.displayName} assigned ${weaponToAssign.name} to ${data.position} (removed from inventory)`);
+  console.log(`[SPECIAL-OP] ${p.displayName} assigned ${removedWeapon.name} to ${position}`);
 }
 
 // ==================== LIVE RANK SYNC FOR SPECIAL OPS PARTY ====================

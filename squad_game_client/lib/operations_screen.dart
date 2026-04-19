@@ -573,94 +573,93 @@ Widget _buildPartyLayout(Map<String, dynamic>? party, {required bool isLeader}) 
     }).toList(),
   );
 }
-  // ==================== UPDATED POSITION CARD (read-only for non-leaders) ====================
-  Widget _buildPositionCard({
-    required String title,
-    String? playerName,
-    String? photoURL,
-    String? rank,
-    required bool isFilled,
-    required bool isLeaderView,          // ← NEW PARAMETER
-  }) {
-    final assignedWeapon = _assignedWeapons[title];
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Player info
-            Row(
-              children: [
-                if (isFilled && photoURL != null)
-                  CircleAvatar(radius: 28, backgroundImage: NetworkImage(photoURL))
-                else if (isFilled)
-                  const CircleAvatar(radius: 28, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 32))
-                else
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.person_add, size: 32, color: Colors.grey),
-                  ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 4),
-                      if (isFilled)
-                        Text(playerName ?? '', style: const TextStyle(fontSize: 16))
-                      else
-                        const Text('Vacant — Invite another player',
-                            style: TextStyle(fontSize: 15, color: Colors.grey, fontStyle: FontStyle.italic)),
-                      if (isFilled && rank != null)
-                        Text(rank, style: const TextStyle(fontSize: 14, color: Colors.orangeAccent)),
-                    ],
-                  ),
+  // ==================== UPDATED POSITION CARD (now reads from party) ====================
+Widget _buildPositionCard({
+  required String title,
+  String? playerName,
+  String? photoURL,
+  String? rank,
+  required bool isFilled,
+  required bool isLeaderView,
+  Map<String, dynamic>? weapon,   // ← NEW: weapon from party
+}) {
+  return Card(
+    elevation: 4,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Player info (unchanged)
+          Row(
+            children: [
+              if (isFilled && photoURL != null)
+                CircleAvatar(radius: 28, backgroundImage: NetworkImage(photoURL))
+              else if (isFilled)
+                const CircleAvatar(radius: 28, backgroundColor: Colors.grey, child: Icon(Icons.person, size: 32))
+              else
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.person_add, size: 32, color: Colors.grey),
                 ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Weapon rectangle - DISABLED for non-leaders
-            GestureDetector(
-              onTap: (_isOperationInitiated && isLeaderView)
-                  ? () => _equipSpecialWeapon(title)
-                  : null,
-              child: Container(
-                width: 112,
-                height: 60,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _isOperationInitiated && isLeaderView
-                        ? Colors.orange.withOpacity(0.6)
-                        : Colors.grey.withOpacity(0.3),
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: assignedWeapon != null
-                      ? Image.asset(
-                          'assets/${assignedWeapon['name']}.jpg',
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
-                        )
-                      : Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    if (isFilled)
+                      Text(playerName ?? '', style: const TextStyle(fontSize: 16))
+                    else
+                      const Text('Vacant — Invite another player',
+                          style: TextStyle(fontSize: 15, color: Colors.grey, fontStyle: FontStyle.italic)),
+                    if (isFilled && rank != null)
+                      Text(rank, style: const TextStyle(fontSize: 14, color: Colors.orangeAccent)),
+                  ],
                 ),
               ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ==================== WEAPON DISPLAY (now from party data) ====================
+          GestureDetector(
+            onTap: (_isOperationInitiated && isLeaderView)
+                ? () => _equipSpecialWeapon(title)
+                : null,
+            child: Container(
+              width: 112,
+              height: 60,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _isOperationInitiated && isLeaderView
+                      ? Colors.orange.withOpacity(0.6)
+                      : Colors.grey.withOpacity(0.3),
+                  width: 2,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: weapon != null
+                    ? Image.asset(
+                        'assets/${weapon['name']}.jpg',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
+                      )
+                    : Image.asset('assets/weapon-empty.jpg', fit: BoxFit.cover),
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showRegularOperationBottomSheet() {
     if (_isInPrison) return;
