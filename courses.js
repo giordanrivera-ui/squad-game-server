@@ -1,4 +1,6 @@
-// courses.js
+const admin = require('firebase-admin');
+const { logTransaction } = require('./utils');
+
 const courseTemplates = [
   {
     id: "basic-combat",
@@ -33,6 +35,14 @@ const courseTemplates = [
     requirements: "Own at least 1 vehicle in fleet"
   },
   {
+    id: "hr-research",
+    name: "Human Resource Research",
+    cost: 2500,
+    durationMinutes: 5,
+    effect: "Increases the average quality of the drivers you will scout in Taxi Tycoon.",
+    requirements: "None"
+  },
+  {
     id: "business-acumen",
     name: "Business & Property Acumen",
     cost: 3100,
@@ -61,6 +71,58 @@ const courseTemplates = [
 async function handleRequestCourses(socket) {
   socket.emit('courses-list', courseTemplates);
 }
+
+// ==================== PURCHASE COURSE ====================
+async function handlePurchaseCourse(db, socket, courseId) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+
+  const course = courseTemplates.find(c => c.id === courseId);
+  if (!course) {
+    socket.emit('course-result', { success: false, message: 'Course not found.' });
+    return;
+  }
+
+  if ((p.balance || 0) < course.cost) {
+    socket.emit('course-result', { success: false, message: 'Not enough money.' });
+    return;
+  }
+
+  // Deduct cost immediately
+  await logTransaction(socket, -course.cost, `Course Purchased: ${course.name}`, p, docRef);
+  p.balance -= course.cost;
+
+  // Record completion time (effect activates after duration)
+  if (!p.completedCourses) p.completedCourses = [];
+  const now = Date.now();
+  const completionTime = now + (course.durationMinutes * 60 * 1000);
+
+  p.completedCourses.push({
+    id: course.id,
+    name: course.name,
+    completionTime: completionTime
+  });
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+
+  socket.emit('course-result', {
+    success: true,
+    message: `✅ Enrolled in ${course.name}! Effect activates in ${course.durationMinutes} minutes.`
+  });
+}
+
+module.exports = {
+  courseTemplates,
+  handleRequestCourses,
+  handlePurchaseCourse
+};
 
 module.exports = {
   courseTemplates,

@@ -41,6 +41,8 @@ class SocketService {
 
   final ValueNotifier<List<Map<String, dynamic>>> coursesNotifier = ValueNotifier([]);
 
+  final ValueNotifier<String?> courseResultNotifier = ValueNotifier(null);
+
     final ValueNotifier<List<Map<String, dynamic>>> _bondMarketNotifier = ValueNotifier([]);
   List<Map<String, dynamic>> get bondMarket => _bondMarketNotifier.value;
 
@@ -276,26 +278,32 @@ class SocketService {
       });
 
       socket?.on('special-op-party-update', (data) {
-  if (data is Map) {
-    final partyData = data['party'];
+        if (data is Map) {
+          final partyData = data['party'];
 
-    if (partyData != null) {
-      // Force a completely new object to guarantee rebuild
-      final freshParty = Map<String, dynamic>.from(partyData);   // deep enough for our needs
-      specialOpPartyNotifier.value = freshParty;
+          if (partyData != null) {
+            // Force a completely new object to guarantee rebuild
+            final freshParty = Map<String, dynamic>.from(partyData);   // deep enough for our needs
+            specialOpPartyNotifier.value = freshParty;
 
-      // Also sync to statsNotifier
-      final currentStats = Map<String, dynamic>.from(statsNotifier.value);
-      currentStats['activeSpecialOperationParty'] = freshParty;
-      statsNotifier.value = currentStats;
-    } else {
-      specialOpPartyNotifier.value = null;
-      final currentStats = Map<String, dynamic>.from(statsNotifier.value);
-      currentStats['activeSpecialOperationParty'] = null;
-      statsNotifier.value = currentStats;
-    }
-  }
-});
+            // Also sync to statsNotifier
+            final currentStats = Map<String, dynamic>.from(statsNotifier.value);
+            currentStats['activeSpecialOperationParty'] = freshParty;
+            statsNotifier.value = currentStats;
+          } else {
+            specialOpPartyNotifier.value = null;
+            final currentStats = Map<String, dynamic>.from(statsNotifier.value);
+            currentStats['activeSpecialOperationParty'] = null;
+            statsNotifier.value = currentStats;
+          }
+        }
+      });
+
+      socket?.on('course-result', (data) {
+        if (data is Map) {
+          courseResultNotifier.value = data['message'] ?? 'Course action complete.';
+        }
+      });
 
       socket?.on('special-op-join-result', (data) {
         if (data is Map && data['success'] == true && data['party'] != null) {
@@ -536,6 +544,10 @@ class SocketService {
     socket?.emit('unequip-armor', {
       'slot': slot,
     });
+  }
+
+  void purchaseCourse(String courseId) {
+    socket?.emit('purchase-course', courseId);
   }
 
   void sellItems(List<Map<String, dynamic>> items, int totalSellValue, int rate) {

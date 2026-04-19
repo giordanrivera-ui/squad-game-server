@@ -42,7 +42,7 @@ const otherNames = [
 ];
 
 // ==================== DRIVER CLASS (SERVER-CONTROLLED) ====================
-function generateRandomDriver(location) {
+function generateRandomDriver(location, minDrivingSkill = 1) {
   let namePool;
 
   switch (location) {
@@ -66,11 +66,11 @@ function generateRandomDriver(location) {
 
   return {
     name: name,
-    drivingSkill: Math.floor(Math.random() * 32) + 1,   // 1-32
-    salary: Math.floor(Math.random() * 471) + 30,       // 30-500
-    potential: Math.floor(Math.random() * 20) + 1,      // 1-20
-    weapon: null,                                       // empty by default
-    health: 100,                                        // for future damage/repair
+    drivingSkill: Math.floor(Math.random() * (33 - minDrivingSkill)) + minDrivingSkill,  // minDrivingSkill to 32
+    salary: Math.floor(Math.random() * 471) + 30,
+    potential: Math.floor(Math.random() * 20) + 1,      // remains 1-20
+    weapon: null,
+    health: 100,
   };
 }
 

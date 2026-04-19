@@ -43,12 +43,10 @@ class _CoursesPageState extends State<CoursesPage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: InkWell(
                   onTap: () {
-                    // TODO: Later - purchase / enroll logic
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${course['name']} selected (enrollment coming soon)'),
-                      ),
-                    );
+                    final courseId = course['id'];
+                    if (courseId != null) {
+                      SocketService().purchaseCourse(courseId);  // ← new method
+                    }
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: Padding(

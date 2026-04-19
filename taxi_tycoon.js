@@ -379,6 +379,18 @@ async function handleScoutDrivers(db, socket, count) {
   if (!doc.exists) return;
 
   let p = doc.data();
+
+  // NEW: Check if player has completed HR Research course
+  let minDrivingSkill = 1;
+  const now = Date.now();
+
+  if (p.completedCourses) {
+    const hrCourse = p.completedCourses.find(c => c.id === "hr-research");
+    if (hrCourse && now >= (hrCourse.completionTime || 0)) {
+      minDrivingSkill = 5;
+    }
+  }
+
   const totalCost = count * 20;
 
   if ((p.balance || 0) < totalCost) {
@@ -388,7 +400,7 @@ async function handleScoutDrivers(db, socket, count) {
 
   const newDrivers = [];
   for (let i = 0; i < count; i++) {
-    newDrivers.push(generateRandomDriver(p.location));
+    newDrivers.push(generateRandomDriver(p.location, minDrivingSkill));
   }
 
   await logTransaction(socket, -totalCost, `Scouted ${count} Driver${count > 1 ? 's' : ''}`, p, docRef);
