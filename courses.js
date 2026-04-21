@@ -89,6 +89,15 @@ async function handlePurchaseCourse(db, socket, courseId) {
     return;
   }
 
+  // === NEW: Prevent repurchase (even while in progress) ===
+  if (p.completedCourses && p.completedCourses.some(c => c.id === course.id)) {
+    socket.emit('course-result', { 
+      success: false, 
+      message: `You have already enrolled in ${course.name}.` 
+    });
+    return;
+  }
+
   if ((p.balance || 0) < course.cost) {
     socket.emit('course-result', { success: false, message: 'Not enough money.' });
     return;

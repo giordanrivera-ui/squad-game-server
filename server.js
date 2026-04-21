@@ -468,6 +468,7 @@ socket.on('respawn', async () => {
       hasActiveTaxiJobs: false,
       activeSpecialOperation: null,
       activeSpecialOperationParty: null,
+      completedCourses: [],
     };
 
     await docRef.set(p);

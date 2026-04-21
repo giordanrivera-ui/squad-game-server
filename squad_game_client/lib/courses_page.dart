@@ -13,7 +13,7 @@ class _CoursesPageState extends State<CoursesPage> {
   @override
   void initState() {
     super.initState();
-    SocketService().requestCourses(); // Ask server for latest list
+    SocketService().requestCourses();
   }
 
   @override
@@ -22,7 +22,7 @@ class _CoursesPageState extends State<CoursesPage> {
       appBar: StatusAppBar(
         title: 'Training Courses',
         statsNotifier: SocketService().statsNotifier,
-        time: '—', // Time not critical here
+        time: '—',
         onMenuPressed: () => Navigator.pop(context),
       ),
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
@@ -32,22 +32,33 @@ class _CoursesPageState extends State<CoursesPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final playerCompleted = SocketService()
+              .statsNotifier
+              .value['completedCourses'] as List<dynamic>? ?? [];
+
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: courses.length,
             itemBuilder: (context, index) {
               final course = courses[index];
+              final courseId = course['id'] as String?;
+
+              // Check if player has already purchased this course
+              final alreadyPurchased = playerCompleted.any((c) =>
+                  c is Map && c['id'] == courseId);
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: alreadyPurchased ? Colors.grey[800] : null, // Grey out
                 child: InkWell(
-                  onTap: () {
-                    final courseId = course['id'];
-                    if (courseId != null) {
-                      SocketService().purchaseCourse(courseId);  // ← new method
-                    }
-                  },
+                  onTap: alreadyPurchased
+                      ? null // Disable tap
+                      : () {
+                          if (courseId != null) {
+                            SocketService().purchaseCourse(courseId);
+                          }
+                        },
                   borderRadius: BorderRadius.circular(16),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -56,24 +67,34 @@ class _CoursesPageState extends State<CoursesPage> {
                       children: [
                         Text(
                           course['name'],
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: alreadyPurchased ? Colors.grey[400] : Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 12),
 
                         Row(
                           children: [
                             const Icon(Icons.attach_money, color: Colors.green, size: 20),
-                            Text(' \$${course['cost']}', style: const TextStyle(fontSize: 18)),
+                            Text(' \$${course['cost']}', 
+                                style: TextStyle(fontSize: 18, color: alreadyPurchased ? Colors.grey[400] : null)),
                             const Spacer(),
                             const Icon(Icons.timer, color: Colors.orange, size: 20),
-                            Text(' ${course['durationMinutes']} min', style: const TextStyle(fontSize: 18)),
+                            Text(' ${course['durationMinutes']} min', 
+                                style: TextStyle(fontSize: 18, color: alreadyPurchased ? Colors.grey[400] : null)),
                           ],
                         ),
 
                         const SizedBox(height: 12),
                         Text(
                           'Effect: ${course['effect']}',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: alreadyPurchased ? Colors.grey[400] : null,
+                          ),
                         ),
 
                         if (course['requirements'] != "None")
@@ -81,18 +102,29 @@ class _CoursesPageState extends State<CoursesPage> {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               'Requirements: ${course['requirements']}',
-                              style: const TextStyle(fontSize: 15, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: alreadyPurchased ? Colors.grey[500] : Colors.grey,
+                              ),
                             ),
                           ),
 
-                        const SizedBox(height: 8),
-                        const Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            'Tap to enroll →',
-                            style: TextStyle(fontSize: 14, color: Colors.blue),
+                        if (alreadyPurchased)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: Text(
+                              '✓ Already purchased',
+                              style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                            ),
+                          )
+                        else
+                          const Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Tap to enroll →',
+                              style: TextStyle(fontSize: 14, color: Colors.blue),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
