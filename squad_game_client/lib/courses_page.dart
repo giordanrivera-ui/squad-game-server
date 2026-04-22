@@ -19,7 +19,15 @@ class _CoursesPageState extends State<CoursesPage> {
     SocketService().requestCourses();
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+      
+        if (SocketService().coursesNotifier.value.any((c) => 
+            c['status'] == 'inProgress')) {
+          SocketService().requestCourses();   // re-fetch so new courses appear
+        }
+      }
+
     });
   }
 
@@ -54,16 +62,13 @@ Widget build(BuildContext context) {
   );
 }
 
-  Widget _buildCourseCard(Map<String, dynamic> course) {
+    Widget _buildCourseCard(Map<String, dynamic> course) {
     String status = course['status'] as String? ?? 'available';
     int? completionTime = course['completionTime'] as int?;
 
-    // ── LIVE COMPLETION CHECK ──
     if (status == 'inProgress' && completionTime != null) {
       final remainingMs = (completionTime - SocketService().currentServerTime).clamp(0, 999999999);
-      if (remainingMs <= 0) {
-        status = 'completed'; // treat it as completed for rendering
-      }
+      if (remainingMs <= 0) status = 'completed';
     }
 
     if (status == 'inProgress') {
@@ -155,11 +160,40 @@ Widget build(BuildContext context) {
       );
     }
 
-    // Available (default)
+    // ==================== AVAILABLE COURSE (with requirement check) ====================
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () => SocketService().purchaseCourse(course['id']),
+        onTap: () async {
+          if (course['id'] == "hr-research-advanced") {
+            final stats = SocketService().statsNotifier.value;
+            final List<String> missing = [];
+
+            if ((stats['balance'] ?? 0) < 5000) missing.add("\$5000");
+            if ((stats['intelligence'] ?? 0) < 2) missing.add("Intelligence level of 2");
+            final basicCompleted = (stats['completedCourses'] ?? [])
+                .any((c) => c['id'] == "hr-research" && (c['completionTime'] ?? 0) <= SocketService().currentServerTime);
+            if (!basicCompleted) missing.add("completed Human Resource Research");
+
+            if (missing.isNotEmpty) {
+              final message = missing.length == 1
+                  ? "You need ${missing[0]} to enroll in Advanced Human Resource Research."
+                  : "You are missing: ${missing.join(', ')} to enroll in Advanced Human Resource Research.";
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+              return;
+            }
+          }
+
+          // All requirements met → purchase
+          SocketService().purchaseCourse(course['id']);
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(20),

@@ -2,7 +2,7 @@ const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
 const courseTemplates = [
-  {
+    {
     id: "basic-combat",
     name: "Basic Combat Training",
     cost: 850,
@@ -76,28 +76,21 @@ const courseTemplates = [
   }
 ];
 
-// ==================== FIXED UNIFIED COURSE LIST ====================
+// ==================== FIXED + ENHANCED UNIFIED COURSE LIST ====================
 function getUnifiedCourses(playerData) {
   const now = Date.now();
-  const completedIds = new Set(
-    (playerData.completedCourses || [])
-      .filter(c => c.completionTime <= now)   // Only truly finished courses
-      .map(c => c.id)
-  );
 
   return courseTemplates.map(template => {
     const completedCourse = (playerData.completedCourses || [])
       .find(c => c.id === template.id);
 
-    // 1. Completed
     if (completedCourse && completedCourse.completionTime <= now) {
-      return {
-        ...template,
-        status: 'completed',
+      return { 
+        ...template, 
+        status: 'completed' 
       };
     }
 
-    // 2. In Progress
     if (completedCourse && completedCourse.completionTime > now) {
       const remainingMs = completedCourse.completionTime - now;
       const totalMs = template.durationMinutes * 60 * 1000;
@@ -110,18 +103,15 @@ function getUnifiedCourses(playerData) {
       };
     }
 
-    // 3. Available — HR Research chain logic (FIXED)
+    // HR chain logic – now also used by server validation
     if (template.id === "hr-research-advanced") {
-      const basicIsCompleted = (playerData.completedCourses || [])
+      const basicCompleted = (playerData.completedCourses || [])
         .some(c => c.id === "hr-research" && c.completionTime <= now);
-
-      if (!basicIsCompleted) {
-        return null; // hide until basic course has actually finished
-      }
+      if (!basicCompleted) return null;
     }
 
-    return {
-      ...template,
+    return { 
+      ...template, 
       status: 'available',
     };
   }).filter(Boolean);
@@ -164,16 +154,37 @@ async function handlePurchaseCourse(db, socket, courseId) {
     return;
   }
 
+  // === NEW: Specific validation for Advanced HR Research ===
+  if (course.id === "hr-research-advanced") {
+    const errors = [];
+
+    if ((p.balance || 0) < 5000) errors.push("$5000");
+    if ((p.intelligence || 0) < 2) errors.push("Intelligence level of 2");
+    const basicCompleted = (p.completedCourses || []).some(c => 
+      c.id === "hr-research" && c.completionTime <= Date.now()
+    );
+    if (!basicCompleted) errors.push("completed Human Resource Research");
+
+    if (errors.length > 0) {
+      const message = errors.length === 1 
+        ? `You need ${errors[0]} to enroll in Advanced Human Resource Research.`
+        : `You are missing: ${errors.join(', ')} to enroll in Advanced Human Resource Research.`;
+
+      socket.emit('course-result', { success: false, message });
+      return;
+    }
+  }
+
+  // Normal balance check (applies to all courses)
   if ((p.balance || 0) < course.cost) {
     socket.emit('course-result', { success: false, message: 'Not enough money.' });
     return;
   }
 
-  // Deduct cost immediately
+  // === Proceed with purchase ===
   await logTransaction(socket, -course.cost, `Course Purchased: ${course.name}`, p, docRef);
   p.balance -= course.cost;
 
-  // Record completion time
   if (!p.completedCourses) p.completedCourses = [];
   const now = Date.now();
   const completionTime = now + (course.durationMinutes * 60 * 1000);
@@ -187,7 +198,6 @@ async function handlePurchaseCourse(db, socket, courseId) {
   await docRef.set(p);
   socket.emit('update-stats', p);
 
-  // After successful purchase: send updated unified list
   const updatedPlayer = (await docRef.get()).data();
   const unifiedCourses = getUnifiedCourses(updatedPlayer);
 
