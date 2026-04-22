@@ -201,7 +201,20 @@ setInterval(() => {
 io.on('connection', (socket) => {
   socket.on('register', async (data) => {
     const email = data.email;
-    const displayName = data.displayName || 'Anonymous';
+    // ==================== DISPLAY NAME VALIDATION (NEW) ====================
+    let displayName = (data.displayName || 'Anonymous').trim();
+
+    if (displayName.length > 22) {
+      socket.emit('error', { message: 'Display name cannot exceed 22 characters.' });
+      return;
+    }
+    if (displayName.length === 0) {
+      displayName = 'Anonymous';
+    }
+    if (['.', '/', '\\'].includes(displayName[0])) {
+      socket.emit('error', { message: 'Display name cannot start with ".", "/", or "\\".' });
+      return;
+    }
 
     if (!email) return;
 
@@ -470,6 +483,11 @@ socket.on('respawn', async () => {
       activeSpecialOperationParty: null,
       completedCourses: [],
     };
+
+    // Prevent respawn with invalid name (though client already forces null)
+    if (p.displayName && (p.displayName.length > 22 || ['.', '/', '\\'].includes(p.displayName[0]))) {
+      p.displayName = null;
+    }
 
     await docRef.set(p);
     socket.emit('update-stats', p);

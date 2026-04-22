@@ -105,7 +105,7 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
-// ====================== SET DISPLAY NAME (added unique check) ======================
+// ====================== SET DISPLAY NAME (with live input filtering) ======================
 class SetDisplayNameScreen extends StatefulWidget {
   @override
   _SetDisplayNameScreenState createState() => _SetDisplayNameScreenState();
@@ -115,19 +115,42 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
   final _nameController = TextEditingController();
   bool isLoading = false;
 
+  String? _validateName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'Name cannot be empty';
+    if (trimmed.length > 22) return 'Maximum 22 characters allowed';
+    if (['.', '/', '\\'].contains(trimmed[0])) {
+      return 'Name cannot start with ".", "/", or "\\"';
+    }
+    return null; // valid
+  }
+
   Future<void> saveDisplayName() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    final error = _validateName(name);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     setState(() => isLoading = true);
 
     try {
-      // NEW: Check if name is unique in players AND usedNames
-      final playersQuery = await FirebaseFirestore.instance.collection('players').where('displayName', isEqualTo: name).get();
-      final usedNamesQuery = await FirebaseFirestore.instance.collection('usedNames').where('name', isEqualTo: name).get();  // Assuming 'name' field in usedNames
+      final playersQuery = await FirebaseFirestore.instance
+          .collection('players')
+          .where('displayName', isEqualTo: name)
+          .get();
+      final usedNamesQuery = await FirebaseFirestore.instance
+          .collection('usedNames')
+          .where('name', isEqualTo: name)
+          .get();
 
       if (playersQuery.docs.isNotEmpty || usedNamesQuery.docs.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Oops! That name is taken forever. Pick a different one.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Oops! That name is taken forever.')),
+        );
         setState(() => isLoading = false);
         return;
       }
@@ -151,12 +174,29 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('What should other players call you?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const Text(
+              'What should other players call you?',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 30),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Display Name', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Display Name',
+                border: OutlineInputBorder(),
+                helperText: 'Max 22 characters • Cannot start with . / \\',
+              ),
               textAlign: TextAlign.center,
+              maxLength: 22,                    // visual counter
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+
+              // ==================== LIVE INPUT FILTERING ====================
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(22),           // hard limit 22 chars
+                FilteringTextInputFormatter.deny(RegExp(r'^[./\\]')), // block starting . / \
+              ],
+              // =============================================================
             ),
             const SizedBox(height: 30),
             ElevatedButton(
@@ -169,7 +209,6 @@ class _SetDisplayNameScreenState extends State<SetDisplayNameScreen> {
     );
   }
 }
-
 // ====================== GAME SCREEN ======================
 class GameScreen extends StatefulWidget {
   @override

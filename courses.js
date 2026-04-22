@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
 const courseTemplates = [
+  // ... (your existing 9 courses remain unchanged)
   {
     id: "basic-combat",
     name: "Basic Combat Training",
@@ -76,38 +77,51 @@ const courseTemplates = [
   }
 ];
 
-// Add at the top of courses.js (after courseTemplates)
-function getInProgressCourses(playerData) {
+// ==================== NEW UNIFIED COURSE LIST ====================
+function getUnifiedCourses(playerData) {
   const now = Date.now();
-  return (playerData.completedCourses || [])
-    .filter(c => c.completionTime > now)
-    .map(c => {
-      const template = courseTemplates.find(t => t.id === c.id);
-      return {
-        ...c,
-        durationMinutes: template ? template.durationMinutes : 0,   // ← ADD THIS
-      };
-    });
-}
-
-// Helper to get available courses for a player (handles the HR chain)
-function getAvailableCourses(playerData) {
   const completedIds = new Set(
     (playerData.completedCourses || []).map(c => c.id)
   );
 
-  return courseTemplates.filter(course => {
-    // Special HR Research chain logic
-    if (course.id === "hr-research") {
-      return !completedIds.has("hr-research");           // Show basic only if not purchased
-    }
-    if (course.id === "hr-research-advanced") {
-      return completedIds.has("hr-research");            // Show advanced ONLY after basic is purchased
+  return courseTemplates.map(template => {
+    const completedCourse = (playerData.completedCourses || [])
+      .find(c => c.id === template.id);
+
+    // 1. Completed
+    if (completedCourse && completedCourse.completionTime <= now) {
+      return {
+        ...template,
+        status: 'completed',
+      };
     }
 
-    // All other courses always show
-    return true;
-  });
+    // 2. In Progress
+    if (completedCourse && completedCourse.completionTime > now) {
+      const remainingMs = completedCourse.completionTime - now;
+      const totalMs = template.durationMinutes * 60 * 1000;
+      return {
+        ...template,
+        status: 'inProgress',
+        completionTime: completedCourse.completionTime,
+        progress: Math.max(0, 1 - (remainingMs / totalMs)),
+        remainingMs: remainingMs,
+      };
+    }
+
+    // 3. Available
+    // HR Research chain logic
+    if (template.id === "hr-research-advanced") {
+      if (!completedIds.has("hr-research")) {
+        return null; // hide until basic is completed
+      }
+    }
+
+    return {
+      ...template,
+      status: 'available',
+    };
+  }).filter(Boolean); // remove hidden advanced HR course
 }
 
 async function handleRequestCourses(db, socket) {
@@ -117,14 +131,11 @@ async function handleRequestCourses(db, socket) {
   const doc = await db.collection('players').doc(email).get();
   const playerData = doc.exists ? doc.data() : {};
 
-  const availableCourses = getAvailableCourses(playerData);
-  const inProgress = getInProgressCourses(playerData);
+  const unifiedCourses = getUnifiedCourses(playerData);
 
-  socket.emit('courses-list', availableCourses);
-  socket.emit('in-progress-courses', inProgress);
+  socket.emit('courses-list', unifiedCourses);
 }
 
-// ==================== PURCHASE COURSE ====================
 async function handlePurchaseCourse(db, socket, courseId) {
   const email = socket.data.email;
   if (!email) return;
@@ -173,14 +184,11 @@ async function handlePurchaseCourse(db, socket, courseId) {
   await docRef.set(p);
   socket.emit('update-stats', p);
 
-  // === ADD THIS RIGHT AFTER THE EXISTING emit('update-stats') ===
+  // After successful purchase:
   const updatedPlayer = (await docRef.get()).data();
-  const available = getAvailableCourses(updatedPlayer);
-  const inProgress = getInProgressCourses(updatedPlayer);
+  const unifiedCourses = getUnifiedCourses(updatedPlayer);
 
-  socket.emit('courses-list', available);           // available courses
-  socket.emit('in-progress-courses', inProgress);   // ← NEW event
-
+  socket.emit('courses-list', unifiedCourses);   // ← Single list now
   socket.emit('course-result', {
     success: true,
     message: `✅ Enrolled in ${course.name}! Effect activates in ${course.durationMinutes} minutes.`
