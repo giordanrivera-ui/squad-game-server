@@ -2,7 +2,6 @@ const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
 const courseTemplates = [
-  // ... (your existing 9 courses remain unchanged)
   {
     id: "basic-combat",
     name: "Basic Combat Training",
@@ -49,7 +48,7 @@ const courseTemplates = [
     cost: 5000,
     durationMinutes: 2,
     effect: "Further increases the average quality of the drivers you will scout in Taxi Tycoon.",
-    requirements: "Human Resource Research and a minimum Intelligence of 2."
+    requirements: "Human Resource Research completed and a minimum Intelligence of 2."
   },
   {
     id: "business-acumen",
@@ -77,11 +76,13 @@ const courseTemplates = [
   }
 ];
 
-// ==================== NEW UNIFIED COURSE LIST ====================
+// ==================== FIXED UNIFIED COURSE LIST ====================
 function getUnifiedCourses(playerData) {
   const now = Date.now();
   const completedIds = new Set(
-    (playerData.completedCourses || []).map(c => c.id)
+    (playerData.completedCourses || [])
+      .filter(c => c.completionTime <= now)   // Only truly finished courses
+      .map(c => c.id)
   );
 
   return courseTemplates.map(template => {
@@ -109,11 +110,13 @@ function getUnifiedCourses(playerData) {
       };
     }
 
-    // 3. Available
-    // HR Research chain logic
+    // 3. Available — HR Research chain logic (FIXED)
     if (template.id === "hr-research-advanced") {
-      if (!completedIds.has("hr-research")) {
-        return null; // hide until basic is completed
+      const basicIsCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "hr-research" && c.completionTime <= now);
+
+      if (!basicIsCompleted) {
+        return null; // hide until basic course has actually finished
       }
     }
 
@@ -121,7 +124,7 @@ function getUnifiedCourses(playerData) {
       ...template,
       status: 'available',
     };
-  }).filter(Boolean); // remove hidden advanced HR course
+  }).filter(Boolean);
 }
 
 async function handleRequestCourses(db, socket) {
@@ -184,11 +187,11 @@ async function handlePurchaseCourse(db, socket, courseId) {
   await docRef.set(p);
   socket.emit('update-stats', p);
 
-  // After successful purchase:
+  // After successful purchase: send updated unified list
   const updatedPlayer = (await docRef.get()).data();
   const unifiedCourses = getUnifiedCourses(updatedPlayer);
 
-  socket.emit('courses-list', unifiedCourses);   // ← Single list now
+  socket.emit('courses-list', unifiedCourses);
   socket.emit('course-result', {
     success: true,
     message: `✅ Enrolled in ${course.name}! Effect activates in ${course.durationMinutes} minutes.`
