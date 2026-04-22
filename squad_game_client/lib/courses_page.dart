@@ -37,6 +37,99 @@ class _CoursesPageState extends State<CoursesPage> {
     super.dispose();
   }
 
+    // ── CONNECTOR FOR HR RESEARCH CHAIN ──
+  Widget _buildHRConnector() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 52, right: 20, top: 8, bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Vertical line with nodes at both ends
+          SizedBox(
+            width: 28,
+            height: 56,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Main vertical line
+                Positioned(
+                  top: 14,
+                  bottom: 14,
+                  left: 12,
+                  child: Container(
+                    width: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.75),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // Top node (circle)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey[900]!, width: 2.5),
+                    ),
+                  ),
+                ),
+                // Bottom node (circle)
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey[900]!, width: 2.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Optional label (feels very polished)
+          Expanded(
+            child: Text(
+              'Requires previous course to be completed',
+              style: TextStyle(
+                color: Colors.amber.withOpacity(0.85),
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── BUILD LIST WITH CONNECTOR INSERTED ──
+  List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
+    final List<Widget> widgets = [];
+
+    for (int i = 0; i < courses.length; i++) {
+      widgets.add(_buildCourseCard(courses[i]));
+
+      // Insert connector exactly between the two HR courses
+      if (i < courses.length - 1 &&
+          courses[i]['id'] == "hr-research" &&
+          courses[i + 1]['id'] == "hr-research-advanced") {
+        widgets.add(_buildHRConnector());
+      }
+    }
+    return widgets;
+  }
+
   @override
 Widget build(BuildContext context) {
   final courses = SocketService().coursesNotifier.value;
@@ -55,9 +148,9 @@ Widget build(BuildContext context) {
               child: CircularProgressIndicator(),
             ),
           )
-        : ListView(
+          : ListView(
             padding: const EdgeInsets.all(16),
-            children: courses.map((course) => _buildCourseCard(course)).toList(),
+            children: _buildCoursesWithConnector(courses),
           ),
   );
 }
