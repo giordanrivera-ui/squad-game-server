@@ -80,11 +80,14 @@ const courseTemplates = [
 function getInProgressCourses(playerData) {
   const now = Date.now();
   return (playerData.completedCourses || [])
-    .filter(c => c.completionTime > now)           // still running
-    .map(c => ({
-      ...c,
-      progress: Math.max(0, (c.completionTime - now) / (c.durationMinutes * 60 * 1000))
-    }));
+    .filter(c => c.completionTime > now)
+    .map(c => {
+      const template = courseTemplates.find(t => t.id === c.id);
+      return {
+        ...c,
+        durationMinutes: template ? template.durationMinutes : 0,   // ← ADD THIS
+      };
+    });
 }
 
 // Helper to get available courses for a player (handles the HR chain)
@@ -115,7 +118,10 @@ async function handleRequestCourses(db, socket) {
   const playerData = doc.exists ? doc.data() : {};
 
   const availableCourses = getAvailableCourses(playerData);
+  const inProgress = getInProgressCourses(playerData);
+
   socket.emit('courses-list', availableCourses);
+  socket.emit('in-progress-courses', inProgress);
 }
 
 // ==================== PURCHASE COURSE ====================
