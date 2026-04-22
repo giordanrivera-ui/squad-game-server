@@ -51,6 +51,14 @@ const courseTemplates = [
     requirements: "Human Resource Research completed and a minimum Intelligence of 2."
   },
   {
+    id: "hr-research-exceptional",
+    name: "Exceptional Human Resource Research",
+    cost: 7000,
+    durationMinutes: 2,
+    effect: "Further increases the average quality of the drivers you will scout in Taxi Tycoon.",
+    requirements: "Advanced Human Resource Research completed and a minimum Intelligence of 4."
+  },
+  {
     id: "business-acumen",
     name: "Business & Property Acumen",
     cost: 3100,
@@ -108,6 +116,12 @@ function getUnifiedCourses(playerData) {
       const basicCompleted = (playerData.completedCourses || [])
         .some(c => c.id === "hr-research" && c.completionTime <= now);
       if (!basicCompleted) return null;
+    }
+
+    if (template.id === "hr-research-exceptional") {
+      const advancedCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "hr-research-advanced" && c.completionTime <= now);
+      if (!advancedCompleted) return null;
     }
 
     return { 
@@ -169,6 +183,26 @@ async function handlePurchaseCourse(db, socket, courseId) {
       const message = errors.length === 1 
         ? `You need ${errors[0]} to enroll in Advanced Human Resource Research.`
         : `You are missing: ${errors.join(', ')} to enroll in Advanced Human Resource Research.`;
+
+      socket.emit('course-result', { success: false, message });
+      return;
+    }
+  }
+
+  if (course.id === "hr-research-exceptional") {
+    const errors = [];
+
+    if ((p.balance || 0) < 7000) errors.push("$7000");
+    if ((p.intelligence || 0) < 4) errors.push("Intelligence level of 4");
+    const advancedCompleted = (p.completedCourses || []).some(c => 
+      c.id === "hr-research-advanced" && c.completionTime <= Date.now()
+    );
+    if (!advancedCompleted) errors.push("completed Advanced Human Resource Research");
+
+    if (errors.length > 0) {
+      const message = errors.length === 1 
+        ? `You need ${errors[0]} to enroll in Exceptional Human Resource Research.`
+        : `You are missing: ${errors.join(', ')} to enroll in Exceptional Human Resource Research.`;
 
       socket.emit('course-result', { success: false, message });
       return;
