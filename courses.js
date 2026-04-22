@@ -15,8 +15,8 @@ const courseTemplates = [
     name: "Street Tactics",
     cost: 2000,
     durationMinutes: 2,
-    effect: "Increases the amount of money and exp gained from ",
-    requirements: "Rank: Corporal+"
+    effect: "Increases the amount of money and exp gained from mugging passerbys",
+    requirements: "None"
   },
   {
     id: "advanced-street-tactics",

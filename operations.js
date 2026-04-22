@@ -49,9 +49,20 @@ async function handleExecuteOperation(db, socket, data, deps) {
   const exp = p.experience || 0;
 
   if (operation === "Mug a passerby") {
-    money = Math.floor(Math.random() * 91) + 10;
+    // ==================== STREET TACTICS COURSE BONUS ====================
+    const hasStreetTactics = (p.completedCourses || []).some(c =>
+      c.id === "street-tactics" && (c.completionTime ?? 0) <= Date.now()
+    );
+
+    if (hasStreetTactics) {
+      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112
+      expGain = 14;
+    } else {
+      money = Math.floor(Math.random() * 91) + 10;   // original $10 – $100
+      expGain = 10;
+    }
+    // ==================================================================
     rawDamage = Math.floor(Math.random() * 26) + 5;
-    expGain = 10;
     message = `You mugged a passerby and got $${money}!`;
   } else if (operation === "Loot a grocery store") {
     money = Math.floor(Math.random() * 71) + 30;
