@@ -543,7 +543,7 @@ socket.on('respawn', async () => {
 
   // ==================== COURSES ====================
   socket.on('request-courses', () => {
-    handleRequestCourses(socket);
+    handleRequestCourses(db, socket);
   });
 
   socket.on('purchase-course', async (courseId) => {

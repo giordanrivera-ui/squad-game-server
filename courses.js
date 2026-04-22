@@ -43,6 +43,14 @@ const courseTemplates = [
     requirements: "None"
   },
   {
+    id: "hr-research-advanced",
+    name: "Advanced Human Resource Research",
+    cost: 5000,
+    durationMinutes: 2,
+    effect: "Further increases the average quality of the drivers you will scout in Taxi Tycoon.",
+    requirements: "Human Resource Research and a minimum Intelligence of 2."
+  },
+  {
     id: "business-acumen",
     name: "Business & Property Acumen",
     cost: 3100,
@@ -68,8 +76,46 @@ const courseTemplates = [
   }
 ];
 
-async function handleRequestCourses(socket) {
-  socket.emit('courses-list', courseTemplates);
+// Add at the top of courses.js (after courseTemplates)
+function getInProgressCourses(playerData) {
+  const now = Date.now();
+  return (playerData.completedCourses || [])
+    .filter(c => c.completionTime > now)           // still running
+    .map(c => ({
+      ...c,
+      progress: Math.max(0, (c.completionTime - now) / (c.durationMinutes * 60 * 1000))
+    }));
+}
+
+// Helper to get available courses for a player (handles the HR chain)
+function getAvailableCourses(playerData) {
+  const completedIds = new Set(
+    (playerData.completedCourses || []).map(c => c.id)
+  );
+
+  return courseTemplates.filter(course => {
+    // Special HR Research chain logic
+    if (course.id === "hr-research") {
+      return !completedIds.has("hr-research");           // Show basic only if not purchased
+    }
+    if (course.id === "hr-research-advanced") {
+      return completedIds.has("hr-research");            // Show advanced ONLY after basic is purchased
+    }
+
+    // All other courses always show
+    return true;
+  });
+}
+
+async function handleRequestCourses(db, socket) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const doc = await db.collection('players').doc(email).get();
+  const playerData = doc.exists ? doc.data() : {};
+
+  const availableCourses = getAvailableCourses(playerData);
+  socket.emit('courses-list', availableCourses);
 }
 
 // ==================== PURCHASE COURSE ====================
@@ -89,7 +135,7 @@ async function handlePurchaseCourse(db, socket, courseId) {
     return;
   }
 
-  // === NEW: Prevent repurchase (even while in progress) ===
+  // Prevent repurchase
   if (p.completedCourses && p.completedCourses.some(c => c.id === course.id)) {
     socket.emit('course-result', { 
       success: false, 
@@ -107,7 +153,7 @@ async function handlePurchaseCourse(db, socket, courseId) {
   await logTransaction(socket, -course.cost, `Course Purchased: ${course.name}`, p, docRef);
   p.balance -= course.cost;
 
-  // Record completion time (effect activates after duration)
+  // Record completion time
   if (!p.completedCourses) p.completedCourses = [];
   const now = Date.now();
   const completionTime = now + (course.durationMinutes * 60 * 1000);
@@ -121,17 +167,19 @@ async function handlePurchaseCourse(db, socket, courseId) {
   await docRef.set(p);
   socket.emit('update-stats', p);
 
+  // === ADD THIS RIGHT AFTER THE EXISTING emit('update-stats') ===
+  const updatedPlayer = (await docRef.get()).data();
+  const available = getAvailableCourses(updatedPlayer);
+  const inProgress = getInProgressCourses(updatedPlayer);
+
+  socket.emit('courses-list', available);           // available courses
+  socket.emit('in-progress-courses', inProgress);   // ← NEW event
+
   socket.emit('course-result', {
     success: true,
     message: `✅ Enrolled in ${course.name}! Effect activates in ${course.durationMinutes} minutes.`
   });
 }
-
-module.exports = {
-  courseTemplates,
-  handleRequestCourses,
-  handlePurchaseCourse
-};
 
 module.exports = {
   courseTemplates,

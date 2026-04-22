@@ -43,6 +43,8 @@ class SocketService {
 
   final ValueNotifier<String?> courseResultNotifier = ValueNotifier(null);
 
+  final inProgressCoursesNotifier = ValueNotifier<List<Map<String, dynamic>>>([]);
+
     final ValueNotifier<List<Map<String, dynamic>>> _bondMarketNotifier = ValueNotifier([]);
   List<Map<String, dynamic>> get bondMarket => _bondMarketNotifier.value;
 
@@ -250,6 +252,10 @@ class SocketService {
         if (data is List) {
           coursesNotifier.value = List<Map<String, dynamic>>.from(data);
         }
+      });
+
+      socket?.on('in-progress-courses', (data) {
+        if (data is List) inProgressCoursesNotifier.value = List.from(data);
       });
 
       // Prison list updates with server time sync (fixes clock drift)
