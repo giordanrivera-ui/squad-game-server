@@ -380,16 +380,30 @@ async function handleScoutDrivers(db, socket, count) {
 
   let p = doc.data();
 
-  // NEW: Check if player has completed HR Research course
+  // ==================== HR RESEARCH LOGIC (Basic + Advanced) ====================
   let minDrivingSkill = 1;
+  let maxDrivingSkill = 32;   // default
+
   const now = Date.now();
 
   if (p.completedCourses) {
-    const hrCourse = p.completedCourses.find(c => c.id === "hr-research");
-    if (hrCourse && now >= (hrCourse.completionTime || 0)) {
+    const hasBasic = p.completedCourses.some(c => 
+      c.id === "hr-research" && c.completionTime <= now
+    );
+
+    const hasAdvanced = p.completedCourses.some(c => 
+      c.id === "hr-research-advanced" && c.completionTime <= now
+    );
+
+    if (hasAdvanced) {
+      minDrivingSkill = 10;
+      maxDrivingSkill = 35;     // +3 to maximum skill
+    } else if (hasBasic) {
       minDrivingSkill = 5;
+      // max remains 32
     }
   }
+  // =================================================================
 
   const totalCost = count * 20;
 
@@ -400,7 +414,7 @@ async function handleScoutDrivers(db, socket, count) {
 
   const newDrivers = [];
   for (let i = 0; i < count; i++) {
-    newDrivers.push(generateRandomDriver(p.location, minDrivingSkill));
+    newDrivers.push(generateRandomDriver(p.location, minDrivingSkill, maxDrivingSkill));
   }
 
   await logTransaction(socket, -totalCost, `Scouted ${count} Driver${count > 1 ? 's' : ''}`, p, docRef);
