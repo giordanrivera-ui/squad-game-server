@@ -380,9 +380,9 @@ async function handleScoutDrivers(db, socket, count) {
 
   let p = doc.data();
 
-  // ==================== HR RESEARCH LOGIC (Basic + Advanced) ====================
+  // ==================== HR RESEARCH LOGIC (3 levels) ====================
   let minDrivingSkill = 1;
-  let maxDrivingSkill = 32;   // default
+  let maxDrivingSkill = 32;
 
   const now = Date.now();
 
@@ -395,9 +395,16 @@ async function handleScoutDrivers(db, socket, count) {
       c.id === "hr-research-advanced" && c.completionTime <= now
     );
 
-    if (hasAdvanced) {
+    const hasExceptional = p.completedCourses.some(c => 
+      c.id === "hr-research-exceptional" && c.completionTime <= now
+    );
+
+    if (hasExceptional) {
+      minDrivingSkill = 14;
+      maxDrivingSkill = 38;
+    } else if (hasAdvanced) {
       minDrivingSkill = 10;
-      maxDrivingSkill = 35;     // +3 to maximum skill
+      maxDrivingSkill = 35;
     } else if (hasBasic) {
       minDrivingSkill = 5;
       // max remains 32
