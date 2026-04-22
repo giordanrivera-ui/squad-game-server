@@ -288,9 +288,11 @@ Widget build(BuildContext context) {
         children: [
           InkWell(
             onTap: () async {
+              // ==================== VALIDATION FOR ADVANCED HR (already existed) ====================
               if (course['id'] == "hr-research-advanced") {
                 final stats = SocketService().statsNotifier.value;
                 final List<String> missing = [];
+
                 if ((stats['balance'] ?? 0) < 5000) missing.add("\$5000");
                 if ((stats['intelligence'] ?? 0) < 2) missing.add("Intelligence level of 2");
                 final basicCompleted = (stats['completedCourses'] ?? [])
@@ -298,15 +300,44 @@ Widget build(BuildContext context) {
                 if (!basicCompleted) missing.add("completed Human Resource Research");
 
                 if (missing.isNotEmpty) {
-                  final message = missing.length == 1
+                  final message = missing.length == 1 
                       ? "You need ${missing[0]} to enroll in Advanced Human Resource Research."
                       : "You are missing: ${missing.join(', ')} to enroll in Advanced Human Resource Research.";
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(message), backgroundColor: Colors.orange),
                   );
                   return;
                 }
               }
+
+              // ==================== NEW: VALIDATION FOR EXCEPTIONAL HR ====================
+              if (course['id'] == "hr-research-exceptional") {
+                final stats = SocketService().statsNotifier.value;
+                final List<String> missing = [];
+
+                if ((stats['balance'] ?? 0) < 7000) missing.add("\$7000");
+                if ((stats['intelligence'] ?? 0) < 4) missing.add("Intelligence level of 4");
+
+                final advancedCompleted = (stats['completedCourses'] ?? [])
+                    .any((c) => c['id'] == "hr-research-advanced" && (c['completionTime'] ?? 0) <= SocketService().currentServerTime);
+
+                if (!advancedCompleted) missing.add("completed Advanced Human Resource Research");
+
+                if (missing.isNotEmpty) {
+                  final message = missing.length == 1 
+                      ? "You need ${missing[0]} to enroll in Exceptional Human Resource Research."
+                      : "You are missing: ${missing.join(', ')} to enroll in Exceptional Human Resource Research.";
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(message), backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+              }
+              // =========================================================================
+
+              // All checks passed → proceed with purchase
               SocketService().purchaseCourse(course['id']);
             },
             borderRadius: BorderRadius.circular(16),
