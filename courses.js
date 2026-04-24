@@ -22,7 +22,15 @@ const courseTemplates = [
     id: "advanced-street-tactics",
     name: "Advanced Street Tactics",
     cost: 4000,
-    durationMinutes: 90,
+    durationMinutes: 2,
+    effect: "+15 Skill • Unlock mid-level operation bonuses",
+    requirements: "Rank: Corporal+"
+  },
+  {
+    id: "exceptional-street-tactics",
+    name: "Exceptional Street Tactics",
+    cost: 6000,
+    durationMinutes: 2,
     effect: "+15 Skill • Unlock mid-level operation bonuses",
     requirements: "Rank: Corporal+"
   },

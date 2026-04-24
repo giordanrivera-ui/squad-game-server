@@ -20,6 +20,9 @@ class _CoursesPageState extends State<CoursesPage> {
     "hr-research-exceptional",
   ];
 
+  // Offset used when stacking completed HR courses
+  static const double _hrStackOffset = -48.0;
+
   @override
   void initState() {
     super.initState();
@@ -43,17 +46,45 @@ class _CoursesPageState extends State<CoursesPage> {
     super.dispose();
   }
 
+  // ── HR CHAIN OVERLAY LOGIC (exactly as requested) ──
+  // Basic HR gets overlay after Advanced is completed
+  // Advanced HR gets overlay after Exceptional is completed
+  // Basic becomes darker once Exceptional is done
+  double _getHROverlayOpacity(String courseId) {
+    if (!_hrChainIds.contains(courseId)) return 0.0;
+
+    final allCourses = SocketService().coursesNotifier.value;
+    final completedIds = allCourses
+        .where((c) => (c['status'] as String?) == 'completed')
+        .map((c) => c['id'] as String)
+        .toSet();
+
+    if (courseId == "hr-research") {
+      if (completedIds.contains("hr-research-exceptional")) {
+        return 0.65; // darker overlay
+      }
+      if (completedIds.contains("hr-research-advanced")) {
+        return 0.35; // normal semi-transparent
+      }
+    } else if (courseId == "hr-research-advanced") {
+      if (completedIds.contains("hr-research-exceptional")) {
+        return 0.35;
+      }
+    }
+    return 0.0;
+  }
+
   // ── TIGHTER CONNECTOR LINE (now reaches top node perfectly with minimal gap) ──
   Widget _buildHRConnectorLine() {
     return Padding(
       padding: const EdgeInsets.only(left: 39, top: 0),
       child: SizedBox(
-        height: 34,                    // ← reduced from 48
+        height: 28,                    // tightened for perfect alignment after stacking
         child: Align(
           alignment: Alignment.centerLeft,
           child: Container(
             width: 4,
-            height: 34,
+            height: 28,
             decoration: BoxDecoration(
               color: Colors.amber.withOpacity(0.9),
               borderRadius: BorderRadius.circular(2),
@@ -64,9 +95,10 @@ class _CoursesPageState extends State<CoursesPage> {
     );
   }
 
-  // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR ──
+  // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR (FULL CHAIN SUPPORT) ──
   List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
     final List<Widget> widgets = [];
+    double accumulatedCompensation = 0.0;
 
     for (int i = 0; i < courses.length; i++) {
       final course = courses[i];
@@ -117,8 +149,15 @@ class _CoursesPageState extends State<CoursesPage> {
         course,
         showTopConnectorNode: showTopNode,
         showBottomConnectorNode: showBottomNode,
-        stackOffset: shouldStack ? -48.0 : 0.0,
+        stackOffset: shouldStack ? _hrStackOffset : 0.0,
+        topCompensationOffset: accumulatedCompensation,
+        overlayOpacity: _getHROverlayOpacity(id),   // ← NEW: HR overlay support
       ));
+
+      // ── NEW: Accumulate offset on EVERY stacked HR card (this fixes the 3rd card) ──
+      if (shouldStack) {
+        accumulatedCompensation += _hrStackOffset;
+      }
 
       // Insert connector line ONLY between last completed HR and next pending HR
       if (isHr && isCompleted && i < courses.length - 1) {
@@ -129,12 +168,13 @@ class _CoursesPageState extends State<CoursesPage> {
 
         if (nextIsHr && !nextCompleted) {
           widgets.add(_buildHRConnectorLine());
+          // Compensation is now handled automatically above — no longer set here
         }
       }
     }
     return widgets;
   }
-
+  
   @override
   Widget build(BuildContext context) {
     final courses = SocketService().coursesNotifier.value;
@@ -165,6 +205,8 @@ class _CoursesPageState extends State<CoursesPage> {
     bool showTopConnectorNode = false,
     bool showBottomConnectorNode = false,
     double stackOffset = 0.0,
+    double topCompensationOffset = 0.0,
+    double overlayOpacity = 0.0,          // ← NEW: semi-transparent overlay for HR chain
   }) {
     String status = course['status'] as String? ?? 'available';
     int? completionTime = course['completionTime'] as int?;
@@ -204,7 +246,7 @@ class _CoursesPageState extends State<CoursesPage> {
 
       Widget card = Card(
         margin: EdgeInsets.only(
-          bottom: showBottomConnectorNode ? 4 : (stackOffset < 0 ? 8 : 16), // ← tighter when connector follows
+          bottom: showBottomConnectorNode ? 4 : (stackOffset < 0 ? 8 : 16),
         ),
         color: Colors.grey[900],
         clipBehavior: Clip.none,
@@ -264,19 +306,20 @@ class _CoursesPageState extends State<CoursesPage> {
         ),
       );
 
-      return stackOffset != 0.0
-          ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+      final double totalOffset = stackOffset + topCompensationOffset;
+      return totalOffset != 0.0
+          ? Transform.translate(offset: Offset(0, totalOffset), child: card)
           : card;
     }
 
-    // ── COMPLETED CARD ──
+    // ── COMPLETED CARD (with requested semi-transparent overlay) ──
     if (status == 'completed') {
       Widget card = Card(
         margin: EdgeInsets.only(
-          bottom: showBottomConnectorNode ? 0 : (stackOffset < 0 ? 8 : 8), // ← tighter when connector follows
+          bottom: showBottomConnectorNode ? 0 : (stackOffset < 0 ? 8 : 8),
         ),
         color: Colors.green[900],
-        clipBehavior: Clip.none,
+        clipBehavior: Clip.hardEdge,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -300,21 +343,33 @@ class _CoursesPageState extends State<CoursesPage> {
                 ],
               ),
             ),
+            
+            // ── SEMI-TRANSPARENT OVERLAY (applied only to completed HR courses) ──
+            if (overlayOpacity > 0.0)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(overlayOpacity),
+                  ),
+                ),
+              ),
+            
             if (showTopConnectorNode) buildNode(isTop: true),
             if (showBottomConnectorNode) buildNode(isTop: false),
           ],
         ),
       );
 
-      return stackOffset != 0.0
-          ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+      final double totalOffset = stackOffset + topCompensationOffset;
+      return totalOffset != 0.0
+          ? Transform.translate(offset: Offset(0, totalOffset), child: card)
           : card;
     }
 
     // ── AVAILABLE CARD ──
     Widget card = Card(
       margin: EdgeInsets.only(
-        bottom: showBottomConnectorNode ? -4 : (stackOffset < 0 ? 8 : 16), // ← tighter when connector follows
+        bottom: showBottomConnectorNode ? -4 : (stackOffset < 0 ? 8 : 16),
       ),
       clipBehavior: Clip.none,
       child: Stack(
@@ -411,8 +466,9 @@ class _CoursesPageState extends State<CoursesPage> {
       ),
     );
 
-    return stackOffset != 0.0
-        ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+    final double totalOffset = stackOffset + topCompensationOffset;
+    return totalOffset != 0.0
+        ? Transform.translate(offset: Offset(0, totalOffset), child: card)
         : card;
   }
 }
