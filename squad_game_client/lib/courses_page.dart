@@ -13,6 +13,13 @@ class CoursesPage extends StatefulWidget {
 class _CoursesPageState extends State<CoursesPage> {
   Timer? _countdownTimer;
 
+  // HR chain IDs for stacking + smart connector logic
+  final List<String> _hrChainIds = const [
+    "hr-research",
+    "hr-research-advanced",
+    "hr-research-exceptional",
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -24,10 +31,9 @@ class _CoursesPageState extends State<CoursesPage> {
       
         if (SocketService().coursesNotifier.value.any((c) => 
             c['status'] == 'inProgress')) {
-          SocketService().requestCourses();   // re-fetch so new courses appear
+          SocketService().requestCourses();
         }
       }
-
     });
   }
 
@@ -37,72 +43,91 @@ class _CoursesPageState extends State<CoursesPage> {
     super.dispose();
   }
 
-    // ── SHORT VERTICAL CONNECTOR LINE ONLY (nodes are now on the cards) ──
+  // ── TIGHTER CONNECTOR LINE (now reaches top node perfectly with minimal gap) ──
   Widget _buildHRConnectorLine() {
-  return Padding(
-    padding: EdgeInsets.only(left: 39, top: 5.5),
-    child: SizedBox(
-      height: 30, // much shorter now
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          width: 4,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(2),
+    return Padding(
+      padding: const EdgeInsets.only(left: 39, top: 0),
+      child: SizedBox(
+        height: 34,                    // ← reduced from 48
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: 4,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-    // ── BUILD LIST WITH CONNECTOR INSERTED (now supports full 3-level HR chain) ──
+  // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR ──
   List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
     final List<Widget> widgets = [];
 
     for (int i = 0; i < courses.length; i++) {
       final course = courses[i];
-      bool showBottom = false;
-      bool showTop = false;
+      final String id = course['id'] as String;
+      final bool isCompleted = (course['status'] as String?) == 'completed';
+      final bool isHr = _hrChainIds.contains(id);
 
-      // ==================== HR RESEARCH CHAIN LOGIC ====================
-      // 1. Basic → Advanced
-      if (course['id'] == "hr-research" &&
-          i < courses.length - 1 &&
-          courses[i + 1]['id'] == "hr-research-advanced") {
-        showBottom = true;
+      // Should this card stack (overlap) the previous completed HR card?
+      bool shouldStack = false;
+      if (isHr && i > 0) {
+        final prev = courses[i - 1];
+        final prevId = prev['id'] as String;
+        final prevCompleted = (prev['status'] as String?) == 'completed';
+
+        if (_hrChainIds.contains(prevId) && prevCompleted && isCompleted) {
+          shouldStack = true;
+        }
       }
 
-      // 2. Advanced → Exceptional
-      if (course['id'] == "hr-research-advanced" &&
-          i < courses.length - 1 &&
-          courses[i + 1]['id'] == "hr-research-exceptional") {
-        showBottom = true;
+      // Node visibility
+      bool showBottomNode = false;
+      bool showTopNode = false;
+
+      // Show bottom node only on the LAST completed HR course when next is pending
+      if (isHr && isCompleted && i < courses.length - 1) {
+        final nextCourse = courses[i + 1];
+        final nextId = nextCourse['id'] as String;
+        final nextIsHr = _hrChainIds.contains(nextId);
+        final nextCompleted = (nextCourse['status'] as String?) == 'completed';
+
+        if (nextIsHr && !nextCompleted) {
+          showBottomNode = true;
+        }
       }
 
-      // 3. Exceptional shows top node (connected from Advanced)
-      if (course['id'] == "hr-research-exceptional" &&
-          i > 0 &&
-          courses[i - 1]['id'] == "hr-research-advanced") {
-        showTop = true;
+      // Show top node only on the FIRST pending HR course when previous is completed
+      if (isHr && !isCompleted && i > 0) {
+        final prev = courses[i - 1];
+        final prevId = prev['id'] as String;
+        final prevCompleted = (prev['status'] as String?) == 'completed';
+
+        if (_hrChainIds.contains(prevId) && prevCompleted) {
+          showTopNode = true;
+        }
       }
-      // ================================================================
 
       widgets.add(_buildCourseCard(
         course,
-        showTopConnectorNode: showTop,
-        showBottomConnectorNode: showBottom,
+        showTopConnectorNode: showTopNode,
+        showBottomConnectorNode: showBottomNode,
+        stackOffset: shouldStack ? -48.0 : 0.0,
       ));
 
-      // Insert connector line between chained courses
-      if (i < courses.length - 1) {
-        final currentId = course['id'];
-        final nextId = courses[i + 1]['id'];
+      // Insert connector line ONLY between last completed HR and next pending HR
+      if (isHr && isCompleted && i < courses.length - 1) {
+        final nextCourse = courses[i + 1];
+        final nextId = nextCourse['id'] as String;
+        final nextIsHr = _hrChainIds.contains(nextId);
+        final nextCompleted = (nextCourse['status'] as String?) == 'completed';
 
-        if ((currentId == "hr-research" && nextId == "hr-research-advanced") ||
-            (currentId == "hr-research-advanced" && nextId == "hr-research-exceptional")) {
+        if (nextIsHr && !nextCompleted) {
           widgets.add(_buildHRConnectorLine());
         }
       }
@@ -111,34 +136,35 @@ class _CoursesPageState extends State<CoursesPage> {
   }
 
   @override
-Widget build(BuildContext context) {
-  final courses = SocketService().coursesNotifier.value;
+  Widget build(BuildContext context) {
+    final courses = SocketService().coursesNotifier.value;
 
-  return Scaffold(
-    appBar: StatusAppBar(
-      title: 'Training Courses',
-      statsNotifier: SocketService().statsNotifier,
-      time: 'Live',
-      onMenuPressed: () => Navigator.pop(context),
-    ),
-    body: courses.isEmpty
-        ? const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.0),
-              child: CircularProgressIndicator(),
-            ),
-          )
+    return Scaffold(
+      appBar: StatusAppBar(
+        title: 'Training Courses',
+        statsNotifier: SocketService().statsNotifier,
+        time: 'Live',
+        onMenuPressed: () => Navigator.pop(context),
+      ),
+      body: courses.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40.0),
+                child: CircularProgressIndicator(),
+              ),
+            )
           : ListView(
-            padding: const EdgeInsets.all(16),
-            children: _buildCoursesWithConnector(courses),
-          ),
-  );
-}
+              padding: const EdgeInsets.all(16),
+              children: _buildCoursesWithConnector(courses),
+            ),
+    );
+  }
 
   Widget _buildCourseCard(
     Map<String, dynamic> course, {
     bool showTopConnectorNode = false,
     bool showBottomConnectorNode = false,
+    double stackOffset = 0.0,
   }) {
     String status = course['status'] as String? ?? 'available';
     int? completionTime = course['completionTime'] as int?;
@@ -148,7 +174,7 @@ Widget build(BuildContext context) {
       if (remainingMs <= 0) status = 'completed';
     }
 
-    // Helper to build the node (reused on all card types)
+    // ── NODE BUILDER (amber circles) ──
     Widget buildNode({required bool isTop}) {
       return Positioned(
         top: isTop ? -10 : null,
@@ -176,9 +202,9 @@ Widget build(BuildContext context) {
       final minutesLeft = (remainingMs ~/ 60000);
       final secondsLeft = ((remainingMs % 60000) ~/ 1000).toString().padLeft(2, '0');
 
-      return Card(
+      Widget card = Card(
         margin: EdgeInsets.only(
-          bottom: showBottomConnectorNode ? 4 : 16,  // much smaller when connector follows
+          bottom: showBottomConnectorNode ? 4 : (stackOffset < 0 ? 8 : 16), // ← tighter when connector follows
         ),
         color: Colors.grey[900],
         clipBehavior: Clip.none,
@@ -237,13 +263,17 @@ Widget build(BuildContext context) {
           ],
         ),
       );
+
+      return stackOffset != 0.0
+          ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+          : card;
     }
 
     // ── COMPLETED CARD ──
     if (status == 'completed') {
-      return Card(
+      Widget card = Card(
         margin: EdgeInsets.only(
-          bottom: showBottomConnectorNode ? 4 : 16,  // much smaller when connector follows
+          bottom: showBottomConnectorNode ? 0 : (stackOffset < 0 ? 8 : 8), // ← tighter when connector follows
         ),
         color: Colors.green[900],
         clipBehavior: Clip.none,
@@ -275,12 +305,16 @@ Widget build(BuildContext context) {
           ],
         ),
       );
+
+      return stackOffset != 0.0
+          ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+          : card;
     }
 
     // ── AVAILABLE CARD ──
-    return Card(
+    Widget card = Card(
       margin: EdgeInsets.only(
-        bottom: showBottomConnectorNode ? 4 : 16,  // much smaller when connector follows
+        bottom: showBottomConnectorNode ? -4 : (stackOffset < 0 ? 8 : 16), // ← tighter when connector follows
       ),
       clipBehavior: Clip.none,
       child: Stack(
@@ -288,7 +322,7 @@ Widget build(BuildContext context) {
         children: [
           InkWell(
             onTap: () async {
-              // ==================== VALIDATION FOR ADVANCED HR (already existed) ====================
+              // Validation for Advanced HR
               if (course['id'] == "hr-research-advanced") {
                 final stats = SocketService().statsNotifier.value;
                 final List<String> missing = [];
@@ -311,7 +345,7 @@ Widget build(BuildContext context) {
                 }
               }
 
-              // ==================== NEW: VALIDATION FOR EXCEPTIONAL HR ====================
+              // Validation for Exceptional HR
               if (course['id'] == "hr-research-exceptional") {
                 final stats = SocketService().statsNotifier.value;
                 final List<String> missing = [];
@@ -335,9 +369,7 @@ Widget build(BuildContext context) {
                   return;
                 }
               }
-              // =========================================================================
 
-              // All checks passed → proceed with purchase
               SocketService().purchaseCourse(course['id']);
             },
             borderRadius: BorderRadius.circular(16),
@@ -378,5 +410,9 @@ Widget build(BuildContext context) {
         ],
       ),
     );
+
+    return stackOffset != 0.0
+        ? Transform.translate(offset: Offset(0, stackOffset), child: card)
+        : card;
   }
 }
