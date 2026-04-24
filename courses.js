@@ -140,6 +140,19 @@ function getUnifiedCourses(playerData) {
       if (!advancedCompleted) return null;
     }
 
+    // ==================== NEW: Street Tactics chain logic (exact mirror of HR) ====================
+    if (template.id === "advanced-street-tactics") {
+      const basicCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "street-tactics" && c.completionTime <= now);
+      if (!basicCompleted) return null;
+    }
+
+    if (template.id === "exceptional-street-tactics") {
+      const advancedCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "advanced-street-tactics" && c.completionTime <= now);
+      if (!advancedCompleted) return null;
+    }
+
     return { 
       ...template, 
       status: 'available',
@@ -219,6 +232,45 @@ async function handlePurchaseCourse(db, socket, courseId) {
       const message = errors.length === 1 
         ? `You need ${errors[0]} to enroll in Exceptional Human Resource Research.`
         : `You are missing: ${errors.join(', ')} to enroll in Exceptional Human Resource Research.`;
+
+      socket.emit('course-result', { success: false, message });
+      return;
+    }
+  }
+
+  // ==================== NEW: Street Tactics chain validation (exact mirror of HR) ====================
+  if (course.id === "advanced-street-tactics") {
+    const errors = [];
+
+    if ((p.balance || 0) < 4000) errors.push("$4000");
+    const basicCompleted = (p.completedCourses || []).some(c => 
+      c.id === "street-tactics" && c.completionTime <= Date.now()
+    );
+    if (!basicCompleted) errors.push("completed Street Tactics");
+
+    if (errors.length > 0) {
+      const message = errors.length === 1 
+        ? `You need ${errors[0]} to enroll in Advanced Street Tactics.`
+        : `You are missing: ${errors.join(', ')} to enroll in Advanced Street Tactics.`;
+
+      socket.emit('course-result', { success: false, message });
+      return;
+    }
+  }
+
+  if (course.id === "exceptional-street-tactics") {
+    const errors = [];
+
+    if ((p.balance || 0) < 6000) errors.push("$6000");
+    const advancedCompleted = (p.completedCourses || []).some(c => 
+      c.id === "advanced-street-tactics" && c.completionTime <= Date.now()
+    );
+    if (!advancedCompleted) errors.push("completed Advanced Street Tactics");
+
+    if (errors.length > 0) {
+      const message = errors.length === 1 
+        ? `You need ${errors[0]} to enroll in Exceptional Street Tactics.`
+        : `You are missing: ${errors.join(', ')} to enroll in Exceptional Street Tactics.`;
 
       socket.emit('course-result', { success: false, message });
       return;

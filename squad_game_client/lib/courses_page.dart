@@ -13,15 +13,34 @@ class CoursesPage extends StatefulWidget {
 class _CoursesPageState extends State<CoursesPage> {
   Timer? _countdownTimer;
 
-  // HR chain IDs for stacking + smart connector logic
+  // HR chain IDs for stacking + smart connector logic (UNTOUCHED)
   final List<String> _hrChainIds = const [
     "hr-research",
     "hr-research-advanced",
     "hr-research-exceptional",
   ];
 
-  // Offset used when stacking completed HR courses
+  // ==================== NEW: Street Tactics chain (exact mirror of HR) ====================
+  final List<String> _streetTacticsChainIds = const [
+    "street-tactics",
+    "advanced-street-tactics",
+    "exceptional-street-tactics",
+  ];
+
+  // Offset used when stacking completed chain courses
   static const double _hrStackOffset = -48.0;
+
+  // Helper to detect any chain course
+  bool _isChainCourse(String id) {
+    return _hrChainIds.contains(id) || _streetTacticsChainIds.contains(id);
+  }
+
+  // Helper to check if two courses belong to the same chain
+  bool _areInSameChain(String id1, String id2) {
+    if (_hrChainIds.contains(id1) && _hrChainIds.contains(id2)) return true;
+    if (_streetTacticsChainIds.contains(id1) && _streetTacticsChainIds.contains(id2)) return true;
+    return false;
+  }
 
   @override
   void initState() {
@@ -46,12 +65,9 @@ class _CoursesPageState extends State<CoursesPage> {
     super.dispose();
   }
 
-  // ── HR CHAIN OVERLAY LOGIC (exactly as requested) ──
-  // Basic HR gets overlay after Advanced is completed
-  // Advanced HR gets overlay after Exceptional is completed
-  // Basic becomes darker once Exceptional is done
-  double _getHROverlayOpacity(String courseId) {
-    if (!_hrChainIds.contains(courseId)) return 0.0;
+  // ── OVERLAY LOGIC (HR logic untouched + Street Tactics added) ──
+  double _getOverlayOpacity(String courseId) {
+    if (!_isChainCourse(courseId)) return 0.0;
 
     final allCourses = SocketService().coursesNotifier.value;
     final completedIds = allCourses
@@ -59,6 +75,7 @@ class _CoursesPageState extends State<CoursesPage> {
         .map((c) => c['id'] as String)
         .toSet();
 
+    // HR chain (100% unchanged)
     if (courseId == "hr-research") {
       if (completedIds.contains("hr-research-exceptional")) {
         return 0.65; // darker overlay
@@ -71,15 +88,24 @@ class _CoursesPageState extends State<CoursesPage> {
         return 0.35;
       }
     }
+
+    // Street Tactics chain (exact mirror of HR)
+    else if (courseId == "street-tactics") {
+      if (completedIds.contains("exceptional-street-tactics")) return 0.65;
+      if (completedIds.contains("advanced-street-tactics")) return 0.35;
+    } else if (courseId == "advanced-street-tactics") {
+      if (completedIds.contains("exceptional-street-tactics")) return 0.35;
+    }
+
     return 0.0;
   }
 
-  // ── TIGHTER CONNECTOR LINE (now reaches top node perfectly with minimal gap) ──
+  // ── TIGHTER CONNECTOR LINE (unchanged) ──
   Widget _buildHRConnectorLine() {
     return Padding(
       padding: const EdgeInsets.only(left: 39, top: 0),
       child: SizedBox(
-        height: 28,                    // tightened for perfect alignment after stacking
+        height: 28,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Container(
@@ -95,7 +121,7 @@ class _CoursesPageState extends State<CoursesPage> {
     );
   }
 
-  // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR (FULL CHAIN SUPPORT) ──
+  // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR (now supports BOTH chains) ──
   List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
     final List<Widget> widgets = [];
     double accumulatedCompensation = 0.0;
@@ -104,16 +130,16 @@ class _CoursesPageState extends State<CoursesPage> {
       final course = courses[i];
       final String id = course['id'] as String;
       final bool isCompleted = (course['status'] as String?) == 'completed';
-      final bool isHr = _hrChainIds.contains(id);
+      final bool isChain = _isChainCourse(id);
 
-      // Should this card stack (overlap) the previous completed HR card?
+      // Should this card stack (overlap) the previous completed course in same chain?
       bool shouldStack = false;
-      if (isHr && i > 0) {
+      if (isChain && i > 0) {
         final prev = courses[i - 1];
         final prevId = prev['id'] as String;
         final prevCompleted = (prev['status'] as String?) == 'completed';
 
-        if (_hrChainIds.contains(prevId) && prevCompleted && isCompleted) {
+        if (_areInSameChain(prevId, id) && prevCompleted && isCompleted) {
           shouldStack = true;
         }
       }
@@ -122,25 +148,24 @@ class _CoursesPageState extends State<CoursesPage> {
       bool showBottomNode = false;
       bool showTopNode = false;
 
-      // Show bottom node only on the LAST completed HR course when next is pending
-      if (isHr && isCompleted && i < courses.length - 1) {
+      // Show bottom node only on the LAST completed course in chain when next is pending
+      if (isChain && isCompleted && i < courses.length - 1) {
         final nextCourse = courses[i + 1];
         final nextId = nextCourse['id'] as String;
-        final nextIsHr = _hrChainIds.contains(nextId);
-        final nextCompleted = (nextCourse['status'] as String?) == 'completed';
 
-        if (nextIsHr && !nextCompleted) {
+        if (_areInSameChain(id, nextId) && 
+            (nextCourse['status'] as String?) != 'completed') {
           showBottomNode = true;
         }
       }
 
-      // Show top node only on the FIRST pending HR course when previous is completed
-      if (isHr && !isCompleted && i > 0) {
+      // Show top node only on the FIRST pending course in chain when previous is completed
+      if (isChain && !isCompleted && i > 0) {
         final prev = courses[i - 1];
         final prevId = prev['id'] as String;
         final prevCompleted = (prev['status'] as String?) == 'completed';
 
-        if (_hrChainIds.contains(prevId) && prevCompleted) {
+        if (_areInSameChain(prevId, id) && prevCompleted) {
           showTopNode = true;
         }
       }
@@ -151,24 +176,22 @@ class _CoursesPageState extends State<CoursesPage> {
         showBottomConnectorNode: showBottomNode,
         stackOffset: shouldStack ? _hrStackOffset : 0.0,
         topCompensationOffset: accumulatedCompensation,
-        overlayOpacity: _getHROverlayOpacity(id),   // ← NEW: HR overlay support
+        overlayOpacity: _getOverlayOpacity(id),
       ));
 
-      // ── NEW: Accumulate offset on EVERY stacked HR card (this fixes the 3rd card) ──
+      // Accumulate offset on EVERY stacked card
       if (shouldStack) {
         accumulatedCompensation += _hrStackOffset;
       }
 
-      // Insert connector line ONLY between last completed HR and next pending HR
-      if (isHr && isCompleted && i < courses.length - 1) {
+      // Insert connector line ONLY between last completed and next pending in SAME chain
+      if (isChain && isCompleted && i < courses.length - 1) {
         final nextCourse = courses[i + 1];
         final nextId = nextCourse['id'] as String;
-        final nextIsHr = _hrChainIds.contains(nextId);
-        final nextCompleted = (nextCourse['status'] as String?) == 'completed';
 
-        if (nextIsHr && !nextCompleted) {
+        if (_areInSameChain(id, nextId) && 
+            (nextCourse['status'] as String?) != 'completed') {
           widgets.add(_buildHRConnectorLine());
-          // Compensation is now handled automatically above — no longer set here
         }
       }
     }
@@ -206,7 +229,7 @@ class _CoursesPageState extends State<CoursesPage> {
     bool showBottomConnectorNode = false,
     double stackOffset = 0.0,
     double topCompensationOffset = 0.0,
-    double overlayOpacity = 0.0,          // ← NEW: semi-transparent overlay for HR chain
+    double overlayOpacity = 0.0,
   }) {
     String status = course['status'] as String? ?? 'available';
     int? completionTime = course['completionTime'] as int?;
@@ -344,7 +367,7 @@ class _CoursesPageState extends State<CoursesPage> {
               ),
             ),
             
-            // ── SEMI-TRANSPARENT OVERLAY (applied only to completed HR courses) ──
+            // ── SEMI-TRANSPARENT OVERLAY (applied only to completed chain courses) ──
             if (overlayOpacity > 0.0)
               Positioned.fill(
                 child: Container(
@@ -377,7 +400,7 @@ class _CoursesPageState extends State<CoursesPage> {
         children: [
           InkWell(
             onTap: () async {
-              // Validation for Advanced HR
+              // Validation for Advanced HR (UNTOUCHED)
               if (course['id'] == "hr-research-advanced") {
                 final stats = SocketService().statsNotifier.value;
                 final List<String> missing = [];
@@ -400,7 +423,7 @@ class _CoursesPageState extends State<CoursesPage> {
                 }
               }
 
-              // Validation for Exceptional HR
+              // Validation for Exceptional HR (UNTOUCHED)
               if (course['id'] == "hr-research-exceptional") {
                 final stats = SocketService().statsNotifier.value;
                 final List<String> missing = [];
@@ -417,6 +440,50 @@ class _CoursesPageState extends State<CoursesPage> {
                   final message = missing.length == 1 
                       ? "You need ${missing[0]} to enroll in Exceptional Human Resource Research."
                       : "You are missing: ${missing.join(', ')} to enroll in Exceptional Human Resource Research.";
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(message), backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+              }
+
+              // ==================== NEW: Street Tactics client validation (exact mirror) ====================
+              if (course['id'] == "advanced-street-tactics") {
+                final stats = SocketService().statsNotifier.value;
+                final List<String> missing = [];
+
+                if ((stats['balance'] ?? 0) < 4000) missing.add("\$4000");
+                final basicCompleted = (stats['completedCourses'] ?? [])
+                    .any((c) => c['id'] == "street-tactics" && (c['completionTime'] ?? 0) <= SocketService().currentServerTime);
+                if (!basicCompleted) missing.add("completed Street Tactics");
+
+                if (missing.isNotEmpty) {
+                  final message = missing.length == 1 
+                      ? "You need ${missing[0]} to enroll in Advanced Street Tactics."
+                      : "You are missing: ${missing.join(', ')} to enroll in Advanced Street Tactics.";
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(message), backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+              }
+
+              if (course['id'] == "exceptional-street-tactics") {
+                final stats = SocketService().statsNotifier.value;
+                final List<String> missing = [];
+
+                if ((stats['balance'] ?? 0) < 6000) missing.add("\$6000");
+                final advancedCompleted = (stats['completedCourses'] ?? [])
+                    .any((c) => c['id'] == "advanced-street-tactics" && (c['completionTime'] ?? 0) <= SocketService().currentServerTime);
+
+                if (!advancedCompleted) missing.add("completed Advanced Street Tactics");
+
+                if (missing.isNotEmpty) {
+                  final message = missing.length == 1 
+                      ? "You need ${missing[0]} to enroll in Exceptional Street Tactics."
+                      : "You are missing: ${missing.join(', ')} to enroll in Exceptional Street Tactics.";
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(message), backgroundColor: Colors.orange),
