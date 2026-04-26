@@ -23,16 +23,16 @@ const courseTemplates = [
     name: "Advanced Street Tactics",
     cost: 4000,
     durationMinutes: 2,
-    effect: "+15 Skill • Unlock mid-level operation bonuses",
-    requirements: "Rank: Corporal+"
+    effect: "Further increases the amount of money and exp gained from mugging passerbys and looting grocery stores.",
+    requirements: "Street Tactics completed and minimum Skill of 1 and minimum marksmanship of 1"
   },
   {
     id: "exceptional-street-tactics",
     name: "Exceptional Street Tactics",
     cost: 6000,
     durationMinutes: 2,
-    effect: "+15 Skill • Unlock mid-level operation bonuses",
-    requirements: "Rank: Corporal+"
+    effect: "Further increases the amount of money and exp gained from mugging passerbys and all other low level ops.",
+    requirements: "Advanced Street Tactics completed and minimum Skill of 2 and minimum marksmanship of 2"
   },
   {
     id: "marksmanship-master",
