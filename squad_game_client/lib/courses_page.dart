@@ -479,6 +479,9 @@ class _CoursesPageState extends State<CoursesPage> {
                 final List<String> missing = [];
 
                 if ((stats['balance'] ?? 0) < 6000) missing.add("\$6000");
+                if ((stats['skill'] ?? 0) < 2) missing.add("Skill level of 2");
+                if ((stats['marksmanship'] ?? 0) < 2) missing.add("Marksmanship level of 2");
+
                 final advancedCompleted = (stats['completedCourses'] ?? [])
                     .any((c) => c['id'] == "advanced-street-tactics" && (c['completionTime'] ?? 0) <= SocketService().currentServerTime);
 

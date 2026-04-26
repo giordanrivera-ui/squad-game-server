@@ -240,45 +240,48 @@ async function handlePurchaseCourse(db, socket, courseId) {
 
   // ==================== NEW: Street Tactics chain validation (exact mirror of HR) ====================
   if (course.id === "advanced-street-tactics") {
-  const errors = [];
-
-  if ((p.balance || 0) < 4000) errors.push("$4000");
-  if ((p.skill || 0) < 1) errors.push("Skill level of 1");
-  if ((p.marksmanship || 0) < 1) errors.push("Marksmanship level of 1");
-
-  const basicCompleted = (p.completedCourses || []).some(c => 
-    c.id === "street-tactics" && c.completionTime <= Date.now()
-  );
-  if (!basicCompleted) errors.push("completed Street Tactics");
-
-  if (errors.length > 0) {
-    const message = errors.length === 1 
-      ? `You need ${errors[0]} to enroll in Advanced Street Tactics.`
-      : `You are missing: ${errors.join(', ')} to enroll in Advanced Street Tactics.`;
-
-    socket.emit('course-result', { success: false, message });
-    return;
-  }
-}
-
-  if (course.id === "exceptional-street-tactics") {
     const errors = [];
 
-    if ((p.balance || 0) < 6000) errors.push("$6000");
-    const advancedCompleted = (p.completedCourses || []).some(c => 
-      c.id === "advanced-street-tactics" && c.completionTime <= Date.now()
+    if ((p.balance || 0) < 4000) errors.push("$4000");
+    if ((p.skill || 0) < 1) errors.push("Skill level of 1");
+    if ((p.marksmanship || 0) < 1) errors.push("Marksmanship level of 1");
+
+    const basicCompleted = (p.completedCourses || []).some(c => 
+      c.id === "street-tactics" && c.completionTime <= Date.now()
     );
-    if (!advancedCompleted) errors.push("completed Advanced Street Tactics");
+    if (!basicCompleted) errors.push("completed Street Tactics");
 
     if (errors.length > 0) {
       const message = errors.length === 1 
-        ? `You need ${errors[0]} to enroll in Exceptional Street Tactics.`
-        : `You are missing: ${errors.join(', ')} to enroll in Exceptional Street Tactics.`;
+        ? `You need ${errors[0]} to enroll in Advanced Street Tactics.`
+        : `You are missing: ${errors.join(', ')} to enroll in Advanced Street Tactics.`;
 
       socket.emit('course-result', { success: false, message });
       return;
     }
   }
+
+  if (course.id === "exceptional-street-tactics") {
+  const errors = [];
+
+  if ((p.balance || 0) < 6000) errors.push("$6000");
+  if ((p.skill || 0) < 2) errors.push("Skill level of 2");
+  if ((p.marksmanship || 0) < 2) errors.push("Marksmanship level of 2");
+
+  const advancedCompleted = (p.completedCourses || []).some(c => 
+    c.id === "advanced-street-tactics" && c.completionTime <= Date.now()
+  );
+  if (!advancedCompleted) errors.push("completed Advanced Street Tactics");
+
+  if (errors.length > 0) {
+    const message = errors.length === 1 
+      ? `You need ${errors[0]} to enroll in Exceptional Street Tactics.`
+      : `You are missing: ${errors.join(', ')} to enroll in Exceptional Street Tactics.`;
+
+    socket.emit('course-result', { success: false, message });
+    return;
+  }
+}
 
   // Normal balance check (applies to all courses)
   if ((p.balance || 0) < course.cost) {
