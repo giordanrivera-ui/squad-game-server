@@ -49,26 +49,50 @@ async function handleExecuteOperation(db, socket, data, deps) {
   const exp = p.experience || 0;
 
   if (operation === "Mug a passerby") {
-    // ==================== STREET TACTICS COURSE BONUS ====================
-    const hasStreetTactics = (p.completedCourses || []).some(c =>
-      c.id === "street-tactics" && (c.completionTime ?? 0) <= Date.now()
+    // ==================== STREET TACTICS COURSE BONUS (Basic + Advanced) ====================
+    const now = Date.now();
+
+    const hasBasic = (p.completedCourses || []).some(c =>
+      c.id === "street-tactics" && (c.completionTime ?? 0) <= now
     );
 
-    if (hasStreetTactics) {
-      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112
+    const hasAdvanced = (p.completedCourses || []).some(c =>
+      c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasAdvanced) {
+      money = Math.floor(Math.random() * 97) + 28;   // $28 – $124
+      expGain = 18;
+    } else if (hasBasic) {
+      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112 (original Basic reward)
       expGain = 14;
     } else {
-      money = Math.floor(Math.random() * 91) + 10;   // original $10 – $100
+      money = Math.floor(Math.random() * 91) + 10;   // $10 – $100 (base)
       expGain = 10;
     }
-    // ==================================================================
+
     rawDamage = Math.floor(Math.random() * 26) + 5;
     message = `You mugged a passerby and got $${money}!`;
-  } else if (operation === "Loot a grocery store") {
-    money = Math.floor(Math.random() * 71) + 30;
+  } 
+
+  else if (operation === "Loot a grocery store") {
+    // ==================== STREET TACTICS COURSE BONUS - Advanced only ====================
+    const now = Date.now();
+    const hasAdvanced = (p.completedCourses || []).some(c =>
+      c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasAdvanced) {
+      money = Math.floor(Math.random() * 71) + 40;   // $40 – $110
+      expGain = 19;
+    } else {
+      money = Math.floor(Math.random() * 71) + 30;   // $30 – $100 (original)
+      expGain = 15;
+    }
+
     rawDamage = Math.floor(Math.random() * 21) + 15;
-    expGain = 15;
     message = `You looted the grocery store and stole $${money}!`;
+
   } else if (operation === "Rob a bank") {
     rawDamage = Math.floor(Math.random() * 41) + 15;
     expGain = 25;
