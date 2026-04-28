@@ -108,7 +108,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   }
 
   // Create full party tracking object
-  const party = createSpecialOperationParty(data.operation, email, p.displayName, p.experience || 0, p.photoURL || '');
+  const party = createSpecialOperationParty(data.operation, email, p.displayName, p.experience || 0, p.photoURL || '', p.marksmanship || 0);
 
   // Deduct cost
   await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
@@ -162,6 +162,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   // Calculate joiner's real rank
   const joinerDoc = await db.collection('players').doc(joinerEmail).get();
   const joinerExp = joinerDoc.data()?.experience || 0;
+  const joinerMarksmanship = joinerData.marksmanship || 0;
 
   party.positions[position] = {
     email: joinerEmail,
