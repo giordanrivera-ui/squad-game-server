@@ -3,12 +3,28 @@ const { logTransaction } = require('./utils');
 
 const courseTemplates = [
     {
-    id: "basic-combat",
-    name: "Basic Combat Training",
-    cost: 850,
-    durationMinutes: 45,
-    effect: "+8 Marksmanship • +3 Overall Power",
+    id: "team-synergy",
+    name: "Team Synergy",
+    cost: 2000,
+    durationMinutes: 2,
+    effect: "Increases the overall power of a Special Operation party by 2.5%",
     requirements: "None"
+  },
+  {
+    id: "advanced-team-synergy",
+    name: "Advanced Team Synergy",
+    cost: 4000,
+    durationMinutes: 2,
+    effect: "Increases the overall power of a Special Operation party by 5%",
+    requirements: "Team Synergy completed and minimum skill, intelligence and marksmanship of 1."
+  },
+  {
+    id: "exceptional-team-synergy",
+    name: "Exceptional Team Synergy",
+    cost: 6000,
+    durationMinutes: 2,
+    effect: "Increases the overall power of a Special Operation party by 7.5%",
+    requirements: "Team Synergy completed and minimum skill, intelligence and marksmanship of 2."
   },
   {
     id: "street-tactics",
@@ -75,12 +91,28 @@ const courseTemplates = [
     requirements: "Advanced Human Resource Research completed and a minimum Intelligence of 4."
   },
   {
-    id: "business-acumen",
+    id: "property-acumen",
     name: "Business & Property Acumen",
-    cost: 3100,
-    durationMinutes: 120,
-    effect: "+15% property income • Unlock advanced upgrades",
-    requirements: "Own 2+ properties"
+    cost: 8000,
+    durationMinutes: 2,
+    effect: "Increase the income of all properties by 1%",
+    requirements: "Minimum intelligence of 2"
+  },
+  {
+    id: "advanced-property-acumen",
+    name: "Advanced Business & Property Acumen",
+    cost: 20000,
+    durationMinutes: 2,
+    effect: "Increase the income of all properties by another 1%",
+    requirements: "Minimum intelligence of 4"
+  },
+  {
+    id: "exceptional-property-acumen",
+    name: "Exceptional Business & Property Acumen",
+    cost: 45000,
+    durationMinutes: 2,
+    effect: "Increase the income of all properties by another 1%",
+    requirements: "Minimum intelligence of 6"
   },
   {
     id: "stealth-operations",

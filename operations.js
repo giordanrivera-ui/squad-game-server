@@ -49,7 +49,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
   const exp = p.experience || 0;
 
   if (operation === "Mug a passerby") {
-    // ==================== STREET TACTICS COURSE BONUS (Basic + Advanced) ====================
+    // ==================== STREET TACTICS COURSE BONUS (Basic + Advanced + Exceptional) ====================
     const now = Date.now();
 
     const hasBasic = (p.completedCourses || []).some(c =>
@@ -60,33 +60,47 @@ async function handleExecuteOperation(db, socket, data, deps) {
       c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
-    if (hasAdvanced) {
+    const hasExceptional = (p.completedCourses || []).some(c =>
+      c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasExceptional) {
+      money = Math.floor(Math.random() * 101) + 36;   // $36 – $136
+      expGain = 22;
+    } else if (hasAdvanced) {
       money = Math.floor(Math.random() * 97) + 28;   // $28 – $124
       expGain = 18;
     } else if (hasBasic) {
-      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112 (original Basic reward)
+      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112
       expGain = 14;
     } else {
-      money = Math.floor(Math.random() * 91) + 10;   // $10 – $100 (base)
+      money = Math.floor(Math.random() * 91) + 10;   // $10 – $100
       expGain = 10;
     }
 
     rawDamage = Math.floor(Math.random() * 26) + 5;
     message = `You mugged a passerby and got $${money}!`;
-  } 
+  }
 
   else if (operation === "Loot a grocery store") {
-    // ==================== STREET TACTICS COURSE BONUS - Advanced only ====================
+    // ==================== STREET TACTICS COURSE BONUS - Advanced + Exceptional ====================
     const now = Date.now();
     const hasAdvanced = (p.completedCourses || []).some(c =>
       c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
-    if (hasAdvanced) {
+    const hasExceptional = (p.completedCourses || []).some(c =>
+      c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasExceptional) {
+      money = Math.floor(Math.random() * 73) + 48;   // $48 – $120
+      expGain = 22;
+    } else if (hasAdvanced) {
       money = Math.floor(Math.random() * 71) + 40;   // $40 – $110
       expGain = 19;
     } else {
-      money = Math.floor(Math.random() * 71) + 30;   // $30 – $100 (original)
+      money = Math.floor(Math.random() * 71) + 30;   // $30 – $100
       expGain = 15;
     }
 
@@ -95,31 +109,72 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   } else if (operation === "Rob a bank") {
     rawDamage = Math.floor(Math.random() * 41) + 15;
-    expGain = 25;
 
-    if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
-    else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
-    else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
-    else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
-    else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
-    else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
-    else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
-    else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
-    else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
-    else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
-    else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
-    else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
-    else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
-    else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
-    else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
-    else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
-    else                     money = Math.floor(Math.random() * 401) + 600;
+    const now = Date.now();
+    const hasExceptional = (p.completedCourses || []).some(c =>
+      c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasExceptional) {
+      expGain = 29;
+      // Original money roll, then add $8 bonus
+      if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
+      else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
+      else                     money = Math.floor(Math.random() * 401) + 600;
+
+      money += 8;   // Exceptional Street Tactics bonus
+    } else {
+      expGain = 25;
+      // Original money calculation (unchanged)
+      if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
+      else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
+      else                     money = Math.floor(Math.random() * 401) + 600;
+    }
 
     message = `You robbed the bank and escaped with $${money}!`;
   } else if (operation === "Loot weapons store") {
-    money = Math.floor(Math.random() * 41) + 10;
+    const now = Date.now();
+    const hasExceptional = (p.completedCourses || []).some(c =>
+      c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
+    );
+
+    if (hasExceptional) {
+      money = Math.floor(Math.random() * 41) + 15;   // original $10–$50 + $5 bonus
+      expGain = 13;
+    } else {
+      money = Math.floor(Math.random() * 41) + 10;
+      expGain = 10;
+    }
+
     rawDamage = Math.floor(Math.random() * 41) + 20;
-    expGain = 10;
     message = `You looted the weapons store and stole $${money}!`;
   } else if (operation === "Attack military barracks") {
     money = Math.floor(Math.random() * 131) + 50;

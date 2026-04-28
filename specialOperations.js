@@ -18,7 +18,7 @@ const specialOperationConfigs = {
 };
 
 // Helper to create a fresh party object
-function createSpecialOperationParty(operation, email, displayName, experience = 0, photoURL = '') {
+function createSpecialOperationParty(operation, email, displayName, experience = 0, photoURL = '', marksmanship = 0) {
   const config = specialOperationConfigs[operation];
   if (!config) throw new Error(`Unknown special operation: ${operation}`);
 
@@ -28,7 +28,8 @@ function createSpecialOperationParty(operation, email, displayName, experience =
     leaderName: displayName || 'Unknown',
     status: 'recruiting',
     createdAt: Date.now(),
-    positions: {}
+    positions: {},
+    overallPower: 0   // ← NEW
   };
 
   config.positions.forEach(pos => {
@@ -37,14 +38,32 @@ function createSpecialOperationParty(operation, email, displayName, experience =
         email,
         displayName: displayName || 'Leader',
         photoURL: photoURL || '',
-        rank: getRankTitle(experience)
+        rank: getRankTitle(experience),
+        marksmanship: marksmanship,        // ← NEW
       };
     } else {
       party.positions[pos] = null;
     }
   });
 
+  party.overallPower = calculatePartyOverallPower(party);  // ← NEW
   return party;
+}
+
+function calculatePositionPower(occupant) {
+  if (!occupant || !occupant.weapon || typeof occupant.weapon.power !== 'number') return 0;
+  const marksmanship = occupant.marksmanship || 0;
+  const bonus = 1 + (marksmanship / 100);
+  return Math.round(occupant.weapon.power * bonus);
+}
+
+function calculatePartyOverallPower(party) {
+  if (!party || !party.positions) return 0;
+  let total = 0;
+  Object.values(party.positions).forEach(occupant => {
+    total += calculatePositionPower(occupant);
+  });
+  return total;
 }
 
 // ==================== INITIATE SPECIAL OPERATION ====================
@@ -148,8 +167,11 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     email: joinerEmail,
     displayName: joinerName,
     photoURL: socket.data.photoURL || '',
-    rank: getRankTitle(joinerExp)
+    rank: getRankTitle(joinerExp),
+    marksmanship: joinerMarksmanship,
   };
+
+  party.overallPower = calculatePartyOverallPower(party);
 
   // Update leader
   await leaderDocRef.update({ activeSpecialOperationParty: party });
@@ -229,6 +251,8 @@ async function handleCancelSpecialOp(db, socket, deps = {}) {
     });
   }
   await batch.commit();
+
+  party.overallPower = calculatePartyOverallPower(party);
 
   // Send the cancellation message to all online members
   if (onlineSockets) {
@@ -319,6 +343,8 @@ async function handleAssignSpecialWeapon(db, socket, data, { onlineSockets }) {
 
   // Store full weapon object inside the position
   party.positions[position].weapon = removedWeapon;
+
+  party.overallPower = calculatePartyOverallPower(party);
 
   // === SAVE LEADER'S INVENTORY FIRST ===
   await docRef.set(p);
@@ -453,6 +479,8 @@ async function handleLeaveSpecialOp(db, socket, deps = {}) {
     activeSpecialOperation: admin.firestore.FieldValue.delete(),
     activeSpecialOperationParty: admin.firestore.FieldValue.delete()
   });
+
+  party.overallPower = calculatePartyOverallPower(party);
 
   // Update remaining members with the new (smaller) party
   const remainingEmails = Object.values(party.positions)

@@ -419,11 +419,37 @@ class _OperationsScreenState extends State<OperationsScreen>
 
                                       if (_selectedSpecialOperation != null) ...[
                                         const SizedBox(height: 12),
+
                                         Text(
                                           _selectedSpecialOperation!,
                                           style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.orange),
                                         ),
                                         const SizedBox(height: 6),
+
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.bolt, color: Colors.amber, size: 26),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Overall Power: ',
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                color: Colors.white70,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${party?['overallPower'] ?? 0}',   // ← Starts at zero (we'll make this dynamic later)
+                                              style: const TextStyle(
+                                                fontSize: 26,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
 
                                         if (!_isOperationInitiated)
                                           SizedBox(
