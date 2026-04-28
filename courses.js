@@ -205,7 +205,7 @@ async function handleRequestCourses(db, socket) {
   socket.emit('courses-list', unifiedCourses);
 }
 
-async function handlePurchaseCourse(db, socket, courseId) {
+async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncPartyTeamSynergy }) {
   const email = socket.data.email;
   if (!email) return;
 
@@ -232,7 +232,7 @@ async function handlePurchaseCourse(db, socket, courseId) {
 
   if (course.id === "team-synergy") {
   if (p.activeSpecialOperationParty && p.activeSpecialOperationParty.leaderEmail === email) {
-    await syncPartyTeamSynergy(db, email, { onlineSockets: require('./server').onlineSockets });
+    await syncPartyTeamSynergy(db, email, { onlineSockets });
   }
 }
 

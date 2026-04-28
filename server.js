@@ -565,7 +565,10 @@ socket.on('respawn', async () => {
   });
 
   socket.on('purchase-course', async (courseId) => {
-    await handlePurchaseCourse(db, socket, courseId);
+    await handlePurchaseCourse(db, socket, courseId, { 
+      onlineSockets, 
+      syncPartyTeamSynergy 
+    });
   });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
