@@ -213,6 +213,63 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   console.log(`[SPECIAL-OP] ${joinerName} joined ${operation} as ${position}`);
 }
 
+// ==================== LIVE MARKSMANSHIP SYNC FOR PARTY (NEW) ====================
+async function syncPartyMemberMarksmanship(db, playerEmail, newMarksmanship, { onlineSockets }) {
+  try {
+    const playerDoc = await db.collection('players').doc(playerEmail).get();
+    const p = playerDoc.data();
+    if (!p?.activeSpecialOperationParty) return;
+
+    const party = p.activeSpecialOperationParty;
+
+    let changed = false;
+
+    // Update this player's marksmanship in the party object
+    for (const [position, occupant] of Object.entries(party.positions || {})) {
+      if (occupant && occupant.email === playerEmail) {
+        if (occupant.marksmanship !== newMarksmanship) {
+          occupant.marksmanship = newMarksmanship;
+          changed = true;
+        }
+        break;
+      }
+    }
+
+    if (!changed) return;
+
+    // Recalculate the entire party power (using latest marksmanship)
+    party.overallPower = calculatePartyOverallPower(party);
+
+    // Save the fresh party object to EVERY member
+    const emailsInParty = Object.values(party.positions)
+      .filter(o => o && o.email)
+      .map(o => o.email);
+
+    const batch = db.batch();
+    for (const email of emailsInParty) {
+      const docRef = db.collection('players').doc(email);
+      batch.update(docRef, { activeSpecialOperationParty: party });
+    }
+    await batch.commit();
+
+    // Broadcast live update to all online party members
+    for (const email of emailsInParty) {
+      const memberDoc = await db.collection('players').doc(email).get();
+      const memberName = memberDoc.data()?.displayName;
+      if (memberName) {
+        const socket = onlineSockets.get(memberName);
+        if (socket) {
+          socket.emit('special-op-party-update', { party });
+        }
+      }
+    }
+
+    console.log(`[SPECIAL-OP] Live marksmanship sync for ${playerEmail} → party power now ${party.overallPower}`);
+  } catch (e) {
+    console.error('[SPECIAL-OP] Marksmanship sync error:', e);
+  }
+}
+
 // ==================== CANCEL SPECIAL OPERATION ====================
 async function handleCancelSpecialOp(db, socket, deps = {}) {
   const { onlineSockets } = deps;
@@ -533,4 +590,5 @@ module.exports = {
   handleAcceptSpecialOpInvite,
   syncPartyMemberRank,
   handleLeaveSpecialOp,
+  syncPartyMemberMarksmanship
 };

@@ -19,7 +19,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
-const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp } = require('./specialOperations.js');
+const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship } = require('./specialOperations.js');
 const { courseTemplates, handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 
 // Firebase Admin
@@ -1051,6 +1051,10 @@ socket.on('respawn', async () => {
     if (attribute === 'marksmanship' && p.weapon?.power != null) {
       p = recalculateOverallPower(p);
       console.log(`[SERVER] Marksmanship ${oldMarksmanship} → ${p.marksmanship} | Power ${oldPower} → ${p.overallPower} for ${email}`);
+    
+      if (p.activeSpecialOperationParty) {
+        await syncPartyMemberMarksmanship(db, email, p.marksmanship, { onlineSockets });
+      }
     }
 
     await docRef.set(p);
