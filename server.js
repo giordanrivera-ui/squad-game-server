@@ -1047,14 +1047,15 @@ socket.on('respawn', async () => {
     p[attribute] = (p[attribute] || 0) + 1;
     p.unallocatedAttributePoints = (p.unallocatedAttributePoints || 0) - 1;
 
-    // FIXED: More robust check + logging so we can see exactly what happens
+    // Always recalculate personal power if they have a personal weapon
     if (attribute === 'marksmanship' && p.weapon?.power != null) {
       p = recalculateOverallPower(p);
-      console.log(`[SERVER] Marksmanship ${oldMarksmanship} → ${p.marksmanship} | Power ${oldPower} → ${p.overallPower} for ${email}`);
-    
-      if (p.activeSpecialOperationParty) {
-        await syncPartyMemberMarksmanship(db, email, p.marksmanship, { onlineSockets });
-      }
+      console.log(`[SERVER] Marksmanship ${oldMarksmanship} → ${p.marksmanship} | Personal Power ${oldPower} → ${p.overallPower} for ${email}`);
+    }
+
+    // ==================== CRITICAL: Update party even if player has NO personal weapon ====================
+    if (attribute === 'marksmanship' && p.activeSpecialOperationParty) {
+      await syncPartyMemberMarksmanship(db, email, p.marksmanship, { onlineSockets });
     }
 
     await docRef.set(p);
