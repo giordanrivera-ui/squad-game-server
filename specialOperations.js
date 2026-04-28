@@ -8,11 +8,11 @@ const specialOperationConfigs = {
     maxPlayers: 3
   },
   "Bank Heist": {
-    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver"],
+    positions: ["Operation Leader", "Rifleman 1", "Rifleman 2", "Driver"],
     maxPlayers: 4
   },
   "Siege military base": {
-    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver", "Artilleryman"],
+    positions: ["Operation Leader", "Rifleman 1", "Rifleman 2", "Driver", "Artilleryman"],
     maxPlayers: 5
   }
 };
@@ -50,19 +50,29 @@ function createSpecialOperationParty(operation, email, displayName, experience =
   return party;
 }
 
-function calculatePositionPower(occupant) {
+function calculatePositionPower(occupant, positionTitle = '') {
   if (!occupant || !occupant.weapon || typeof occupant.weapon.power !== 'number') return 0;
+
   const marksmanship = occupant.marksmanship || 0;
-  const bonus = 1 + (marksmanship / 100);
-  return Math.round(occupant.weapon.power * bonus);
+  let power = occupant.weapon.power * (1 + (marksmanship / 100));
+
+  // +4% Rifleman bonus (applied on top of weapon + marksmanship)
+  if (positionTitle && positionTitle.toLowerCase().includes('rifleman')) {
+    power *= 1.04;
+  }
+
+  return Math.round(power);
 }
 
 function calculatePartyOverallPower(party) {
   if (!party || !party.positions) return 0;
   let total = 0;
-  Object.values(party.positions).forEach(occupant => {
-    total += calculatePositionPower(occupant);
+
+  // Pass position title so Rifleman bonus can be applied
+  Object.entries(party.positions).forEach(([positionTitle, occupant]) => {
+    total += calculatePositionPower(occupant, positionTitle);
   });
+
   return total;
 }
 
