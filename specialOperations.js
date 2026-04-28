@@ -160,9 +160,11 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   }
 
   // Calculate joiner's real rank
-  const joinerDoc = await db.collection('players').doc(joinerEmail).get();
-  const joinerExp = joinerDoc.data()?.experience || 0;
+  const joinerDocSnap = await db.collection('players').doc(joinerEmail).get();
+  const joinerData = joinerDocSnap.data() || {};
+  const joinerExp = joinerData.experience || 0;
   const joinerMarksmanship = joinerData.marksmanship || 0;
+  const joinerPhotoURL = joinerData.photoURL || '';
 
   party.positions[position] = {
     email: joinerEmail,
