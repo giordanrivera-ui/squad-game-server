@@ -68,10 +68,21 @@ function calculatePartyOverallPower(party) {
   if (!party || !party.positions) return 0;
   let total = 0;
 
-  // Pass position title so Rifleman bonus can be applied
+  // Calculate base power for each position
   Object.entries(party.positions).forEach(([positionTitle, occupant]) => {
     total += calculatePositionPower(occupant, positionTitle);
   });
+
+  // ==================== TEAM SYNERGY BONUS (Leader only) ====================
+  const leaderEmail = party.leaderEmail;
+  if (leaderEmail) {
+    // We will check the leader's completed courses in the sync function
+    // For performance, we apply the bonus here if the party object already knows the leader has it
+    // (the flag is set during sync)
+    if (party.hasTeamSynergy === true) {
+      total = Math.round(total * 1.025);
+    }
+  }
 
   return total;
 }
@@ -277,6 +288,60 @@ async function syncPartyMemberMarksmanship(db, playerEmail, newMarksmanship, { o
     console.log(`[SPECIAL-OP] Live marksmanship sync for ${playerEmail} → party power now ${party.overallPower}`);
   } catch (e) {
     console.error('[SPECIAL-OP] Marksmanship sync error:', e);
+  }
+}
+
+// ==================== LIVE TEAM SYNERGY BONUS SYNC (NEW) ====================
+async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
+  try {
+    const leaderDoc = await db.collection('players').doc(leaderEmail).get();
+    const leaderData = leaderDoc.data();
+    if (!leaderData?.activeSpecialOperationParty) return;
+
+    const party = leaderData.activeSpecialOperationParty;
+
+    // Check if leader has COMPLETED (not just purchased) Team Synergy
+    const now = Date.now();
+    const hasCompletedTeamSynergy = (leaderData.completedCourses || []).some(c => 
+      c.id === "team-synergy" && (c.completionTime ?? 0) <= now
+    );
+
+    // Store the flag on the party object
+    const previousFlag = party.hasTeamSynergy;
+    party.hasTeamSynergy = hasCompletedTeamSynergy;
+
+    if (previousFlag === hasCompletedTeamSynergy) return; // no change
+
+    // Recalculate full party power with/without the 2.5% bonus
+    party.overallPower = calculatePartyOverallPower(party);
+
+    // Save updated party to all members
+    const emailsInParty = Object.values(party.positions)
+      .filter(o => o && o.email)
+      .map(o => o.email);
+
+    const batch = db.batch();
+    for (const email of emailsInParty) {
+      const docRef = db.collection('players').doc(email);
+      batch.update(docRef, { activeSpecialOperationParty: party });
+    }
+    await batch.commit();
+
+    // Broadcast live update
+    for (const email of emailsInParty) {
+      const memberDoc = await db.collection('players').doc(email).get();
+      const memberName = memberDoc.data()?.displayName;
+      if (memberName) {
+        const socket = onlineSockets.get(memberName);
+        if (socket) {
+          socket.emit('special-op-party-update', { party });
+        }
+      }
+    }
+
+    console.log(`[SPECIAL-OP] Team Synergy bonus ${hasCompletedTeamSynergy ? 'ENABLED' : 'DISABLED'} for party led by ${leaderEmail} | New power: ${party.overallPower}`);
+  } catch (e) {
+    console.error('[SPECIAL-OP] Team Synergy sync error:', e);
   }
 }
 
@@ -600,5 +665,6 @@ module.exports = {
   handleAcceptSpecialOpInvite,
   syncPartyMemberRank,
   handleLeaveSpecialOp,
-  syncPartyMemberMarksmanship
+  syncPartyMemberMarksmanship,
+  syncPartyTeamSynergy
 };

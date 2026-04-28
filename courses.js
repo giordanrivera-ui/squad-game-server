@@ -229,6 +229,13 @@ async function handlePurchaseCourse(db, socket, courseId) {
     return;
   }
 
+  if (course.id === "team-synergy") {
+    // Check if this player is currently the leader of an active party
+    if (p.activeSpecialOperationParty && p.activeSpecialOperationParty.leaderEmail === email) {
+      await syncPartyTeamSynergy(db, email, { onlineSockets: require('./server').onlineSockets }); // or pass via deps if you prefer
+    }
+  }
+
   // === NEW: Specific validation for Advanced HR Research ===
   if (course.id === "hr-research-advanced") {
     const errors = [];
