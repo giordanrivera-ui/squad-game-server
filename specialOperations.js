@@ -128,7 +128,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   console.log(`[SPECIAL-OP] ${p.displayName || email} started "${data.operation}" with full party tracking`);
 }
 
-// ==================== ACCEPT INVITE HANDLER ====================
+// ==================== ACCEPT INVITE HANDLER (FIXED) ====================
 async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) {
   const joinerEmail = socket.data.email;
   const joinerName = socket.data.displayName;
@@ -139,11 +139,11 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     return;
   }
 
-    // Find leader
+  // Find leader
   const leaderQuery = await db.collection('players')
-  .where('displayName', '==', leaderName)
-  .limit(1)
-  .get();
+    .where('displayName', '==', leaderName)
+    .limit(1)
+    .get();
 
   if (leaderQuery.empty) {
     socket.emit('special-op-join-result', { success: false, message: 'Leader no longer online or operation cancelled.' });
@@ -159,9 +159,14 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     return;
   }
 
-  // Calculate joiner's real rank
-  const joinerDocSnap = await db.collection('players').doc(joinerEmail).get();
-  const joinerData = joinerDocSnap.data() || {};
+  // === FIXED: Fetch joiner's FULL current data ===
+  const joinerDoc = await db.collection('players').doc(joinerEmail).get();
+  if (!joinerDoc.exists) {
+    socket.emit('special-op-join-result', { success: false, message: 'Your player profile not found.' });
+    return;
+  }
+  const joinerData = joinerDoc.data();
+
   const joinerExp = joinerData.experience || 0;
   const joinerMarksmanship = joinerData.marksmanship || 0;
   const joinerPhotoURL = joinerData.photoURL || '';
@@ -169,9 +174,9 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   party.positions[position] = {
     email: joinerEmail,
     displayName: joinerName,
-    photoURL: socket.data.photoURL || '',
+    photoURL: joinerPhotoURL,           // ← now correct
     rank: getRankTitle(joinerExp),
-    marksmanship: joinerMarksmanship,
+    marksmanship: joinerMarksmanship,   // ← now correct
   };
 
   party.overallPower = calculatePartyOverallPower(party);
@@ -179,12 +184,13 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   // Update leader
   await leaderDocRef.update({ activeSpecialOperationParty: party });
 
+  // Update joiner
   await db.collection('players').doc(joinerEmail).update({
     activeSpecialOperation: operation,
     activeSpecialOperationParty: party
   });
 
-  // ==================== NEW BROADCAST TO EVERYONE ====================
+  // Broadcast fresh party to EVERY member (including leader and new joiner)
   const updatedPartyPayload = { party };
 
   Object.values(party.positions || {}).forEach((member) => {
@@ -195,12 +201,12 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     }
   });
 
+  // Also fire the join-result event the client is already listening for (extra safety)
   const joinerSocket = onlineSockets.get(joinerName);
   if (joinerSocket) {
-    // Send the full player object (or at least the relevant fields) so statsNotifier updates
-    joinerSocket.emit('update-stats', {
-      activeSpecialOperation: operation,
-      activeSpecialOperationParty: party
+    joinerSocket.emit('special-op-join-result', { 
+      success: true, 
+      party: party 
     });
   }
 
