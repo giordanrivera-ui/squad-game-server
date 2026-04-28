@@ -58,7 +58,7 @@ function calculatePositionPower(occupant, positionTitle = '') {
 
   // +4% Rifleman bonus (applied on top of weapon + marksmanship)
   if (positionTitle && positionTitle.toLowerCase().includes('rifleman')) {
-    power *= 1.1;
+    power *= 1.25;
   }
 
   return Math.round(power);
