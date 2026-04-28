@@ -20,9 +20,9 @@ class _InviteToSpecialOpScreenState extends State<InviteToSpecialOpScreen> {
       case 'Raid cartel supply line':
         return ['Operation Leader', 'Rifleman', 'Driver'];
       case 'Bank Heist':
-        return ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver'];
+        return ['Operation Leader', 'Rifleman 1', 'Rifleman 2', 'Driver'];
       case 'Siege military base':
-        return ['Operation Leader', 'Gunner 1', 'Gunner 2', 'Driver', 'Artilleryman'];
+        return ['Operation Leader', 'Rifleman 1', 'Rifleman 2', 'Driver', 'Artilleryman'];
       default:
         return ['Operation Leader'];
     }
