@@ -572,21 +572,15 @@ socket.on('respawn', async () => {
   });
 
   socket.on('course-completed', async (courseId) => {
-    const email = socket.data.email;
-    if (!email || !courseId) return;
+  const email = socket.data.email;
+  if (!email) return;
 
-    // Only care about Team Synergy family
-    const isTeamSynergyCourse = 
-      courseId === "team-synergy" ||
-      courseId === "advanced-team-synergy" ||
-      courseId === "exceptional-team-synergy";
+  const isTeamSynergy = ["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"].includes(courseId);
+  if (!isTeamSynergy) return;
 
-    if (!isTeamSynergyCourse) return;
-
-    console.log(`[COURSE] ${email} just completed ${courseId} — refreshing any active party`);
-
-    await syncPartyTeamSynergy(db, email, { onlineSockets });
-  });
+  console.log(`[COURSE] ${email} completed ${courseId} — triggering party refresh`);
+  await syncPartyTeamSynergy(db, email, { onlineSockets });
+});
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
   socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });

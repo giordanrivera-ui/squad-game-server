@@ -330,30 +330,38 @@ async function syncPartyMemberMarksmanship(db, playerEmail, newMarksmanship, { o
   }
 }
 
-// ==================== LIVE TEAM SYNERGY BONUS SYNC (FIXED) ====================
+// ==================== LIVE TEAM SYNERGY BONUS SYNC (ROBUST VERSION) ====================
 async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
   try {
     const leaderDoc = await db.collection('players').doc(leaderEmail).get();
     const leaderData = leaderDoc.data();
-    if (!leaderData?.activeSpecialOperationParty) return;
+    if (!leaderData?.activeSpecialOperationParty) {
+      console.log(`[SPECIAL-OP] No active party for ${leaderEmail} — nothing to sync`);
+      return;
+    }
 
     let party = leaderData.activeSpecialOperationParty;
 
-    // === CRITICAL FIX: Always refresh the latest completed courses ===
-    party.leaderCompletedCourses = leaderData.completedCourses || [];
+    // === FORCE FRESH DATA ===
+    party = {
+      ...party,                                    // shallow copy of top level
+      leaderCompletedCourses: leaderData.completedCourses || [],
+    };
 
-    // Recalculate using the modern multiplier (this already handles all 3 levels)
+    // Recalculate power using the fresh courses
     const oldPower = party.overallPower;
     party.overallPower = calculatePartyOverallPower(party);
 
     if (oldPower === party.overallPower) {
       console.log(`[SPECIAL-OP] Team Synergy sync — no power change for ${leaderEmail}`);
-      return; // nothing changed
+      return;
     }
 
-    console.log(`[SPECIAL-OP] Team Synergy bonus applied! Leader ${leaderEmail} → new party power: ${party.overallPower}`);
+    console.log(`[SPECIAL-OP] ✅ Team Synergy applied! ${leaderEmail} → new power: ${party.overallPower}`);
 
-    // Save updated party to ALL members
+    // === CRITICAL: Use a completely fresh object + batch.set with merge:false to force write ===
+    const freshParty = JSON.parse(JSON.stringify(party));   // deep clone
+
     const emailsInParty = Object.values(party.positions || {})
       .filter(o => o && o.email)
       .map(o => o.email);
@@ -361,18 +369,20 @@ async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
     const batch = db.batch();
     for (const email of emailsInParty) {
       const docRef = db.collection('players').doc(email);
-      batch.update(docRef, { activeSpecialOperationParty: party });
+      batch.set(docRef, { 
+        activeSpecialOperationParty: freshParty 
+      }, { merge: true });   // merge:true is safe here because we are overwriting the whole field
     }
     await batch.commit();
 
-    // Broadcast live to all online members
+    // Broadcast live update
     for (const email of emailsInParty) {
       const memberDoc = await db.collection('players').doc(email).get();
       const memberName = memberDoc.data()?.displayName;
       if (memberName) {
         const socket = onlineSockets.get(memberName);
         if (socket) {
-          socket.emit('special-op-party-update', { party });
+          socket.emit('special-op-party-update', { party: freshParty });
         }
       }
     }
