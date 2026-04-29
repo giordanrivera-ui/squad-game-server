@@ -335,7 +335,7 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     completionTime: completionTime
   });
 
-    // ==================== TEAM SYNERGY FAMILY HANDLING (SOPHISTICATED VERSION) ====================
+    // ==================== TEAM SYNERGY FAMILY HANDLING (SOPHISTICATED EVENT-DRIVEN VERSION) ====================
   const isTeamSynergyCourse = 
     course.id === "team-synergy" ||
     course.id === "advanced-team-synergy" ||
@@ -345,7 +345,8 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
       p.activeSpecialOperationParty && 
       p.activeSpecialOperationParty.leaderEmail === email) {
     
-    const completionTime = completionTime; // already calculated above
+    // `completionTime` is already calculated earlier in this function — use it directly
+    const courseCompletionTime = completionTime;
 
     // Schedule a ONE-TIME precise timer for the exact moment the course finishes
     setTimeout(async () => {
@@ -357,14 +358,14 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
             freshPlayer.activeSpecialOperationParty.leaderEmail === email) {
           
           await syncPartyTeamSynergy(db, email, { onlineSockets });
-          console.log(`[COURSE] Team Synergy course completed for ${freshPlayer.displayName} → live party power updated`);
+          console.log(`[COURSE] Team Synergy course completed for ${freshPlayer.displayName || email} → live party power updated`);
         }
       } catch (e) {
         console.error('[COURSE] Delayed synergy update error:', e);
       }
     }, course.durationMinutes * 60 * 1000);
 
-    console.log(`[COURSE] Scheduled precise Team Synergy power update in ${course.durationMinutes} minutes for ${p.displayName}`);
+    console.log(`[COURSE] Scheduled precise Team Synergy power update in ${course.durationMinutes} minutes for ${p.displayName || email}`);
   }
 }
 
