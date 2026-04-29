@@ -533,10 +533,6 @@ class SocketService {
     socket?.emit(SocketEvents.requestCourses);
   }
 
-  void notifyCourseCompleted(String courseId) {
-    socket?.emit('course-completed', courseId);
-  }
-
   void equipArmor(String slot, Map<String, dynamic> item) {
     socket?.emit('equip-armor', {
       'slot': slot,
@@ -552,6 +548,10 @@ class SocketService {
 
   void purchaseCourse(String courseId) {
     socket?.emit('purchase-course', courseId);
+  }
+
+  void notifyCourseCompleted(String courseId) {
+    socket?.emit('course-completed', courseId);
   }
 
   void sellItems(List<Map<String, dynamic>> items, int totalSellValue, int rate) {

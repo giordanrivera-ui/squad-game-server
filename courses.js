@@ -335,7 +335,9 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     completionTime: completionTime
   });
 
-    // ==================== TEAM SYNERGY FAMILY HANDLING (SOPHISTICATED EVENT-DRIVEN VERSION) ====================
+  // ==================== NEW: Team Synergy family handling ====================
+  // If this was any of the three Team Synergy courses AND the player is currently
+  // leading a party, immediately recalculate and broadcast the new power.
   const isTeamSynergyCourse = 
     course.id === "team-synergy" ||
     course.id === "advanced-team-synergy" ||
@@ -345,28 +347,21 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
       p.activeSpecialOperationParty && 
       p.activeSpecialOperationParty.leaderEmail === email) {
     
-    // `completionTime` is already calculated earlier in this function — use it directly
-    const courseCompletionTime = completionTime;
-
-    // Schedule a ONE-TIME precise timer for the exact moment the course finishes
-    setTimeout(async () => {
-      try {
-        const freshDoc = await db.collection('players').doc(email).get();
-        const freshPlayer = freshDoc.data();
-        
-        if (freshPlayer?.activeSpecialOperationParty && 
-            freshPlayer.activeSpecialOperationParty.leaderEmail === email) {
-          
-          await syncPartyTeamSynergy(db, email, { onlineSockets });
-          console.log(`[COURSE] Team Synergy course completed for ${freshPlayer.displayName || email} → live party power updated`);
-        }
-      } catch (e) {
-        console.error('[COURSE] Delayed synergy update error:', e);
-      }
-    }, course.durationMinutes * 60 * 1000);
-
-    console.log(`[COURSE] Scheduled precise Team Synergy power update in ${course.durationMinutes} minutes for ${p.displayName || email}`);
+    await syncPartyTeamSynergy(db, email, { onlineSockets });
+    console.log(`[COURSE] ${p.displayName} completed ${course.name} — party power updated live`);
   }
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+
+  const updatedPlayer = (await docRef.get()).data();
+  const unifiedCourses = getUnifiedCourses(updatedPlayer);
+
+  socket.emit('courses-list', unifiedCourses);
+  socket.emit('course-result', {
+    success: true,
+    message: `✅ Enrolled in ${course.name}! Effect activates in ${course.durationMinutes} minutes.`
+  });
 }
 
 module.exports = {

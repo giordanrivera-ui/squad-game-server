@@ -572,19 +572,20 @@ socket.on('respawn', async () => {
   });
 
   socket.on('course-completed', async (courseId) => {
-    if (!['team-synergy', 'advanced-team-synergy', 'exceptional-team-synergy'].includes(courseId)) return;
-
     const email = socket.data.email;
-    if (!email) return;
+    if (!email || !courseId) return;
 
-    const doc = await db.collection('players').doc(email).get();
-    if (!doc.exists) return;
+    // Only care about Team Synergy family
+    const isTeamSynergyCourse = 
+      courseId === "team-synergy" ||
+      courseId === "advanced-team-synergy" ||
+      courseId === "exceptional-team-synergy";
 
-    const p = doc.data();
-    if (p.activeSpecialOperationParty && p.activeSpecialOperationParty.leaderEmail === email) {
-      await syncPartyTeamSynergy(db, email, { onlineSockets });
-      console.log(`[COURSE] ${p.displayName} finished Team Synergy course → live party power updated`);
-    }
+    if (!isTeamSynergyCourse) return;
+
+    console.log(`[COURSE] ${email} just completed ${courseId} — refreshing any active party`);
+
+    await syncPartyTeamSynergy(db, email, { onlineSockets });
   });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================

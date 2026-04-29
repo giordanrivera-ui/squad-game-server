@@ -12,7 +12,6 @@ class CoursesPage extends StatefulWidget {
 
 class _CoursesPageState extends State<CoursesPage> {
   Timer? _countdownTimer;
-  final Set<String> _notifiedSynergyCourses = {};
 
   // HR chain IDs for stacking + smart connector logic (UNTOUCHED)
   final List<String> _hrChainIds = const [
@@ -49,45 +48,41 @@ class _CoursesPageState extends State<CoursesPage> {
     SocketService().requestCourses();
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {});
-      
-        if (SocketService().coursesNotifier.value.any((c) => 
-            c['status'] == 'inProgress')) {
-          SocketService().requestCourses();
+      if (!mounted) return;
+
+      final courses = SocketService().coursesNotifier.value;
+      bool anyJustCompleted = false;
+
+      for (final course in courses) {
+        if ((course['status'] as String?) == 'inProgress') {
+          final completionTime = course['completionTime'] as int? ?? 0;
+          final remainingMs = completionTime - SocketService().currentServerTime;
+
+          if (remainingMs <= 0) {
+            // This course just finished on the client
+            anyJustCompleted = true;
+
+            if (["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"]
+                .contains(course['id'])) {
+              // ← THIS IS THE KEY EVENT
+              SocketService().notifyCourseCompleted(course['id'] as String);
+            }
+          }
         }
       }
-    });
 
-    // ==================== NEW: LIVE TEAM SYNERGY NOTIFICATION ====================
-    SocketService().coursesNotifier.addListener(_checkForCompletedTeamSynergy);
+      if (anyJustCompleted || courses.any((c) => (c['status'] as String?) == 'inProgress')) {
+        SocketService().requestCourses(); // refresh list
+      }
+
+      setState(() {}); // rebuild UI
+    });
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    SocketService().coursesNotifier.removeListener(_checkForCompletedTeamSynergy);  // ← ADD THIS
     super.dispose();
-  }
-
-  void _checkForCompletedTeamSynergy() {
-    final courses = SocketService().coursesNotifier.value;
-
-    for (final course in courses) {
-      final id = course['id'] as String?;
-      if (id == null) continue;
-
-      if (['team-synergy', 'advanced-team-synergy', 'exceptional-team-synergy'].contains(id) &&
-          course['status'] == 'completed') {
-        
-        // Only notify the server once per course
-        if (!_notifiedSynergyCourses.contains(id)) {
-          _notifiedSynergyCourses.add(id);
-          SocketService().notifyCourseCompleted(id);
-          print('📢 Notified server: $id completed → updating active party power');
-        }
-      }
-    }
   }
 
   // ── OVERLAY LOGIC (HR logic untouched + Street Tactics added) ──
