@@ -2,6 +2,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'constants.dart';
+import 'dart:async';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -553,6 +554,44 @@ class SocketService {
   void notifyCourseCompleted(String courseId) {
     socket?.emit('course-completed', courseId);
   }
+
+  // ==================== GLOBAL COURSE COMPLETION WATCHER (runs app-wide) ====================
+Timer? _courseCompletionWatcher;
+
+void startGlobalCourseCompletionWatcher() {
+  _courseCompletionWatcher?.cancel();
+
+  _courseCompletionWatcher = Timer.periodic(const Duration(seconds: 1), (_) {
+    final courses = coursesNotifier.value;
+    if (courses.isEmpty) return;
+
+    // Skip entirely if there are no in-progress courses
+    if (!courses.any((c) => (c['status'] as String?) == 'inProgress')) return;
+
+    for (final course in courses) {
+      if ((course['status'] as String?) != 'inProgress') continue;
+
+      final completionTime = course['completionTime'] as int? ?? 0;
+      final remainingMs = completionTime - currentServerTime;
+
+      if (remainingMs <= 0) {
+        final courseId = course['id'] as String?;
+        if (courseId != null && 
+            ["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"].contains(courseId)) {
+          
+          print('🔥 GLOBAL COURSE COMPLETED DETECTED: $courseId');
+          notifyCourseCompleted(courseId);
+          requestCourses(); // refresh list once
+        }
+      }
+    }
+  });
+}
+
+void stopGlobalCourseCompletionWatcher() {
+  _courseCompletionWatcher?.cancel();
+  _courseCompletionWatcher = null;
+}
 
   void sellItems(List<Map<String, dynamic>> items, int totalSellValue, int rate) {
     socket?.emit('sell-items', {

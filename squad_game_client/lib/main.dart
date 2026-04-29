@@ -246,8 +246,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     _connectToServer();
-
     _setupPushNotifications();
+    SocketService().startGlobalCourseCompletionWatcher();
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
@@ -1038,6 +1038,7 @@ Container(
   void dispose() {
     cooldownTimer?.cancel();
     // _socketService.disconnect();
+    SocketService().stopGlobalCourseCompletionWatcher();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
     _rescueOverlay?.remove();
