@@ -533,6 +533,10 @@ class SocketService {
     socket?.emit(SocketEvents.requestCourses);
   }
 
+  void notifyCourseCompleted(String courseId) {
+    socket?.emit('course-completed', courseId);
+  }
+
   void equipArmor(String slot, Map<String, dynamic> item) {
     socket?.emit('equip-armor', {
       'slot': slot,

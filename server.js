@@ -571,6 +571,22 @@ socket.on('respawn', async () => {
     });
   });
 
+  socket.on('course-completed', async (courseId) => {
+    if (!['team-synergy', 'advanced-team-synergy', 'exceptional-team-synergy'].includes(courseId)) return;
+
+    const email = socket.data.email;
+    if (!email) return;
+
+    const doc = await db.collection('players').doc(email).get();
+    if (!doc.exists) return;
+
+    const p = doc.data();
+    if (p.activeSpecialOperationParty && p.activeSpecialOperationParty.leaderEmail === email) {
+      await syncPartyTeamSynergy(db, email, { onlineSockets });
+      console.log(`[COURSE] ${p.displayName} finished Team Synergy course → live party power updated`);
+    }
+  });
+
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
   socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
 
