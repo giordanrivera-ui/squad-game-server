@@ -18,7 +18,7 @@ const specialOperationConfigs = {
 };
 
 // Helper to create a fresh party object
-function createSpecialOperationParty(operation, email, displayName, experience = 0, photoURL = '', marksmanship = 0) {
+function createSpecialOperationParty(operation, email, displayName, experience = 0, photoURL = '', marksmanship = 0, completedCourses = []) {
   const config = specialOperationConfigs[operation];
   if (!config) throw new Error(`Unknown special operation: ${operation}`);
 
@@ -29,7 +29,12 @@ function createSpecialOperationParty(operation, email, displayName, experience =
     status: 'recruiting',
     createdAt: Date.now(),
     positions: {},
-    overallPower: 0   // ← NEW
+    overallPower: 0,
+    
+    // ==================== NEW: Store leader's completed courses ====================
+    // This makes the 2.5% Team Synergy bonus (and future advanced versions) fully dynamic
+    // and stateless. No background timer needed.
+    leaderCompletedCourses: completedCourses
   };
 
   config.positions.forEach(pos => {
@@ -39,14 +44,14 @@ function createSpecialOperationParty(operation, email, displayName, experience =
         displayName: displayName || 'Leader',
         photoURL: photoURL || '',
         rank: getRankTitle(experience),
-        marksmanship: marksmanship,        // ← NEW
+        marksmanship: marksmanship,
       };
     } else {
       party.positions[pos] = null;
     }
   });
 
-  party.overallPower = calculatePartyOverallPower(party);  // ← NEW
+  party.overallPower = calculatePartyOverallPower(party);  // ← This will now read leaderCompletedCourses
   return party;
 }
 
@@ -66,28 +71,48 @@ function calculatePositionPower(occupant, positionTitle = '') {
 
 function calculatePartyOverallPower(party) {
   if (!party || !party.positions) return 0;
+
   let total = 0;
 
-  // Calculate base power for each position
+  // Existing position power calculation (unchanged)
   Object.entries(party.positions).forEach(([positionTitle, occupant]) => {
     total += calculatePositionPower(occupant, positionTitle);
   });
 
-  // ==================== TEAM SYNERGY BONUS (Leader only) ====================
-  const leaderEmail = party.leaderEmail;
-  if (leaderEmail) {
-    // We will check the leader's completed courses in the sync function
-    // For performance, we apply the bonus here if the party object already knows the leader has it
-    // (the flag is set during sync)
-    if (party.hasTeamSynergy === true) {
-      total = Math.round(total * 1.025);
-    }
+  // ==================== NEW: DYNAMIC TEAM SYNERGY (no flag needed) ====================
+  if (party.leaderEmail) {
+    // We will pass the leader's completedCourses when we create/sync the party
+    // For now, we can fall back to checking the party object if we embed the bonus
+    // But the cleanest is to compute it on-the-fly when we have the data.
+    const synergyMultiplier = getTeamSynergyMultiplier(party.leaderCompletedCourses || []);
+    total = Math.round(total * synergyMultiplier);
   }
 
   return total;
 }
 
-// ==================== INITIATE SPECIAL OPERATION ====================
+// New helper (add anywhere in the file)
+function getTeamSynergyMultiplier(completedCourses) {
+  const now = Date.now();
+
+  const hasExceptional = completedCourses.some(c => 
+    c.id === "exceptional-team-synergy" && (c.completionTime ?? 0) <= now
+  );
+  if (hasExceptional) return 1.075;   // 7.5%
+
+  const hasAdvanced = completedCourses.some(c => 
+    c.id === "advanced-team-synergy" && (c.completionTime ?? 0) <= now
+  );
+  if (hasAdvanced) return 1.05;       // 5%
+
+  const hasBasic = completedCourses.some(c => 
+    c.id === "team-synergy" && (c.completionTime ?? 0) <= now
+  );
+  if (hasBasic) return 1.025;         // 2.5%
+
+  return 1.0;                         // no bonus
+}
+
 async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   const email = socket.data.email;
   if (!email || typeof data?.operation !== 'string') {
@@ -114,7 +139,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   }
 
   const config = specialOperationConfigs[data.operation];
- if (!config) {
+  if (!config) {
     socket.emit('special-op-initiated', { success: false, message: 'Unknown special operation.' });
     return;
   }
@@ -128,8 +153,16 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
     return;
   }
 
-  // Create full party tracking object
-  const party = createSpecialOperationParty(data.operation, email, p.displayName, p.experience || 0, p.photoURL || '', p.marksmanship || 0);
+  // ==================== UPDATED: Pass completedCourses ====================
+  const party = createSpecialOperationParty(
+    data.operation, 
+    email, 
+    p.displayName, 
+    p.experience || 0, 
+    p.photoURL || '', 
+    p.marksmanship || 0,
+    p.completedCourses || []          // ← THIS IS THE ONLY CHANGE
+  );
 
   // Deduct cost
   await logTransaction(socket, -cost, `Initiated Special Operation: ${data.operation}`, p, docRef);
@@ -174,11 +207,16 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   const leaderDocRef = leaderQuery.docs[0].ref;
   let leaderData = leaderQuery.docs[0].data();
 
-  const party = leaderData.activeSpecialOperationParty;
+  let party = leaderData.activeSpecialOperationParty;
   if (!party || party.operation !== operation || party.positions[position] != null) {
     socket.emit('special-op-join-result', { success: false, message: 'Position already taken or operation no longer exists.' });
     return;
   }
+
+  // === CRITICAL FIX: Always refresh leader's completed courses ===
+  // This guarantees the Team Synergy (2.5%/5%/7.5%) bonus is up-to-date
+  // even if the leader finished the course AFTER the party was created.
+  party.leaderCompletedCourses = leaderData.completedCourses || [];
 
   // === FIXED: Fetch joiner's FULL current data ===
   const joinerDoc = await db.collection('players').doc(joinerEmail).get();
@@ -195,11 +233,12 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   party.positions[position] = {
     email: joinerEmail,
     displayName: joinerName,
-    photoURL: joinerPhotoURL,           // ← now correct
+    photoURL: joinerPhotoURL,
     rank: getRankTitle(joinerExp),
-    marksmanship: joinerMarksmanship,   // ← now correct
+    marksmanship: joinerMarksmanship,
   };
 
+  // Recalculate power (now using the fresh leaderCompletedCourses)
   party.overallPower = calculatePartyOverallPower(party);
 
   // Update leader
@@ -211,7 +250,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     activeSpecialOperationParty: party
   });
 
-  // Broadcast fresh party to EVERY member (including leader and new joiner)
+  // Broadcast fresh party to EVERY member
   const updatedPartyPayload = { party };
 
   Object.values(party.positions || {}).forEach((member) => {
@@ -222,7 +261,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
     }
   });
 
-  // Also fire the join-result event the client is already listening for (extra safety)
+  // Also fire the join-result event
   const joinerSocket = onlineSockets.get(joinerName);
   if (joinerSocket) {
     joinerSocket.emit('special-op-join-result', { 

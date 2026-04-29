@@ -230,13 +230,7 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     return;
   }
 
-  if (course.id === "team-synergy") {
-  if (p.activeSpecialOperationParty && p.activeSpecialOperationParty.leaderEmail === email) {
-    await syncPartyTeamSynergy(db, email, { onlineSockets });
-  }
-}
 
-  // === NEW: Specific validation for Advanced HR Research ===
   if (course.id === "hr-research-advanced") {
     const errors = [];
 
@@ -277,7 +271,6 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     }
   }
 
-  // ==================== NEW: Street Tactics chain validation (exact mirror of HR) ====================
   if (course.id === "advanced-street-tactics") {
     const errors = [];
 
@@ -301,26 +294,26 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
   }
 
   if (course.id === "exceptional-street-tactics") {
-  const errors = [];
+    const errors = [];
 
-  if ((p.balance || 0) < 6000) errors.push("$6000");
-  if ((p.skill || 0) < 2) errors.push("Skill level of 2");
-  if ((p.marksmanship || 0) < 2) errors.push("Marksmanship level of 2");
+    if ((p.balance || 0) < 6000) errors.push("$6000");
+    if ((p.skill || 0) < 2) errors.push("Skill level of 2");
+    if ((p.marksmanship || 0) < 2) errors.push("Marksmanship level of 2");
 
-  const advancedCompleted = (p.completedCourses || []).some(c => 
-    c.id === "advanced-street-tactics" && c.completionTime <= Date.now()
-  );
-  if (!advancedCompleted) errors.push("completed Advanced Street Tactics");
+    const advancedCompleted = (p.completedCourses || []).some(c => 
+      c.id === "advanced-street-tactics" && c.completionTime <= Date.now()
+    );
+    if (!advancedCompleted) errors.push("completed Advanced Street Tactics");
 
-  if (errors.length > 0) {
-    const message = errors.length === 1 
-      ? `You need ${errors[0]} to enroll in Exceptional Street Tactics.`
-      : `You are missing: ${errors.join(', ')} to enroll in Exceptional Street Tactics.`;
+    if (errors.length > 0) {
+      const message = errors.length === 1 
+        ? `You need ${errors[0]} to enroll in Exceptional Street Tactics.`
+        : `You are missing: ${errors.join(', ')} to enroll in Exceptional Street Tactics.`;
 
-    socket.emit('course-result', { success: false, message });
-    return;
+      socket.emit('course-result', { success: false, message });
+      return;
+    }
   }
-}
 
   // Normal balance check (applies to all courses)
   if ((p.balance || 0) < course.cost) {
@@ -341,6 +334,22 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     name: course.name,
     completionTime: completionTime
   });
+
+  // ==================== NEW: Team Synergy family handling ====================
+  // If this was any of the three Team Synergy courses AND the player is currently
+  // leading a party, immediately recalculate and broadcast the new power.
+  const isTeamSynergyCourse = 
+    course.id === "team-synergy" ||
+    course.id === "advanced-team-synergy" ||
+    course.id === "exceptional-team-synergy";
+
+  if (isTeamSynergyCourse && 
+      p.activeSpecialOperationParty && 
+      p.activeSpecialOperationParty.leaderEmail === email) {
+    
+    await syncPartyTeamSynergy(db, email, { onlineSockets });
+    console.log(`[COURSE] ${p.displayName} completed ${course.name} — party power updated live`);
+  }
 
   await docRef.set(p);
   socket.emit('update-stats', p);
