@@ -330,32 +330,31 @@ async function syncPartyMemberMarksmanship(db, playerEmail, newMarksmanship, { o
   }
 }
 
-// ==================== LIVE TEAM SYNERGY BONUS SYNC (NEW) ====================
+// ==================== LIVE TEAM SYNERGY BONUS SYNC (FIXED) ====================
 async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
   try {
     const leaderDoc = await db.collection('players').doc(leaderEmail).get();
     const leaderData = leaderDoc.data();
     if (!leaderData?.activeSpecialOperationParty) return;
 
-    const party = leaderData.activeSpecialOperationParty;
+    let party = leaderData.activeSpecialOperationParty;
 
-    // Check if leader has COMPLETED (not just purchased) Team Synergy
-    const now = Date.now();
-    const hasCompletedTeamSynergy = (leaderData.completedCourses || []).some(c => 
-      c.id === "team-synergy" && (c.completionTime ?? 0) <= now
-    );
+    // === CRITICAL FIX: Always refresh the latest completed courses ===
+    party.leaderCompletedCourses = leaderData.completedCourses || [];
 
-    // Store the flag on the party object
-    const previousFlag = party.hasTeamSynergy;
-    party.hasTeamSynergy = hasCompletedTeamSynergy;
-
-    if (previousFlag === hasCompletedTeamSynergy) return; // no change
-
-    // Recalculate full party power with/without the 2.5% bonus
+    // Recalculate using the modern multiplier (this already handles all 3 levels)
+    const oldPower = party.overallPower;
     party.overallPower = calculatePartyOverallPower(party);
 
-    // Save updated party to all members
-    const emailsInParty = Object.values(party.positions)
+    if (oldPower === party.overallPower) {
+      console.log(`[SPECIAL-OP] Team Synergy sync — no power change for ${leaderEmail}`);
+      return; // nothing changed
+    }
+
+    console.log(`[SPECIAL-OP] Team Synergy bonus applied! Leader ${leaderEmail} → new party power: ${party.overallPower}`);
+
+    // Save updated party to ALL members
+    const emailsInParty = Object.values(party.positions || {})
       .filter(o => o && o.email)
       .map(o => o.email);
 
@@ -366,7 +365,7 @@ async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
     }
     await batch.commit();
 
-    // Broadcast live update
+    // Broadcast live to all online members
     for (const email of emailsInParty) {
       const memberDoc = await db.collection('players').doc(email).get();
       const memberName = memberDoc.data()?.displayName;
@@ -377,8 +376,6 @@ async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
         }
       }
     }
-
-    console.log(`[SPECIAL-OP] Team Synergy bonus ${hasCompletedTeamSynergy ? 'ENABLED' : 'DISABLED'} for party led by ${leaderEmail} | New power: ${party.overallPower}`);
   } catch (e) {
     console.error('[SPECIAL-OP] Team Synergy sync error:', e);
   }
