@@ -434,48 +434,89 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
     
     if (operation === "Attack central issue facility") {
-      let stealChance = 0.03;
-      if (exp > 49) stealChance = 0.05;
-      if (exp > 514) stealChance = 0.06;
-      if (exp > 1264) stealChance = 0.07;
-      if (exp > 2314) stealChance = 0.10;
-      if (exp > 3514) stealChance = 0.12;
-      if (exp > 5014) stealChance = 0.14;
-      if (exp > 6864) stealChance = 0.16;
-      if (exp > 8864) stealChance = 0.18;
-      if (exp > 10214) stealChance = 0.19;
-      if (exp > 11464) stealChance = 0.20;
-      if (exp > 14214) stealChance = 0.21;
-      if (exp > 17414) stealChance = 0.22;
-      if (exp > 21364) stealChance = 0.23;
-      if (exp > 25864) stealChance = 0.25;
-      if (exp > 31514) stealChance = 0.28;
-      if (exp > 38214) stealChance = 0.30;
+      let stealChance = 0.04; // Beggar
+      if (exp > 49) stealChance = 0.06; // Thug
+      if (exp > 514) stealChance = 0.07; // Recruit
+      if (exp > 1264) stealChance = 0.09; // Private
+      if (exp > 2314) stealChance = 0.12; // Private First Class
+      if (exp > 3514) stealChance = 0.14; // Corporal
+      if (exp > 5014) stealChance = 0.17; // Sergeant
+      if (exp > 6864) stealChance = 0.20; // Sergeant First Class
+      if (exp > 8864) stealChance = 0.23; // Warrant Officer
+      if (exp > 10214) stealChance = 0.25; //
+      if (exp > 11464) stealChance = 0.27; //
+      if (exp > 14214) stealChance = 0.29; // Major
+      if (exp > 17414) stealChance = 0.31; //
+      if (exp > 21364) stealChance = 0.35; // Colonel
+      if (exp > 25864) stealChance = 0.38; //
+      if (exp > 31514) stealChance = 0.42; //
+      if (exp > 38214) stealChance = 0.46; //
 
       if (Math.random() < stealChance) {
-        let ump5Threshold = 48; 
-        let ak74Threshold = 74; 
-        let carbineThreshold = 92; 
-        let scarThreshold = 98;
-        if (exp > 3514) { 
-          ump5Threshold = 38; 
-          ak74Threshold = 68; 
-          carbineThreshold = 88; 
-          scarThreshold = 96; }
-        if (exp > 10214) { 
-          ump5Threshold = 31; 
-          ak74Threshold = 62; 
-          carbineThreshold = 82; 
-          scarThreshold = 94; }
+        const isVostokgrad = p.location === "Vostokgrad";
+
+        let ump5Threshold, ak74Threshold, brenThreshold, carbineThreshold, scarThreshold, m16Threshold;
+
+        if (isVostokgrad) {
+          // ====================== VOSTOKGRAD SPECIAL DROP TABLE ======================
+          if (exp <= 3514) {                    // Low EXP
+            ump5Threshold = 42;
+            ak74Threshold = 64;
+            brenThreshold = 76;
+            carbineThreshold = 92;
+            scarThreshold = 98;
+            m16Threshold = 100;
+          } else if (exp <= 10214) {            // Mid EXP
+            ump5Threshold = 32;
+            ak74Threshold = 55;
+            brenThreshold = 70;
+            carbineThreshold = 88;
+            scarThreshold = 96;
+            m16Threshold = 100;
+          } else {                              // High EXP
+            ump5Threshold = 25;
+            ak74Threshold = 45;
+            brenThreshold = 63;
+            carbineThreshold = 82;
+            scarThreshold = 94;
+            m16Threshold = 100;
+          }
+        } else {
+          // Original non-Vostokgrad table (unchanged)
+          ump5Threshold = 46;
+          ak74Threshold = 75;
+          carbineThreshold = 92;
+          scarThreshold = 98;
+          if (exp > 3514) {
+            ump5Threshold = 38;
+            ak74Threshold = 68;
+            carbineThreshold = 88;
+            scarThreshold = 96;
+          }
+          if (exp > 10214) {
+            ump5Threshold = 31;
+            ak74Threshold = 62;
+            carbineThreshold = 82;
+            scarThreshold = 94;
+          }
+        }
 
         const rand = Math.random() * 100;
 
         let weapon;
-        if (rand < ump5Threshold) weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
-        else if (rand < ak74Threshold) weapon = { name: 'SLR104 AK-74', description: '...', power: 425, cost: 7500, type: 'weapon' };
-        else if (rand < carbineThreshold) weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
-        else if (rand < scarThreshold) weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
-        else weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
+        if (rand < ump5Threshold) {
+          weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
+        } else if (rand < ak74Threshold) {
+          weapon = { name: 'SLR104 AK-74', description: '...', power: 425, cost: 7500, type: 'weapon' };
+        } else if (rand < brenThreshold && isVostokgrad) {
+          weapon = { name: 'CZ Bren 2', description: "A modern Czech 5.56mm assault rifle renowned for its exceptional reliability, lightweight modular design, and superior ergonomics.", power: 430, cost: 7500, type: 'weapon' };
+        } else if (rand < carbineThreshold) {
+          weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
+        } else if (rand < scarThreshold) {
+          weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
+        } else {
+          weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
+        }
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
