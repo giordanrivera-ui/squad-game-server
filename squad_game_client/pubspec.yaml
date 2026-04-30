@@ -145,7 +145,13 @@ flutter:
     - assets/top-section-bg.jpg
     - assets/Human Resource Research.jpg
     - assets/Advanced Human Resource Research.jpg
-
+    - assets/Exceptional Human Resource Research.jpg
+    - assets/Street Tactics.jpg
+    - assets/Advanced Street Tactics.jpg
+    - assets/Exceptional Street Tactics.jpg
+    - assets/Team Synergy.jpg
+    - assets/Advanced Team Synergy.jpg
+    - assets/Exceptional Team Synergy.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

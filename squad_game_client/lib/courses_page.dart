@@ -13,14 +13,44 @@ class CoursesPage extends StatefulWidget {
 class _CoursesPageState extends State<CoursesPage> {
   Timer? _countdownTimer;
 
-  // HR chain IDs for stacking + smart connector logic (UNTOUCHED)
+  String _getCourseImagePath(String courseId) {
+    switch (courseId) {
+      case "hr-research":
+        return 'assets/Human Resource Research.jpg';
+      case "hr-research-advanced":
+        return 'assets/Advanced Human Resource Research.jpg';
+      case "hr-research-exceptional":
+        return 'assets/Exceptional Human Resource Research.jpg';
+      case "street-tactics":
+        return 'assets/Street Tactics.jpg';
+      case "advanced-street-tactics":
+        return 'assets/Advanced Street Tactics.jpg';
+      case "exceptional-street-tactics":
+        return 'assets/Exceptional Street Tactics.jpg';
+      case "team-synergy":
+        return 'assets/Team Synergy.jpg';
+      case "advanced-team-synergy":
+        return 'assets/Advanced Team Synergy.jpg';
+      case "exceptional-team-synergy":
+        return 'assets/Exceptional Team Synergy.jpg';
+      // Add more courses here if you add images later
+      default:
+        return 'assets/default_course.jpg'; // fallback (you can remove this line if you want)
+    }
+  }
+
+  final List<String> _teamSynergyChainIds = const [
+    "team-synergy",
+    "advanced-team-synergy",
+    "exceptional-team-synergy",
+  ];
+
   final List<String> _hrChainIds = const [
     "hr-research",
     "hr-research-advanced",
     "hr-research-exceptional",
   ];
 
-  // ==================== NEW: Street Tactics chain (exact mirror of HR) ====================
   final List<String> _streetTacticsChainIds = const [
     "street-tactics",
     "advanced-street-tactics",
@@ -32,13 +62,15 @@ class _CoursesPageState extends State<CoursesPage> {
 
   // Helper to detect any chain course
   bool _isChainCourse(String id) {
-    return _hrChainIds.contains(id) || _streetTacticsChainIds.contains(id);
+    return _hrChainIds.contains(id) ||
+           _streetTacticsChainIds.contains(id) ||
+           _teamSynergyChainIds.contains(id);
   }
 
-  // Helper to check if two courses belong to the same chain
   bool _areInSameChain(String id1, String id2) {
     if (_hrChainIds.contains(id1) && _hrChainIds.contains(id2)) return true;
     if (_streetTacticsChainIds.contains(id1) && _streetTacticsChainIds.contains(id2)) return true;
+    if (_teamSynergyChainIds.contains(id1) && _teamSynergyChainIds.contains(id2)) return true;  // ← ADD THIS
     return false;
   }
 
@@ -117,6 +149,13 @@ class _CoursesPageState extends State<CoursesPage> {
       if (completedIds.contains("exceptional-street-tactics")) return 0.35;
     }
 
+    else if (courseId == "team-synergy") {
+      if (completedIds.contains("exceptional-team-synergy")) return 0.65;
+      if (completedIds.contains("advanced-team-synergy")) return 0.35;
+    } else if (courseId == "advanced-team-synergy") {
+      if (completedIds.contains("exceptional-team-synergy")) return 0.35;
+    }
+
     return 0.0;
   }
 
@@ -125,12 +164,12 @@ class _CoursesPageState extends State<CoursesPage> {
     return Padding(
       padding: const EdgeInsets.only(left: 39, top: 0),
       child: SizedBox(
-        height: 28,
+        height: 48,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Container(
             width: 4,
-            height: 28,
+            height: 48,
             decoration: BoxDecoration(
               color: Colors.amber.withOpacity(0.9),
               borderRadius: BorderRadius.circular(2),
@@ -142,7 +181,7 @@ class _CoursesPageState extends State<CoursesPage> {
   }
 
   // ── BUILD LIST WITH STACKING + NODES + SMART CONNECTOR (now supports BOTH chains) ──
-  List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
+    List<Widget> _buildCoursesWithConnector(List<Map<String, dynamic>> courses) {
     final List<Widget> widgets = [];
     double accumulatedCompensation = 0.0;
 
@@ -152,7 +191,6 @@ class _CoursesPageState extends State<CoursesPage> {
       final bool isCompleted = (course['status'] as String?) == 'completed';
       final bool isChain = _isChainCourse(id);
 
-      // Should this card stack (overlap) the previous completed course in same chain?
       bool shouldStack = false;
       if (isChain && i > 0) {
         final prev = courses[i - 1];
@@ -164,11 +202,10 @@ class _CoursesPageState extends State<CoursesPage> {
         }
       }
 
-      // Node visibility
+      // Node visibility (unchanged)
       bool showBottomNode = false;
       bool showTopNode = false;
 
-      // Show bottom node only on the LAST completed course in chain when next is pending
       if (isChain && isCompleted && i < courses.length - 1) {
         final nextCourse = courses[i + 1];
         final nextId = nextCourse['id'] as String;
@@ -179,7 +216,6 @@ class _CoursesPageState extends State<CoursesPage> {
         }
       }
 
-      // Show top node only on the FIRST pending course in chain when previous is completed
       if (isChain && !isCompleted && i > 0) {
         final prev = courses[i - 1];
         final prevId = prev['id'] as String;
@@ -199,19 +235,30 @@ class _CoursesPageState extends State<CoursesPage> {
         overlayOpacity: _getOverlayOpacity(id),
       ));
 
-      // Accumulate offset on EVERY stacked card
       if (shouldStack) {
         accumulatedCompensation += _hrStackOffset;
       }
 
-      // Insert connector line ONLY between last completed and next pending in SAME chain
+      // ==================== FIXED: Connector now gets the same offset ====================
       if (isChain && isCompleted && i < courses.length - 1) {
         final nextCourse = courses[i + 1];
         final nextId = nextCourse['id'] as String;
 
         if (_areInSameChain(id, nextId) && 
             (nextCourse['status'] as String?) != 'completed') {
-          widgets.add(_buildHRConnectorLine());
+          
+          // Apply the exact same vertical shift that the next card will receive
+          final connector = _buildHRConnectorLine();
+          final double totalOffset = accumulatedCompensation;   // this is the key
+
+          widgets.add(
+            totalOffset != 0.0
+                ? Transform.translate(
+                    offset: Offset(0, totalOffset),
+                    child: connector,
+                  )
+                : connector,
+          );
         }
       }
     }
@@ -250,7 +297,7 @@ class _CoursesPageState extends State<CoursesPage> {
     double stackOffset = 0.0,
     double topCompensationOffset = 0.0,
     double overlayOpacity = 0.0,
-  }) {
+    }) {
     String status = course['status'] as String? ?? 'available';
     int? completionTime = course['completionTime'] as int?;
 
@@ -362,7 +409,7 @@ class _CoursesPageState extends State<CoursesPage> {
           bottom: showBottomConnectorNode ? 0 : (stackOffset < 0 ? 8 : 8),
         ),
         color: Colors.green[900],
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.none,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -407,9 +454,11 @@ class _CoursesPageState extends State<CoursesPage> {
       return totalOffset != 0.0
           ? Transform.translate(offset: Offset(0, totalOffset), child: card)
           : card;
+
+      
     }
 
-    // ── AVAILABLE CARD ──
+        // ── AVAILABLE CARD (with image) ──
     Widget card = Card(
       margin: EdgeInsets.only(
         bottom: showBottomConnectorNode ? -4 : (stackOffset < 0 ? 8 : 16),
@@ -523,32 +572,66 @@ class _CoursesPageState extends State<CoursesPage> {
             },
             borderRadius: BorderRadius.circular(16),
             child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.all(16),
+              child: Row(   // ← Changed to Row so image sits nicely on the left
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(course['name'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(Icons.attach_money, color: Colors.green),
-                      Text(' \$${course['cost']}'),
-                      const Spacer(),
-                      const Icon(Icons.timer, color: Colors.orange),
-                      Text(' ${course['durationMinutes']} min'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Effect: ${course['effect']}', style: const TextStyle(fontSize: 16)),
-                  if (course['requirements'] != "None")
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text('Requirements: ${course['requirements']}',
-                          style: const TextStyle(color: Colors.grey)),
+                  // NEW: Course Image (only appears on available cards)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      _getCourseImagePath(course['id'] as String),
+                      width: 92,
+                      height: 137,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 92,
+                        height: 92,
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.school, size: 40, color: Colors.grey),
+                      ),
                     ),
-                  const Align(
-                    alignment: Alignment.centerRight,
-                    child: Text('Tap to enroll →', style: TextStyle(color: Colors.blue)),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Text content (unchanged layout, just shifted right)
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          course['name'],
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(Icons.attach_money, color: Colors.green),
+                            Text(' \$${course['cost']}'),
+                            const Spacer(),
+                            const Icon(Icons.timer, color: Colors.orange),
+                            Text(' ${course['durationMinutes']} min'),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Effect: ${course['effect']}',
+                          style: const TextStyle(fontSize: 15),
+                        ),
+                        if (course['requirements'] != "None")
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Requirements: ${course['requirements']}',
+                              style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ),
+                        const Align(
+                          alignment: Alignment.centerRight,
+                          child: Text('Tap to enroll →', style: TextStyle(color: Colors.blue)),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -559,7 +642,7 @@ class _CoursesPageState extends State<CoursesPage> {
         ],
       ),
     );
-
+    
     final double totalOffset = stackOffset + topCompensationOffset;
     return totalOffset != 0.0
         ? Transform.translate(offset: Offset(0, totalOffset), child: card)
