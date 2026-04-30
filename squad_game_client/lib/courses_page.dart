@@ -11,6 +11,7 @@ class CoursesPage extends StatefulWidget {
 }
 
 class _CoursesPageState extends State<CoursesPage> {
+  Timer? _countdownTimer;
 
   // HR chain IDs for stacking + smart connector logic (UNTOUCHED)
   final List<String> _hrChainIds = const [
@@ -45,10 +46,42 @@ class _CoursesPageState extends State<CoursesPage> {
   void initState() {
     super.initState();
     SocketService().requestCourses();
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+
+      final courses = SocketService().coursesNotifier.value;
+      bool anyJustCompleted = false;
+
+      for (final course in courses) {
+        if ((course['status'] as String?) == 'inProgress') {
+          final completionTime = course['completionTime'] as int? ?? 0;
+          final remainingMs = completionTime - SocketService().currentServerTime;
+
+          if (remainingMs <= 0) {
+            // This course just finished on the client
+            anyJustCompleted = true;
+
+            if (["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"]
+                .contains(course['id'])) {
+              // ← THIS IS THE KEY EVENT
+              SocketService().notifyCourseCompleted(course['id'] as String);
+            }
+          }
+        }
+      }
+
+      if (anyJustCompleted || courses.any((c) => (c['status'] as String?) == 'inProgress')) {
+        SocketService().requestCourses(); // refresh list
+      }
+
+      setState(() {}); // rebuild UI
+    });
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
