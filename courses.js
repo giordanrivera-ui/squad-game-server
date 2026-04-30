@@ -186,6 +186,19 @@ function getUnifiedCourses(playerData) {
       if (!advancedCompleted) return null;
     }
 
+        // ==================== TEAM SYNERGY CHAIN LOGIC (now matches HR & Street Tactics) ====================
+    if (template.id === "advanced-team-synergy") {
+      const basicCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "team-synergy" && c.completionTime <= now);
+      if (!basicCompleted) return null;
+    }
+
+    if (template.id === "exceptional-team-synergy") {
+      const advancedCompleted = (playerData.completedCourses || [])
+        .some(c => c.id === "advanced-team-synergy" && c.completionTime <= now);
+      if (!advancedCompleted) return null;
+    }
+
     return { 
       ...template, 
       status: 'available',
