@@ -11,6 +11,15 @@ async function handleHeal(db, socket) {
   if (!doc.exists) return;
 
   let p = doc.data();
+
+  if (p.dead === true || (p.health ?? 100) <= 0) {
+    socket.emit('heal-result', { 
+      success: false, 
+      message: 'You are dead and cannot heal.' 
+    });
+    return;
+  }
+
   if (p.health >= 100) return;
 
   const cost = 50;
@@ -34,6 +43,14 @@ async function handleHealBrokenBone(db, socket) {
   if (!doc.exists) return;
 
   let p = doc.data();
+
+  if (p.dead === true || (p.health ?? 100) <= 0) {
+    socket.emit('heal-broken-bone-result', { 
+      success: false, 
+      message: 'You are dead and cannot heal.' 
+    });
+    return;
+  }
 
   // Strict location check
   if (p.location !== "Lónghǎi") {
