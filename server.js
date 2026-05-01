@@ -449,6 +449,7 @@ socket.on('respawn', async () => {
       displayNameLower: null,
       location: randomLocation,
       experience: 0,
+      rank: getRankTitle(0),
       intelligence: 0,
       skill: 0,
       marksmanship: 0,
