@@ -1,12 +1,4 @@
 const admin = require('firebase-admin');
-const { getRankTitle } = require('./combat.js');
-
-// ==================== SHARED PLAYER HELPERS ====================
-function attachCurrentRank(playerData) {
-  if (!playerData) return playerData;
-  playerData.currentRank = getRankTitle(playerData.experience || 0);
-  return playerData;
-}
 
 // ==================== CENTRALIZED TRANSACTION LOGGER (SHARED UTILITY) ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {

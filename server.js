@@ -11,7 +11,7 @@ const io = new Server(server, {
   pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
-const { logTransaction, attachCurrentRank } = require('./utils');
+const { logTransaction } = require('./utils');
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
@@ -49,8 +49,7 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     }
   }
 
-  playerData = attachCurrentRank(playerData);   // ← NEW
-  return playerData;
+  return playerData;   // IMPORTANT: returns the updated object
 }
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
@@ -372,9 +371,6 @@ io.on('connection', (socket) => {
 
     console.log(`[SERVER] ${socket.data.displayName} joined - online now: ${onlinePlayers.size}`);
 
-    playerData = attachCurrentRank(playerData);
-
-    await docRef.set(playerData);
 
     socket.emit('init', {
       player: playerData,
@@ -496,7 +492,6 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
     console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
   }
@@ -515,7 +510,6 @@ socket.on('respawn', async () => {
     p = await addExperienceAndGrantPoints(docRef, p, amount);
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -534,7 +528,6 @@ socket.on('respawn', async () => {
     p.balance = (p.balance || 0) + amount;
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -561,7 +554,6 @@ socket.on('respawn', async () => {
 
     try {
       await docRef.set(p);
-      p = attachCurrentRank(p);
       socket.emit('update-stats', p);
       console.log(`[SERVER] Sent update-stats to ${email}`);
     } catch (error) {
@@ -840,7 +832,6 @@ socket.on('respawn', async () => {
     p.location = destination;
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -861,7 +852,6 @@ socket.on('respawn', async () => {
     p.photoURL = data.photoURL;
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -878,7 +868,6 @@ socket.on('respawn', async () => {
     p.showWeapon = data.showWeapon;
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -909,7 +898,6 @@ socket.on('respawn', async () => {
     p.balance -= data.totalCost;
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -958,7 +946,6 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -984,7 +971,6 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -1031,7 +1017,6 @@ socket.on('respawn', async () => {
       p.sellBanEndTime = Date.now() + banMs;
       await docRef.set(p);
       socket.emit('sell-result', { success: false, message: `Sale failed! Banned from selling for ${banMs / (60*60*1000)} hours.` });
-      p = attachCurrentRank(p);
       socket.emit('update-stats', p);  // Send ban time
       return;
     }
@@ -1053,7 +1038,6 @@ socket.on('respawn', async () => {
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -1098,7 +1082,6 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
-    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });

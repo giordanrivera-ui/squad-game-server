@@ -229,7 +229,7 @@ async function handleKillAttempt(db, socket, data, deps) {
 module.exports = { 
   handleKillAttempt,
   markPlayerAsDead,
-  getUpperBound,
+  getUpperBound,          // optional: export if you ever want to use them elsewhere
   getRankTitle,
   calculateBulletsNeeded 
 };
