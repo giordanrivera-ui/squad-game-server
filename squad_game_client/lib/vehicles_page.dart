@@ -29,29 +29,14 @@ class _VehiclesPageState extends State<VehiclesPage> {
   final Map<String, int> _quantities = {};
   int _totalCost = 0;
 
-  List<Vehicle> _vehicles = [];
-
-  void _onVehiclesList(dynamic data) {
-    if (data is List && mounted) {
-      setState(() {
-        _vehicles = data
-            .map((v) => Vehicle.fromMap(v as Map<String, dynamic>))
-            .toList();
-      });
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     _currentBalance = widget.currentBalance;
     _currentHealth = widget.currentHealth;
 
-    // Request vehicles from server every time this page opens
-    SocketService().socket?.emit('request-vehicles');
-
-    // Listen for the response
-    SocketService().socket?.on('vehicles-list', _onVehiclesList);
+    // Request vehicles from server (now authoritative via notifier)
+    SocketService().requestVehicles();
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
   }
@@ -67,17 +52,19 @@ class _VehiclesPageState extends State<VehiclesPage> {
 
   @override
   void dispose() {
-    SocketService().socket?.off('vehicles-list', _onVehiclesList);
     SocketService().socket?.off('update-stats', _handleStatsUpdate);
     super.dispose();
   }
 
+  // Use the centralised notifier (same pattern as weapons)
+  List<Map<String, dynamic>> get _vehicles => SocketService().vehicleListNotifier.value;
+
   void _updateTotal() {
     int total = 0;
     for (var item in _vehicles) {
-      final key = item.name;
+      final key = item['name'] as String;
       if (_checked[key] == true) {
-        total += (_quantities[key] ?? 0) * item.cost;
+        total += (_quantities[key] ?? 0) * (item['cost'] as int);
       }
     }
     setState(() => _totalCost = total);
@@ -86,11 +73,11 @@ class _VehiclesPageState extends State<VehiclesPage> {
   void _purchaseItems() {
     List<Map<String, dynamic>> purchased = [];
     for (var item in _vehicles) {
-      final key = item.name;
+      final key = item['name'] as String;
       final qty = _quantities[key] ?? 0;
       if (_checked[key] == true && qty > 0) {
         for (int i = 0; i < qty; i++) {
-          purchased.add(item.toMap());
+          purchased.add(Map<String, dynamic>.from(item));
         }
       }
     }
@@ -99,9 +86,9 @@ class _VehiclesPageState extends State<VehiclesPage> {
       _currentBalance -= _totalCost;
     });
 
-    SocketService().socket?.emit('purchase-vehicles', {'items': purchased, 'totalCost': _totalCost,});
+    SocketService().purchaseVehicles(purchased, _totalCost);
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Items purchased!')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicles purchased!')));
 
     setState(() {
       _checked.clear();
@@ -110,7 +97,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
     });
   }
 
-  Widget _buildSection(String title, List<Vehicle> items) {
+  Widget _buildSection(String title, List<Map<String, dynamic>> items) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -119,7 +106,7 @@ class _VehiclesPageState extends State<VehiclesPage> {
           child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         ),
         ...items.map((item) {
-          final key = item.name;
+          final key = item['name'] as String;
           final checked = _checked[key] ?? false;
           final quantity = _quantities[key] ?? 1;
 
@@ -144,10 +131,10 @@ class _VehiclesPageState extends State<VehiclesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text('Cost: ${item.cost}'),
+                        Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        Text('Cost: ${item['cost']}'),
                         const SizedBox(height: 4),
-                        Text(item.description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(item['description'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -194,12 +181,14 @@ class _VehiclesPageState extends State<VehiclesPage> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildSection('Vehicles', _vehicles),
-              ],
-            ),
+            child: _vehicles.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildSection('Vehicles', _vehicles),
+                    ],
+                  ),
           ),
           Container(
             width: double.infinity,

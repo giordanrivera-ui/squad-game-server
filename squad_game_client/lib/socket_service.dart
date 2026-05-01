@@ -16,7 +16,6 @@ class SocketService {
 
   // The permanent mailbox
   final ValueNotifier<List<Map<String, dynamic>>> inboxNotifier = ValueNotifier([]);
-
   // Track unread messages
   final ValueNotifier<bool> hasUnreadMessages = ValueNotifier(false);
 
@@ -51,6 +50,9 @@ class SocketService {
   ValueNotifier<List<Map<String, dynamic>>> get bondMarketNotifier => _bondMarketNotifier;
 
   final ValueNotifier<int?> bondMarketCooldownEndNotifier = ValueNotifier(null);
+
+  final ValueNotifier<List<Map<String, dynamic>>> vehicleListNotifier = ValueNotifier([]);
+  final ValueNotifier<List<Map<String, dynamic>>> weaponListNotifier = ValueNotifier([]);
 
   String _getRankTitle(int exp) {
     if (exp <= 49) return 'Beggar';
@@ -250,6 +252,18 @@ class SocketService {
       socket?.on('courses-list', (data) {
         if (data is List) {
           coursesNotifier.value = List<Map<String, dynamic>>.from(data);
+        }
+      });
+
+      socket?.on('vehicles-list', (data) {
+        if (data is List) {
+          vehicleListNotifier.value = List<Map<String, dynamic>>.from(data);
+        }
+      });
+
+      socket?.on('weapons-list', (data) {
+        if (data is List) {
+          weaponListNotifier.value = List<Map<String, dynamic>>.from(data);
         }
       });
 
@@ -714,6 +728,28 @@ void stopGlobalCourseCompletionWatcher() {
 
   void buyBond(Map<String, dynamic> bond) {
     socket?.emit('buy-bond', bond);
+  }
+
+  void requestVehicles() {
+    socket?.emit('request-vehicles');
+  }
+
+  void purchaseVehicles(List<Map<String, dynamic>> items, int totalCost) {
+    socket?.emit('purchase-vehicles', {
+      'items': items,
+      'totalCost': totalCost,
+    });
+  }
+
+  void requestWeapons() {
+    socket?.emit('request-weapons');
+  }
+
+  void purchaseWeapons(List<Map<String, dynamic>> items, int totalCost) {
+    socket?.emit('purchase-weapons', {
+      'items': items,
+      'totalCost': totalCost,
+    });
   }
 
   void respawn() => socket?.emit('respawn');

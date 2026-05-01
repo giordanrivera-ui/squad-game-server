@@ -16,6 +16,7 @@ const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = r
 const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
+const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
@@ -377,6 +378,7 @@ io.on('connection', (socket) => {
       travelCosts: travelCosts,
       properties: properties,
       vehicles: vehicleTemplates,
+      weapons: weaponTemplates,
     });
     socket.emit('time', timeFormatter.format(new Date()));
   });
@@ -572,15 +574,15 @@ socket.on('respawn', async () => {
   });
 
   socket.on('course-completed', async (courseId) => {
-  const email = socket.data.email;
-  if (!email) return;
+    const email = socket.data.email;
+    if (!email) return;
 
-  const isTeamSynergy = ["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"].includes(courseId);
-  if (!isTeamSynergy) return;
+    const isTeamSynergy = ["team-synergy", "advanced-team-synergy", "exceptional-team-synergy"].includes(courseId);
+    if (!isTeamSynergy) return;
 
-  console.log(`[COURSE] ${email} completed ${courseId} — triggering party refresh`);
-  await syncPartyTeamSynergy(db, email, { onlineSockets });
-});
+    console.log(`[COURSE] ${email} completed ${courseId} — triggering party refresh`);
+    await syncPartyTeamSynergy(db, email, { onlineSockets });
+  });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
   socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
@@ -903,6 +905,13 @@ socket.on('respawn', async () => {
   socket.on('request-vehicles', () => handleRequestVehicles(socket));
 
   socket.on('purchase-vehicles', async (data) => {await handlePurchaseVehicles(db, socket, data);});
+  
+  // ==================== WEAPONS ====================
+  socket.on('request-weapons', () => handleRequestWeapons(socket));
+
+  socket.on('purchase-weapons', async (data) => {
+    await handlePurchaseWeapons(db, socket, data);
+  });
   
   socket.on('equip-armor', async (data) => { // NEW: Equip armor
     const email = socket.data.email;

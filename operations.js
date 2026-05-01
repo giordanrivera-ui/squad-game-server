@@ -1,6 +1,7 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 const { markPlayerAsDead } = require('./combat.js');
+const { weaponTemplates } = require('./weapons.js');
 
 const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
@@ -340,11 +341,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         const rand = Math.random() * 100;
         let weapon;
-        if (rand < knifeThreshold) weapon = { name: 'Small Knife', description: 'A compact blade...', power: 10, cost: 30, type: 'weapon' };
-        else if (rand < batThreshold) weapon = { name: 'Baseball Bat', description: 'A sturdy wooden club...', power: 18, cost: 120, type: 'weapon' };
-        else if (rand < macheteThreshold) weapon = { name: 'Machete', description: 'A large chopping blade...', power: 25, cost: 250, type: 'weapon' };
-        else if (rand < maulThreshold) weapon = { name: 'Splitting Maul', description: 'A heavy hammer-axe...', power: 30, cost: 350, type: 'weapon' };
-        else weapon = { name: 'Ruger Mark IV', description: 'A reliable .22 caliber pistol...', power: 70, cost: 520, type: 'weapon' };
+        if (rand < knifeThreshold) weapon = weaponTemplates.find(w => w.name === 'Small Knife');
+        else if (rand < batThreshold) weapon = weaponTemplates.find(w => w.name === 'Baseball Bat');
+        else if (rand < macheteThreshold) weapon = weaponTemplates.find(w => w.name === 'Machete');
+        else if (rand < maulThreshold) weapon = weaponTemplates.find(w => w.name === 'Splitting Maul');
+        else weapon = weaponTemplates.find(w => w.name === 'Ruger Mark IV');
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
@@ -420,13 +421,12 @@ async function handleExecuteOperation(db, socket, data, deps) {
         const rand = Math.random() * 100;
 
         let weapon;
-        if (rand < glockThreshold) {weapon = { name: 'Glock 45 Gen 5', description: '...', power: 150, cost: 700, type: 'weapon' };} 
-        else if (rand < remingtonThreshold) {weapon = { name: 'Remington R1 Enhanced', description: '...', power: 200, cost: 830, type: 'weapon' };} 
-        else if (rand < waltherThreshold && isEichenwald) {   // Walther only appears in Eichenwald
-          weapon = { name: 'Walther PDP Pro', description: 'A premium 9mm striker-fired pistol optimized for tactical use with modular ergonomics, crisp trigger, and full optics-ready capability.', power: 210, cost: 850, type: 'weapon'};} 
-        else if (rand < mossbergThreshold) {weapon = { name: 'Mossberg 590 Shotgun', description: '...', power: 260, cost: 1200, type: 'weapon' };} 
-        else if (rand < mp5Threshold) {weapon = { name: 'MP5 SMG', description: '...', power: 330, cost: 4000, type: 'weapon' };} 
-        else {weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };}
+        if (rand < glockThreshold) weapon = weaponTemplates.find(w => w.name === 'Glock 45 Gen 5');
+        else if (rand < remingtonThreshold) weapon = weaponTemplates.find(w => w.name === 'Remington R1 Enhanced');
+        else if (rand < waltherThreshold && isEichenwald) weapon = weaponTemplates.find(w => w.name === 'Walther PDP Pro');
+        else if (rand < mossbergThreshold) weapon = weaponTemplates.find(w => w.name === 'Mossberg 590 Shotgun');
+        else if (rand < mp5Threshold) weapon = weaponTemplates.find(w => w.name === 'MP5 SMG');
+        else weapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
@@ -504,19 +504,12 @@ async function handleExecuteOperation(db, socket, data, deps) {
         const rand = Math.random() * 100;
 
         let weapon;
-        if (rand < ump5Threshold) {
-          weapon = { name: 'H&K UMP5', description: '...', power: 380, cost: 4600, type: 'weapon' };
-        } else if (rand < ak74Threshold) {
-          weapon = { name: 'SLR104 AK-74', description: '...', power: 425, cost: 7500, type: 'weapon' };
-        } else if (rand < brenThreshold && isVostokgrad) {
-          weapon = { name: 'CZ Bren 2', description: "A modern Czech 5.56mm assault rifle renowned for its exceptional reliability, lightweight modular design, and superior ergonomics.", power: 430, cost: 7500, type: 'weapon' };
-        } else if (rand < carbineThreshold) {
-          weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
-        } else if (rand < scarThreshold) {
-          weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
-        } else {
-          weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
-        }
+        if (rand < ump5Threshold) weapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
+        else if (rand < ak74Threshold) weapon = weaponTemplates.find(w => w.name === 'SLR104 AK-74');
+        else if (rand < brenThreshold && isVostokgrad) weapon = weaponTemplates.find(w => w.name === 'CZ Bren 2');
+        else if (rand < carbineThreshold) weapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
+        else if (rand < scarThreshold) weapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
+        else weapon = weaponTemplates.find(w => w.name === 'M16A4');
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
@@ -565,15 +558,10 @@ async function handleExecuteOperation(db, socket, data, deps) {
         const rand = Math.random() * 100;
 
         let weapon;
-        if (rand < m4Threshold) {
-          weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
-        } else if (rand < scarThreshold) {
-          weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
-        } else if (rand < m16Threshold) {
-          weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
-        } else {
-          weapon = { name: 'M24 Sniper', description: 'A bolt-action 7.62mm rifle designed for long-range precision shots.', power: 610, cost: 22000, type: 'weapon' };
-        }
+        if (rand < m4Threshold) weapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
+        else if (rand < scarThreshold) weapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
+        else if (rand < m16Threshold) weapon = weaponTemplates.find(w => w.name === 'M16A4');
+        else weapon = weaponTemplates.find(w => w.name === 'M24 Sniper');
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
