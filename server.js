@@ -334,6 +334,7 @@ io.on('connection', (socket) => {
         activeSpecialOperation: null,
         activeSpecialOperationParty: null,
       };
+      playerData.rank = getRankTitle(playerData.experience || 0);
     }
 
     if (playerData.displayName) {
@@ -488,6 +489,8 @@ socket.on('respawn', async () => {
       activeSpecialOperationParty: null,
       completedCourses: [],
     };
+
+    p.rank = getRankTitle(0);
 
     // Prevent respawn with invalid name (though client already forces null)
     if (p.displayName && (p.displayName.length > 22 || ['.', '/', '\\'].includes(p.displayName[0]))) {

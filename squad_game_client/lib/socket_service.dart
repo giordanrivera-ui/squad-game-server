@@ -155,6 +155,7 @@ class SocketService {
           final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
           if (isDeadNow) {
             deathNotifier.value = true;
+            statsNotifier.value = {...statsNotifier.value, 'rank': 'Beggar'};
           }
 
           // Set defaults
