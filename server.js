@@ -11,7 +11,7 @@ const io = new Server(server, {
   pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
-const { logTransaction } = require('./utils');
+const { logTransaction, attachCurrentRank } = require('./utils');
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
@@ -31,14 +31,6 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// ==================== RANK HELPER (single source of truth) ====================
-function attachCurrentRank(playerData) {
-  if (!playerData) return playerData;
-  playerData.currentRank = getRankTitle(playerData.experience || 0);
-  return playerData;
-}
-
-module.exports = { attachCurrentRank };
 // ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
 async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   const oldExp = playerData.experience || 0;
