@@ -24,26 +24,6 @@ function getUpperBound(exp) {
   return 44000;  // Supreme Commander
 }
 
-function getRankTitle(exp) {
-  if (exp <= 49) return 'Beggar';
-  if (exp <= 514) return 'Thug';
-  if (exp <= 1264) return 'Recruit';
-  if (exp <= 2314) return 'Private';
-  if (exp <= 3514) return 'Private First Class';
-  if (exp <= 5014) return 'Corporal';
-  if (exp <= 6864) return 'Sergeant';
-  if (exp <= 8864) return 'Sergeant First Class';
-  if (exp <= 10214) return 'Warrant Officer';
-  if (exp <= 11464) return 'First Lieutenant';
-  if (exp <= 14214) return 'Captain';
-  if (exp <= 17414) return 'Major';
-  if (exp <= 21364) return 'Lieutenant Colonel';
-  if (exp <= 25864) return 'Colonel';
-  if (exp <= 31514) return 'General';
-  if (exp <= 38214) return 'General of the Army';
-  return 'Supreme Commander';
-}
-
 function calculateBulletsNeeded(p, o, k) {
   if (o <= 0 || k <= 0 || p <= 0) return Infinity;
   const log10 = Math.log10;
@@ -229,7 +209,6 @@ async function handleKillAttempt(db, socket, data, deps) {
 module.exports = { 
   handleKillAttempt,
   markPlayerAsDead,
-  getUpperBound,          // optional: export if you ever want to use them elsewhere
-  getRankTitle,
+  getUpperBound,
   calculateBulletsNeeded 
 };

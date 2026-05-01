@@ -11,9 +11,9 @@ const io = new Server(server, {
   pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
-const { logTransaction } = require('./utils');
+const { logTransaction, getRankTitle } = require('./utils');
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
-const { handleKillAttempt, markPlayerAsDead, getRankTitle } = require('./combat.js');
+const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
