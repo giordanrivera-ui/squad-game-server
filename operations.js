@@ -313,7 +313,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 21364) stealChance = 0.72;
       if (exp > 25864) stealChance = 0.78;
       if (exp > 31514) stealChance = 0.82;
-      if (exp > 38214) stealChance = 0.88;
+      if (exp > 38214) stealChance = 0.89;
 
       if (Math.random() < stealChance) {
         let knifeThreshold = 30; // (30%)
@@ -437,8 +437,8 @@ async function handleExecuteOperation(db, socket, data, deps) {
       let stealChance = 0.05; // Beggar
       if (exp > 49) stealChance = 0.08; // Thug
       if (exp > 514) stealChance = 0.11; // Recruit
-      if (exp > 1264) stealChance = 0.14; // Private
-      if (exp > 2314) stealChance = 0.17; // Private First Class
+      if (exp > 1264) stealChance = 0.15; // Private
+      if (exp > 2314) stealChance = 0.18; // Private First Class
       if (exp > 3514) stealChance = 0.20; // Corporal
       if (exp > 5014) stealChance = 0.23; // Sergeant
       if (exp > 6864) stealChance = 0.26; // Sergeant First Class
@@ -450,7 +450,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 21364) stealChance = 0.49; // Colonel
       if (exp > 25864) stealChance = 0.53; //
       if (exp > 31514) stealChance = 0.57; //
-      if (exp > 38214) stealChance = 0.60; //
+      if (exp > 38214) stealChance = 0.61; //
 
       if (Math.random() < stealChance) {
         const isVostokgrad = p.location === "Vostokgrad";
@@ -519,7 +519,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     if (operation === "Strike an armory") {
       let stealChance = 0.04; // Beggar
       if (exp > 49) stealChance = 0.06;     // Thug
-      if (exp > 514) stealChance = 0.08;    // Recruit
+      if (exp > 514) stealChance = 0.09;    // Recruit
       if (exp > 1264) stealChance = 0.12;   // Private
       if (exp > 2314) stealChance = 0.15;   // Private First Class
       if (exp > 3514) stealChance = 0.18;   // Corporal
@@ -533,7 +533,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 21364) stealChance = 0.45;  // Colonel
       if (exp > 25864) stealChance = 0.48;  // General
       if (exp > 31514) stealChance = 0.52;  // General of the Army
-      if (exp > 38214) stealChance = 0.55;  // Supreme Commander
+      if (exp > 38214) stealChance = 0.56;  // Supreme Commander
 
       if (Math.random() < stealChance) {
         let m4Threshold, scarThreshold, m16Threshold, m24Threshold;
