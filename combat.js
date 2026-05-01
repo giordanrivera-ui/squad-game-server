@@ -1,7 +1,7 @@
 // Handles everything related to attempting to kill another player
 
 const admin = require('firebase-admin');
-const { logTransaction } = require('./utils');
+const { logTransaction, getRankTitle } = require('./utils');
 
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
 function getUpperBound(exp) {
