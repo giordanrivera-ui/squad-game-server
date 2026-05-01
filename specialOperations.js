@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { getRankTitle } = require('./combat.js');
+const { attachCurrentRank } = require('./server.js');
 
 // ====================== SPECIAL OPERATIONS MODULE ======================
 const specialOperationConfigs = {
@@ -172,6 +173,8 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   p.activeSpecialOperationParty = party;               // new full tracking
 
   await docRef.set(p);
+  
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 
   socket.emit('special-op-initiated', { 
@@ -560,6 +563,7 @@ async function handleAssignSpecialWeapon(db, socket, data, { onlineSockets }) {
     }
   });
 
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 
   console.log(`[SPECIAL-OP] ${p.displayName} assigned ${removedWeapon.name} to ${position}`);

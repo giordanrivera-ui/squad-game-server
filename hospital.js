@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
+const { attachCurrentRank } = require('./server.js');
 
 // ==================== HEAL HANDLER ====================
 async function handleHeal(db, socket) {
@@ -21,6 +22,7 @@ async function handleHeal(db, socket) {
   p.health = 100;
 
   await docRef.set(p);
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 }
 
@@ -74,6 +76,8 @@ async function handleHealBrokenBone(db, socket) {
     success: true, 
     message: '🦴 Bone healed! You feel much better.' 
   });
+
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 }
 

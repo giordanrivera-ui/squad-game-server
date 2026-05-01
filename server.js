@@ -31,6 +31,14 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+// ==================== RANK HELPER (single source of truth) ====================
+function attachCurrentRank(playerData) {
+  if (!playerData) return playerData;
+  playerData.currentRank = getRankTitle(playerData.experience || 0);
+  return playerData;
+}
+
+module.exports = { attachCurrentRank };
 // ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
 async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   const oldExp = playerData.experience || 0;
@@ -49,7 +57,8 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     }
   }
 
-  return playerData;   // IMPORTANT: returns the updated object
+  playerData = attachCurrentRank(playerData);   // ← NEW
+  return playerData;
 }
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
@@ -371,6 +380,9 @@ io.on('connection', (socket) => {
 
     console.log(`[SERVER] ${socket.data.displayName} joined - online now: ${onlinePlayers.size}`);
 
+    playerData = attachCurrentRank(playerData);
+
+    await docRef.set(playerData);
 
     socket.emit('init', {
       player: playerData,
@@ -492,6 +504,7 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
     console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
   }
@@ -510,6 +523,7 @@ socket.on('respawn', async () => {
     p = await addExperienceAndGrantPoints(docRef, p, amount);
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -528,6 +542,7 @@ socket.on('respawn', async () => {
     p.balance = (p.balance || 0) + amount;
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -554,6 +569,7 @@ socket.on('respawn', async () => {
 
     try {
       await docRef.set(p);
+      p = attachCurrentRank(p);
       socket.emit('update-stats', p);
       console.log(`[SERVER] Sent update-stats to ${email}`);
     } catch (error) {
@@ -832,6 +848,7 @@ socket.on('respawn', async () => {
     p.location = destination;
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -852,6 +869,7 @@ socket.on('respawn', async () => {
     p.photoURL = data.photoURL;
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -868,6 +886,7 @@ socket.on('respawn', async () => {
     p.showWeapon = data.showWeapon;
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -898,6 +917,7 @@ socket.on('respawn', async () => {
     p.balance -= data.totalCost;
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -946,6 +966,7 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -971,6 +992,7 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -1017,6 +1039,7 @@ socket.on('respawn', async () => {
       p.sellBanEndTime = Date.now() + banMs;
       await docRef.set(p);
       socket.emit('sell-result', { success: false, message: `Sale failed! Banned from selling for ${banMs / (60*60*1000)} hours.` });
+      p = attachCurrentRank(p);
       socket.emit('update-stats', p);  // Send ban time
       return;
     }
@@ -1038,6 +1061,7 @@ socket.on('respawn', async () => {
 
     await docRef.set(p);
     socket.emit('sell-result', { success: true, message: 'Items sold!' });
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
   });
 
@@ -1082,6 +1106,7 @@ socket.on('respawn', async () => {
     }
 
     await docRef.set(p);
+    p = attachCurrentRank(p);
     socket.emit('update-stats', p);
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });

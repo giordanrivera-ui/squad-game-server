@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 const { markPlayerAsDead } = require('./combat.js');
 const { weaponTemplates } = require('./weapons.js');
+const { attachCurrentRank } = require('./server.js');
 
 const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
@@ -653,6 +654,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     prisonEndTime: p.prisonEndTime || 0
   });
 
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 
   if (p.health <= 0 && !isCaught) {

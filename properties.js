@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
+const { attachCurrentRank } = require('./server.js');
 
 const properties = [
   {
@@ -195,6 +196,7 @@ async function handleBuyProperty(db, socket, propertyName) {
   p.propertyClaims = [...(p.propertyClaims || []), {name: propertyName, lastClaim: now}];  // Add per-property entry
 
   await docRef.set(p);
+  p = attachCurrentRank(p);
   socket.emit('update-stats', p);
 }
 
