@@ -105,6 +105,12 @@ class SocketService {
           statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
           statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
 
+          final playerData = Map<String, dynamic>.from(data['player'] ?? {});
+    
+          // Force fresh rank and clear old celebration
+          playerData['rank'] = 'Beggar';           // new life always starts as Beggar
+          rankUpNotifier.value = null;
+
           loadMessages();
           loadTransactions();  // ← Loads saved history on every login
           if ((statsNotifier.value['health'] ?? 100) <= 0) deathNotifier.value = true;
@@ -116,7 +122,12 @@ class SocketService {
       // NEW: Handle update-stats (update the notifier)
       socket?.on(SocketEvents.updateStats, (data) {
         if (data is Map<String, dynamic>) {
+          if (data['dead'] == true || (data['health'] ?? 100) <= 0) {
+            rankUpNotifier.value = null;
+          }
           final cleaned = <String, dynamic>{...data};
+
+          final bool isRespawn = cleaned['isRespawn'] == true;
 
           const numericFields = [
             'balance', 'health', 'bullets', 'experience', 'overallPower',
@@ -142,11 +153,15 @@ class SocketService {
           final newRank = currentStats['rank'] ?? oldRank;
 
           // Detect rank up (much simpler and 100% accurate now)
-          if (newRank != oldRank) {
+          if (!isRespawn && newRank != oldRank) {
             rankUpNotifier.value = {
               'oldRank': oldRank,
               'newRank': newRank,
             };
+          }
+
+          if (isRespawn) {
+            currentStats.remove('isRespawn');
           }
 
           statsNotifier.value = currentStats;

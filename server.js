@@ -497,8 +497,12 @@ socket.on('respawn', async () => {
       p.displayName = null;
     }
 
+    p.rank = 'Beggar';
+    p.isRespawn = true;
+
     await docRef.set(p);
     socket.emit('update-stats', p);
+
     console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
   }
 });
