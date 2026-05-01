@@ -1097,6 +1097,75 @@ socket.on('respawn', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });
 
+  // ==================== START DELAYED HEALING ====================
+socket.on('start-healing', async () => {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+
+  if (p.dead === true || (p.health ?? 100) <= 0) {
+    socket.emit('heal-result', { success: false, message: 'You are dead and cannot heal.' });
+    return;
+  }
+
+  if (p.healingEndTime && p.healingEndTime > Date.now()) {
+    socket.emit('heal-result', { success: false, message: 'You are already healing.' });
+    return;
+  }
+
+  const cost = 50;
+  if (p.balance < cost) {
+    socket.emit('heal-result', { success: false, message: 'Not enough money.' });
+    return;
+  }
+
+  await logTransaction(socket, -cost, 'Started Healing ($50)', p, docRef);
+
+  p.balance -= cost;
+  p.healingEndTime = Date.now() + 120000;   // exactly 2 minutes
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+  socket.emit('heal-result', { 
+    success: true, 
+    message: 'Healing started... (2 minutes remaining)' 
+  });
+});
+
+// ==================== CLAIM HEALING (SECURE) ====================
+socket.on('claim-healing', async () => {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+
+  // CRITICAL SECURITY CHECK
+  if (!p.healingEndTime || p.healingEndTime > Date.now()) {
+    socket.emit('heal-result', { success: false, message: 'Healing is not finished yet.' });
+    return;
+  }
+
+  // Healing time is up → apply full heal
+  p.health = 100;
+  p.healingEndTime = 0;
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+  socket.emit('heal-result', { 
+    success: true, 
+    message: '✅ You are now fully healed!' 
+  });
+});
+
   // ==================== BOND MARKET HANDLERS (with 2-minute cooldown) ====================
   socket.on('request-bond-market', async () => {
     await handleRequestBondMarket(db, socket);

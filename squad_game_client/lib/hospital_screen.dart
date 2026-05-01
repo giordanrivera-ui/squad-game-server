@@ -55,98 +55,111 @@ class _HospitalScreenState extends State<HospitalScreen> {
     SocketService().healBrokenBone();
   }
 
+  void _startHealing() {
+    SocketService().socket?.emit('start-healing');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          color: Colors.green[50],
-          child: Column(
-            children: [
-              const Text('You are at the Hospital in', style: TextStyle(fontSize: 18)),
-              Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Health: ${widget.currentHealth}/100', style: const TextStyle(fontSize: 24)),
-                const SizedBox(height: 20),
-                Text('Balance: \$${widget.currentBalance}', style: const TextStyle(fontSize: 24)),
-                const SizedBox(height: 30),
-                Text('Heal to full health for $healCost?', style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 20),
+    return ValueListenableBuilder<Map<String, dynamic>>(
+      valueListenable: SocketService().statsNotifier,
+      builder: (context, stats, child) {
+        final bool isHealing = (stats['healingEndTime'] ?? 0) > SocketService().currentServerTime;
+        final int remaining = isHealing 
+            ? (((stats['healingEndTime'] as int) - SocketService().currentServerTime) / 1000).ceil()
+            : 0;
 
-                // Normal heal button
-                SizedBox(
-                  width: double.infinity,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: ElevatedButton(
-                      onPressed: canHeal ? _heal : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: canHeal ? Colors.green : Colors.grey,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                      ),
-                      child: const Text(
-                        '🏥 HEAL NOW 🏥',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ),
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              color: Colors.green[50],
+              child: Column(
+                children: [
+                  const Text('You are at the Hospital in', style: TextStyle(fontSize: 18)),
+                  Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Health: ${widget.currentHealth}/100', style: const TextStyle(fontSize: 24)),
+                    const SizedBox(height: 20),
+                    Text('Balance: \$${widget.currentBalance}', style: const TextStyle(fontSize: 24)),
+                    const SizedBox(height: 30),
+                    Text('Heal to full health for $healCost?', style: const TextStyle(fontSize: 18)),
+                    const SizedBox(height: 20),
 
-                const SizedBox(height: 12),
-
-                // Orthopedic Surgeon button - ONLY in Lónghǎi (already filtered by widget)
-                if (widget.currentLocation == "Lónghǎi")
-                  ValueListenableBuilder<Map<String, dynamic>>(
-                    valueListenable: SocketService().statsNotifier,
-                    builder: (context, stats, child) {
-                      final hasBrokenBone = stats['hasBrokenBone'] == true;
-                      final balance = stats['balance'] ?? 0;
-                      final canHealBone = hasBrokenBone && balance >= boneHealCost;
-
-                      return SizedBox(
-                        width: double.infinity,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: ElevatedButton(
-                            onPressed: canHealBone ? _seeOrthopedicSurgeon : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: canHealBone ? Colors.blueGrey[700] : Colors.grey,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                            ),
-                            child: Text(
-                              hasBrokenBone 
-                                ? '🦴 See Orthopedic Surgeon (\$$boneHealCost)'
-                                : '🦴 See Orthopedic Surgeon',
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                            ),
+                    // Normal heal button
+                    SizedBox(
+                      width: double.infinity,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: ElevatedButton(
+                          onPressed: isHealing ? null : _startHealing,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: canHeal ? Colors.green : Colors.grey,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                          ),
+                          child: Text(isHealing ? 'Healing... $remaining seconds left' : '🏥 HEAL NOW 🏥',
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
 
-                const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-                if (widget.currentHealth == 100)
-                  const Text('You are already at full health!', style: TextStyle(color: Colors.green, fontSize: 16))
-                else if (widget.currentBalance < healCost)
-                  const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
-                else
-                  const Text('Ready to heal!', style: TextStyle(color: Colors.green, fontSize: 16)),
-              ],
+                    // Orthopedic Surgeon button - ONLY in Lónghǎi (already filtered by widget)
+                    if (widget.currentLocation == "Lónghǎi")
+                      ValueListenableBuilder<Map<String, dynamic>>(
+                        valueListenable: SocketService().statsNotifier,
+                        builder: (context, stats, child) {
+                          final hasBrokenBone = stats['hasBrokenBone'] == true;
+                          final balance = stats['balance'] ?? 0;
+                          final canHealBone = hasBrokenBone && balance >= boneHealCost;
+
+                          return SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: ElevatedButton(
+                                onPressed: canHealBone ? _seeOrthopedicSurgeon : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: canHealBone ? Colors.blueGrey[700] : Colors.grey,
+                                  padding: const EdgeInsets.symmetric(vertical: 18),
+                                ),
+                                child: Text(
+                                  hasBrokenBone 
+                                    ? '🦴 See Orthopedic Surgeon (\$$boneHealCost)'
+                                    : '🦴 See Orthopedic Surgeon',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    if (widget.currentHealth == 100)
+                      const Text('You are already at full health!', style: TextStyle(color: Colors.green, fontSize: 16))
+                    else if (widget.currentBalance < healCost)
+                      const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
+                    else
+                      const Text('Ready to heal!', style: TextStyle(color: Colors.green, fontSize: 16)),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      }
     );
   }
 }
