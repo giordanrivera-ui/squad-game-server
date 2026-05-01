@@ -32,4 +32,31 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
   }
 }
 
-module.exports = { logTransaction };
+const RANK_THRESHOLDS = [
+  { maxExp: 49, title: 'Beggar' },
+  { maxExp: 514, title: 'Thug' },
+  { maxExp: 1264, title: 'Recruit' },
+  { maxExp: 2314, title: 'Private' },
+  { maxExp: 3514, title: 'Private First Class' },
+  { maxExp: 5014, title: 'Corporal' },
+  { maxExp: 6864, title: 'Sergeant' },
+  { maxExp: 8864, title: 'Sergeant First Class' },
+  { maxExp: 10214, title: 'Warrant Officer' },
+  { maxExp: 11464, title: 'First Lieutenant' },
+  { maxExp: 14214, title: 'Captain' },
+  { maxExp: 17414, title: 'Major' },
+  { maxExp: 21364, title: 'Lieutenant Colonel' },
+  { maxExp: 25864, title: 'Colonel' },
+  { maxExp: 31514, title: 'General' },
+  { maxExp: 38214, title: 'General of the Army' },
+  { maxExp: Infinity, title: 'Supreme Commander' }
+];
+
+function getRankTitle(exp) {
+  for (const { maxExp, title } of RANK_THRESHOLDS) {
+    if (exp <= maxExp) return title;
+  }
+  return 'Supreme Commander';
+}
+
+module.exports = { logTransaction, getRankTitle, RANK_THRESHOLDS };

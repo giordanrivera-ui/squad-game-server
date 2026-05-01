@@ -54,26 +54,6 @@ class SocketService {
   final ValueNotifier<List<Map<String, dynamic>>> vehicleListNotifier = ValueNotifier([]);
   final ValueNotifier<List<Map<String, dynamic>>> weaponListNotifier = ValueNotifier([]);
 
-  String _getRankTitle(int exp) {
-    if (exp <= 49) return 'Beggar';
-    if (exp <= 514) return 'Thug';
-    if (exp <= 1264) return 'Recruit';
-    if (exp <= 2314) return 'Private';
-    if (exp <= 3514) return 'Private First Class';
-    if (exp <= 5014) return 'Corporal';
-    if (exp <= 6864) return 'Sergeant';
-    if (exp <= 8864) return 'Sergeant First Class';
-    if (exp <= 10214) return 'Warrant Officer';
-    if (exp <= 11464) return 'First Lieutenant';
-    if (exp <= 14214) return 'Captain';
-    if (exp <= 17414) return 'Major';
-    if (exp <= 21364) return 'Lieutenant Colonel';
-    if (exp <= 25864) return 'Colonel';
-    if (exp <= 31514) return 'General';
-    if (exp <= 38214) return 'General of the Army';
-    return 'Supreme Commander';
-  }
-
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -148,42 +128,41 @@ class SocketService {
 
           for (var field in numericFields) {
             if (cleaned.containsKey(field) && cleaned[field] is num) {
-              cleaned[field] = (cleaned[field] as num).toInt();   // ← This is the key fix
+              cleaned[field] = (cleaned[field] as num).toInt();
             }
           }
 
-          // Capture old values BEFORE update
-          final oldExp = statsNotifier.value['experience'] ?? 0;
-          final oldRank = _getRankTitle(oldExp);  // Use helper below
+          // Capture old rank BEFORE we update stats
+          final oldRank = statsNotifier.value['rank'] ?? 'Beggar';
 
-          // Update notifier with clean integers
-          statsNotifier.value = {...statsNotifier.value, ...cleaned};
+          // Update notifier with clean integers + new rank from server
+          final currentStats = {...statsNotifier.value, ...cleaned};
 
-          // Update notifier
-          statsNotifier.value = {...statsNotifier.value, ...data};
+          // NEW: Server now sends the rank automatically
+          final newRank = currentStats['rank'] ?? oldRank;
 
-          // NEW: Force death screen on every update
-            final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
-            if (isDeadNow) {
-              deathNotifier.value = true;
-            }
-
-          // Set defaults (like old code)
-          statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
-          statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
-          statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
-          statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
-          statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
-
-          // Detect rank up
-          final newExp = statsNotifier.value['experience'] ?? oldExp;
-          final newRank = _getRankTitle(newExp);
-          if (newRank != oldRank && newExp > oldExp) {
+          // Detect rank up (much simpler and 100% accurate now)
+          if (newRank != oldRank) {
             rankUpNotifier.value = {
               'oldRank': oldRank,
               'newRank': newRank,
             };
           }
+
+          statsNotifier.value = currentStats;
+
+          // NEW: Force death screen on every update
+          final bool isDeadNow = (statsNotifier.value['dead'] == true) || (statsNotifier.value['health'] ?? 100) <= 0;
+          if (isDeadNow) {
+            deathNotifier.value = true;
+          }
+
+          // Set defaults
+          statsNotifier.value['bullets'] = statsNotifier.value['bullets'] ?? 0;
+          statsNotifier.value['lastMidLevelOp'] = statsNotifier.value['lastMidLevelOp'] ?? 0;
+          statsNotifier.value['overallPower'] = statsNotifier.value['overallPower'] ?? 0;
+          statsNotifier.value['weapon'] = statsNotifier.value['weapon'] ?? null;
+          statsNotifier.value['kills'] = statsNotifier.value['kills'] ?? 0;
 
           // Check death
           if ((statsNotifier.value['health'] ?? 100) <= 0) {

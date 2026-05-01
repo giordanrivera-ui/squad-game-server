@@ -49,7 +49,10 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
     }
   }
 
-  return playerData;   // IMPORTANT: returns the updated object
+  // === NEW: Always attach current rank so client gets it automatically ===
+  playerData.rank = newRank;
+
+  return playerData;
 }
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
