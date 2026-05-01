@@ -449,7 +449,6 @@ socket.on('respawn', async () => {
       displayNameLower: null,
       location: randomLocation,
       experience: 0,
-      rank: getRankTitle(0),
       intelligence: 0,
       skill: 0,
       marksmanship: 0,
@@ -490,19 +489,13 @@ socket.on('respawn', async () => {
       completedCourses: [],
     };
 
-    p = await addExperienceAndGrantPoints(docRef, p, 0);
-
     // Prevent respawn with invalid name (though client already forces null)
     if (p.displayName && (p.displayName.length > 22 || ['.', '/', '\\'].includes(p.displayName[0]))) {
       p.displayName = null;
     }
 
-    p.rank = 'Beggar';
-    p.isRespawn = true;
-
     await docRef.set(p);
     socket.emit('update-stats', p);
-
     console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
   }
 });
