@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
-import 'classes.dart';
 
 class WeaponsPage extends StatefulWidget {
   final int currentBalance;
