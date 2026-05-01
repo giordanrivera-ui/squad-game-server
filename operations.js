@@ -434,23 +434,23 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
     
     if (operation === "Attack central issue facility") {
-      let stealChance = 0.04; // Beggar
-      if (exp > 49) stealChance = 0.06; // Thug
-      if (exp > 514) stealChance = 0.07; // Recruit
-      if (exp > 1264) stealChance = 0.09; // Private
-      if (exp > 2314) stealChance = 0.12; // Private First Class
-      if (exp > 3514) stealChance = 0.14; // Corporal
-      if (exp > 5014) stealChance = 0.17; // Sergeant
-      if (exp > 6864) stealChance = 0.20; // Sergeant First Class
-      if (exp > 8864) stealChance = 0.23; // Warrant Officer
-      if (exp > 10214) stealChance = 0.25; //
-      if (exp > 11464) stealChance = 0.27; //
-      if (exp > 14214) stealChance = 0.29; // Major
-      if (exp > 17414) stealChance = 0.31; //
-      if (exp > 21364) stealChance = 0.35; // Colonel
-      if (exp > 25864) stealChance = 0.38; //
-      if (exp > 31514) stealChance = 0.42; //
-      if (exp > 38214) stealChance = 0.46; //
+      let stealChance = 0.05; // Beggar
+      if (exp > 49) stealChance = 0.08; // Thug
+      if (exp > 514) stealChance = 0.11; // Recruit
+      if (exp > 1264) stealChance = 0.14; // Private
+      if (exp > 2314) stealChance = 0.17; // Private First Class
+      if (exp > 3514) stealChance = 0.20; // Corporal
+      if (exp > 5014) stealChance = 0.23; // Sergeant
+      if (exp > 6864) stealChance = 0.26; // Sergeant First Class
+      if (exp > 8864) stealChance = 0.30; // Warrant Officer
+      if (exp > 10214) stealChance = 0.34; //
+      if (exp > 11464) stealChance = 0.38; //
+      if (exp > 14214) stealChance = 0.42; // Major
+      if (exp > 17414) stealChance = 0.46; //
+      if (exp > 21364) stealChance = 0.49; // Colonel
+      if (exp > 25864) stealChance = 0.53; //
+      if (exp > 31514) stealChance = 0.57; //
+      if (exp > 38214) stealChance = 0.60; //
 
       if (Math.random() < stealChance) {
         const isVostokgrad = p.location === "Vostokgrad";
@@ -516,6 +516,63 @@ async function handleExecuteOperation(db, socket, data, deps) {
           weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
         } else {
           weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
+        }
+
+        p.inventory.push(weapon);
+        message += ` You also stole a ${weapon.name}!`;
+      }
+    }
+
+    if (operation === "Strike an armory") {
+      let stealChance = 0.04; // Beggar
+      if (exp > 49) stealChance = 0.06;     // Thug
+      if (exp > 514) stealChance = 0.08;    // Recruit
+      if (exp > 1264) stealChance = 0.12;   // Private
+      if (exp > 2314) stealChance = 0.15;   // Private First Class
+      if (exp > 3514) stealChance = 0.18;   // Corporal
+      if (exp > 5014) stealChance = 0.21;   // Sergeant
+      if (exp > 6864) stealChance = 0.23;   // Sergeant First Class
+      if (exp > 8864) stealChance = 0.26;   // Warrant Officer
+      if (exp > 10214) stealChance = 0.30;  // First Lieutenant
+      if (exp > 11464) stealChance = 0.34;  // Captain
+      if (exp > 14214) stealChance = 0.38;  // Major
+      if (exp > 17414) stealChance = 0.42;  // Lieutenant Colonel
+      if (exp > 21364) stealChance = 0.45;  // Colonel
+      if (exp > 25864) stealChance = 0.48;  // General
+      if (exp > 31514) stealChance = 0.52;  // General of the Army
+      if (exp > 38214) stealChance = 0.55;  // Supreme Commander
+
+      if (Math.random() < stealChance) {
+        let m4Threshold, scarThreshold, m16Threshold, m24Threshold;
+
+        if (exp <= 3514) {                    // Low EXP
+          m4Threshold   = 45;
+          scarThreshold = 75;   // 45 + 30%
+          m16Threshold  = 91;   // 75 + 16%
+          m24Threshold  = 100;  // 91 + 9%
+        } else if (exp <= 10214) {            // Mid EXP
+          m4Threshold   = 38;
+          scarThreshold = 68;   // 38 + 30%
+          m16Threshold  = 89;   // 68 + 21%
+          m24Threshold  = 100;  // 89 + 11%
+        } else {                              // High EXP
+          m4Threshold   = 34;
+          scarThreshold = 65;   // 34 + 31%
+          m16Threshold  = 86;   // 65 + 21%
+          m24Threshold  = 100;  // 86 + 14%
+        }
+
+        const rand = Math.random() * 100;
+
+        let weapon;
+        if (rand < m4Threshold) {
+          weapon = { name: 'M4 Carbine', description: '...', power: 475, cost: 8400, type: 'weapon' };
+        } else if (rand < scarThreshold) {
+          weapon = { name: 'SCAR-16 Mk II', description: '...', power: 520, cost: 10500, type: 'weapon' };
+        } else if (rand < m16Threshold) {
+          weapon = { name: 'M16A4', description: '...', power: 550, cost: 16800, type: 'weapon' };
+        } else {
+          weapon = { name: 'M24 Sniper', description: 'A bolt-action 7.62mm rifle designed for long-range precision shots.', power: 610, cost: 22000, type: 'weapon' };
         }
 
         p.inventory.push(weapon);
