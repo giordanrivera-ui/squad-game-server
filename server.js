@@ -489,6 +489,8 @@ socket.on('respawn', async () => {
       completedCourses: [],
     };
 
+    p = await addExperienceAndGrantPoints(docRef, p, 0);
+
     // Prevent respawn with invalid name (though client already forces null)
     if (p.displayName && (p.displayName.length > 22 || ['.', '/', '\\'].includes(p.displayName[0]))) {
       p.displayName = null;
