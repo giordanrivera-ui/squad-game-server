@@ -55,6 +55,8 @@ class SocketService {
   final ValueNotifier<List<Map<String, dynamic>>> vehicleListNotifier = ValueNotifier([]);
   final ValueNotifier<List<Map<String, dynamic>>> weaponListNotifier = ValueNotifier([]);
 
+  final ValueNotifier<Map<String, dynamic>> hospitalOwnershipNotifier = ValueNotifier({});
+
   String? _currentEmail;
 
   List<String> normalLocations = [];
@@ -95,6 +97,7 @@ class SocketService {
           normalLocations = List<String>.from(data['locations'] ?? []);
           travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
           hospitalCounts = Map<String, int>.from(data['hospitalCounts'] ?? {});
+          hospitalOwnershipNotifier.value = Map<String, dynamic>.from(data['hospitalOwnership'] ?? {});
           properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
           statsNotifier.value = Map.from(data['player'] ?? {});
           deathNotifier.value = (data['player']?['dead'] == true);
@@ -230,6 +233,12 @@ class SocketService {
             bondMarketCooldownEndNotifier.value = (data['cooldownEndTime'] as num).toInt();
           }
         }
+      });
+
+      socket?.on('hospital-ownership-update', (_) {
+        // Refresh ownership data
+        // For simplicity we can reload via a new event, but for now just trigger rebuild
+        hospitalOwnershipNotifier.value = {...hospitalOwnershipNotifier.value};
       });
 
       socket?.on('courses-list', (data) {

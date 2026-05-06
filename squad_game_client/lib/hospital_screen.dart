@@ -17,94 +17,91 @@ class HospitalScreen extends StatelessWidget {
           appBar: AppBar(title: const Text('Hospital Services')),
           body: ListView(
             padding: const EdgeInsets.all(16),
-            children: [
-              // ==================== PUBLIC HOSPITAL (always first) ====================
-              Card(
+            children: List.generate(numHospitals, (index) {
+              final hospitalIndex = index + 1;
+              final isPublic = hospitalIndex == 1;
+
+              // Ownership data
+              final ownership = SocketService().hospitalOwnershipNotifier.value;
+              final key = '${currentLocation}-hospital-${hospitalIndex}';
+              final owner = ownership[key] ?? {};
+              final ownerName = owner['ownerDisplayName'] ?? null;
+              final isOwned = ownerName != null;
+
+              return Card(
                 elevation: 6,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                margin: const EdgeInsets.only(bottom: 16),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PublicHospitalScreen()),
-                    );
-                  },
+                  onTap: isPublic
+                      ? () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const PublicHospitalScreen()),
+                          );
+                        }
+                      : () async {
+                          if (!isOwned) {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Claim Private Hospital'),
+                                content: Text('Do you want to claim this private hospital in $currentLocation?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Claim'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              SocketService().socket?.emit('claim-hospital', {
+                                'location': currentLocation,
+                                'index': hospitalIndex,
+                              });
+                            }
+                          }
+                        },
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Row(
                       children: [
-                        const Icon(Icons.local_hospital, size: 60, color: Colors.green),
+                        Icon(
+                          isPublic ? Icons.local_hospital : Icons.business,
+                          size: 60,
+                          color: isPublic ? Colors.green : Colors.purple,
+                        ),
                         const SizedBox(width: 20),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text(
-                                'Public Hospital',
-                                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                isPublic ? 'Public Hospital' : 'Private Hospital',
+                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                               ),
-                              SizedBox(height: 6),
-                              Text(
-                                'Standard healing • Orthopedic Surgeon',
-                                style: TextStyle(fontSize: 16, color: Colors.grey),
-                              ),
+                              const SizedBox(height: 6),
+                              if (isPublic)
+                                const Text('Standard healing • Orthopedic Surgeon', style: TextStyle(fontSize: 16, color: Colors.grey))
+                              else if (isOwned)
+                                Text('Owned by $ownerName', style: const TextStyle(fontSize: 16, color: Colors.green))
+                              else
+                                const Text('Unclaimed • Tap to claim', style: TextStyle(fontSize: 16, color: Colors.orange)),
                             ],
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                        if (!isPublic && !isOwned)
+                          const Icon(Icons.arrow_forward_ios, color: Colors.orange),
                       ],
                     ),
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ==================== ADDITIONAL HOSPITALS (player-run) ====================
-              if (numHospitals >= 2)
-                Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Player-run hospital coming soon!'),
-                          backgroundColor: Colors.purple,
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.business, size: 60, color: Colors.purple),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'Private Hospital',
-                                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  'Player-run clinic • Advanced services',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+              );
+            }),
           ),
         );
       },

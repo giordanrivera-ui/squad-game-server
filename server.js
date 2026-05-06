@@ -5,6 +5,7 @@ const admin = require('firebase-admin');
 const app = express();
 const server = http.createServer(app);
 
+
 const io = new Server(server, { 
   cors: { origin: "*" },
   pingTimeout: 10000,  // NEW: 10 sec timeout before disconnect
@@ -31,6 +32,8 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+initializeHospitals().catch(console.error);
+
 // ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
 async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   const oldExp = playerData.experience || 0;
@@ -53,6 +56,26 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount) {
   playerData.rank = newRank;
 
   return playerData;
+}
+
+// Initialize default hospitals if they don't exist
+async function initializeHospitals() {
+  for (const [location, count] of Object.entries(hospitalCounts)) {
+    for (let i = 1; i <= count; i++) {
+      const docId = `${location}-hospital-${i}`;
+      const doc = await hospitalOwnershipRef.doc(docId).get();
+      if (!doc.exists) {
+        await hospitalOwnershipRef.doc(docId).set({
+          location: location,
+          index: i,
+          isPublic: i === 1,                    // only first hospital is public
+          ownerEmail: null,
+          ownerDisplayName: null,
+          createdAt: Date.now()
+        });
+      }
+    }
+  }
 }
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
@@ -176,6 +199,8 @@ const hospitalCounts = {
   "Sakuragawa": 1,
   "Cawayan Heights": 1
 };
+
+const hospitalOwnershipRef = db.collection('hospitals');
 
 // ==================== SPECIAL OPERATION PARTY CONFIG ====================
 const specialOperationConfigs = {
@@ -396,6 +421,7 @@ io.on('connection', (socket) => {
       vehicles: vehicleTemplates,
       weapons: weaponTemplates,
       hospitalCounts: hospitalCounts,
+      hospitalOwnership: {}
     });
     socket.emit('time', timeFormatter.format(new Date()));
   });
@@ -858,6 +884,50 @@ socket.on('respawn', async () => {
   socket.on('heal', async () => { await handleHeal(db, socket); });
 
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
+
+  socket.on('claim-hospital', async (data) => {
+    const email = socket.data.email;
+    const displayName = socket.data.displayName;
+    if (!email || !displayName || typeof data.location !== 'string' || typeof data.index !== 'number') {
+      socket.emit('hospital-claim-result', { success: false, message: 'Invalid request.' });
+      return;
+    }
+
+    const docId = `${data.location}-hospital-${data.index}`;
+    const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+
+    if (!hospitalDoc.exists) {
+      socket.emit('hospital-claim-result', { success: false, message: 'Hospital does not exist.' });
+      return;
+    }
+
+    const hospital = hospitalDoc.data();
+
+    if (hospital.isPublic) {
+      socket.emit('hospital-claim-result', { success: false, message: 'Public hospitals cannot be claimed.' });
+      return;
+    }
+
+    if (hospital.ownerEmail) {
+      socket.emit('hospital-claim-result', { success: false, message: 'This hospital is already owned.' });
+      return;
+    }
+
+    // Claim it
+    await hospitalOwnershipRef.doc(docId).update({
+      ownerEmail: email,
+      ownerDisplayName: displayName,
+      claimedAt: Date.now()
+    });
+
+    socket.emit('hospital-claim-result', { 
+      success: true, 
+      message: `You now own the private hospital in ${data.location}!` 
+    });
+
+    // Broadcast live update to everyone
+    io.emit('hospital-ownership-update');
+  });
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
