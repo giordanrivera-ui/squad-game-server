@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { getRankTitle } = require('./combat.js');
+const { getRankTitle } = require('./utils.js');
 
 // ====================== SPECIAL OPERATIONS MODULE ======================
 const specialOperationConfigs = {

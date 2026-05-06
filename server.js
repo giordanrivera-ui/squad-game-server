@@ -23,6 +23,7 @@ const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, hand
 const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { courseTemplates, handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
+const { handleTravel } = require('./travel.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -31,8 +32,6 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-
-initializeHospitals().catch(console.error);
 
 // ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
 async function addExperienceAndGrantPoints(docRef, playerData, amount) {
@@ -210,6 +209,8 @@ const hospitalCounts = {
 };
 
 const hospitalOwnershipRef = db.collection('hospitals');
+
+initializeHospitals().catch(console.error);
 
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
@@ -850,27 +851,7 @@ socket.on('respawn', async () => {
   });
 
   socket.on('travel', async (destination) => {
-    const email = socket.data.email;
-    if (!email || typeof destination !== 'string') return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    if (p.location === destination || travelCosts[destination] === undefined) return;
-
-    const cost = travelCosts[destination];
-    if (p.balance < cost) return;
-
-    await logTransaction(socket, -cost, `Travel to ${destination}`, p, docRef);
-    p.balance -= cost;
-
-    p.location = destination;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
+    await handleTravel(db, socket, destination);
   });
 
   // ==================== HOSPITAL / HEALING HANDLERS ====================
