@@ -78,6 +78,15 @@ async function initializeHospitals() {
   }
 }
 
+async function getAllHospitalOwnership() {
+  const snapshot = await hospitalOwnershipRef.get();
+  const ownership = {};
+  snapshot.docs.forEach(doc => {
+    ownership[doc.id] = doc.data();
+  });
+  return ownership;
+}
+
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
 function recalculateOverallPower(p) {
@@ -421,7 +430,7 @@ io.on('connection', (socket) => {
       vehicles: vehicleTemplates,
       weapons: weaponTemplates,
       hospitalCounts: hospitalCounts,
-      hospitalOwnership: {}
+      hospitalOwnership: await getAllHospitalOwnership()
     });
     socket.emit('time', timeFormatter.format(new Date()));
   });
