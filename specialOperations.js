@@ -705,6 +705,7 @@ async function handleLeaveSpecialOp(db, socket, deps = {}) {
 }
 
 module.exports = {
+  specialOperationConfigs,
   handleInitiateSpecialOp,
   handleCancelSpecialOp,
   handleAssignSpecialWeapon,

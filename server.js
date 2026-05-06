@@ -211,22 +211,6 @@ const hospitalCounts = {
 
 const hospitalOwnershipRef = db.collection('hospitals');
 
-// ==================== SPECIAL OPERATION PARTY CONFIG ====================
-const specialOperationConfigs = {
-  "Raid cartel supply line": {
-    positions: ["Operation Leader", "Rifleman", "Driver"],
-    maxPlayers: 3
-  },
-  "Bank Heist": {
-    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver"],
-    maxPlayers: 4
-  },
-  "Siege military base": {
-    positions: ["Operation Leader", "Gunner 1", "Gunner 2", "Driver", "Artilleryman"],
-    maxPlayers: 5
-  }
-};
-
 // ==================== ONLINE PLAYERS TRACKING ====================
 const onlinePlayers = new Set();
 const onlineSockets = new Map();
