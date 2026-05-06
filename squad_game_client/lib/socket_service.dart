@@ -8,6 +8,7 @@ class SocketService {
   static final SocketService _instance = SocketService._internal();
   factory SocketService() => _instance;
   SocketService._internal();
+  Timer? _healingClaimWatcher;
 
   IO.Socket? socket;
   final ValueNotifier<bool> isConnected = ValueNotifier(false);
@@ -58,6 +59,7 @@ class SocketService {
 
   List<String> normalLocations = [];
   Map<String, int> travelCosts = {};
+  Map<String, int> hospitalCounts = {};
   List<Map<String, dynamic>> properties = [];
 
   int serverTimeOffset = 0;
@@ -92,6 +94,7 @@ class SocketService {
         if (data is Map) {
           normalLocations = List<String>.from(data['locations'] ?? []);
           travelCosts = Map<String, int>.from(data['travelCosts'] ?? {});
+          hospitalCounts = Map<String, int>.from(data['hospitalCounts'] ?? {});
           properties = List<Map<String, dynamic>>.from(data['properties'] ?? []);
           statsNotifier.value = Map.from(data['player'] ?? {});
           deathNotifier.value = (data['player']?['dead'] == true);
@@ -512,6 +515,26 @@ class SocketService {
   }
 
   void heal() => socket?.emit('heal');
+
+  void startGlobalHealingClaimer() {
+    _healingClaimWatcher?.cancel();
+
+    _healingClaimWatcher = Timer.periodic(const Duration(seconds: 1), (_) {
+      final stats = statsNotifier.value;
+      final healingEndTime = stats['healingEndTime'] as int? ?? 0;
+
+      if (healingEndTime > 0 && healingEndTime <= currentServerTime) {
+        // Time is up → auto-claim
+        socket?.emit('claim-healing');
+        print('🔥 Auto-claimed timed healing');
+      }
+    });
+  }
+
+  void stopGlobalHealingClaimer() {
+    _healingClaimWatcher?.cancel();
+    _healingClaimWatcher = null;
+  }
 
   void healBrokenBone() => socket?.emit('heal-broken-bone');
 

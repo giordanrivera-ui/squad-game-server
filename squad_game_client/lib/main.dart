@@ -248,6 +248,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _connectToServer();
     _setupPushNotifications();
     SocketService().startGlobalCourseCompletionWatcher();
+    SocketService().startGlobalHealingClaimer();
 
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
@@ -507,10 +508,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                         )
                       : _currentScreen == 4 
                           ? HospitalScreen(
-                              currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                              currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
-                              currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
-                              currentTime: time,
                             )
                           : _currentScreen == 5 
                               ? OperationsScreen(
@@ -1039,6 +1036,7 @@ Container(
     cooldownTimer?.cancel();
     // _socketService.disconnect();
     SocketService().stopGlobalCourseCompletionWatcher();
+    SocketService().stopGlobalHealingClaimer();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
     _rescueOverlay?.remove();

@@ -165,6 +165,18 @@ const travelCosts = { // ==================== TRAVEL COSTS ====================
   "Cawayan Heights": 55
 };
 
+const hospitalCounts = {
+  "Riverstone": 1,
+  "Thornbury": 1,
+  "Vostokgrad": 1,
+  "Eichenwald": 1,
+  "Montclair": 1,
+  "Valleora": 1,
+  "Lónghǎi": 2,
+  "Sakuragawa": 1,
+  "Cawayan Heights": 1
+};
+
 // ==================== SPECIAL OPERATION PARTY CONFIG ====================
 const specialOperationConfigs = {
   "Raid cartel supply line": {
@@ -383,6 +395,7 @@ io.on('connection', (socket) => {
       properties: properties,
       vehicles: vehicleTemplates,
       weapons: weaponTemplates,
+      hospitalCounts: hospitalCounts,
     });
     socket.emit('time', timeFormatter.format(new Date()));
   });
