@@ -899,8 +899,8 @@ socket.on('respawn', async () => {
       message: `You now own the private hospital in ${data.location}!` 
     });
 
-    // Broadcast live update to everyone
-    io.emit('hospital-ownership-update');
+    const freshOwnership = await getAllHospitalOwnership();
+    io.emit('hospital-ownership-update', freshOwnership);
   });
 
   socket.on('update-profile', async (data) => {

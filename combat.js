@@ -81,7 +81,8 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, 
 
       // Live update to all clients
       if (io) {
-        io.emit('hospital-ownership-update');
+        const freshOwnership = await getAllHospitalOwnership();
+        io.emit('hospital-ownership-update', freshOwnership);
       }
     }
   } catch (error) {

@@ -235,10 +235,11 @@ class SocketService {
         }
       });
 
-      socket?.on('hospital-ownership-update', (_) {
-        // Refresh ownership data
-        // For simplicity we can reload via a new event, but for now just trigger rebuild
-        hospitalOwnershipNotifier.value = {...hospitalOwnershipNotifier.value};
+      socket?.on('hospital-ownership-update', (data) {
+        if (data is Map<String, dynamic>) {
+          hospitalOwnershipNotifier.value = Map<String, dynamic>.from(data);
+          print('✅ Hospital ownership updated live (${data.length} hospitals)');
+        }
       });
 
       socket?.on('courses-list', (data) {
