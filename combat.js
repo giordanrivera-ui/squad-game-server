@@ -34,8 +34,8 @@ function calculateBulletsNeeded(p, o, k) {
   return Math.round(b);
 }
 
-// ==================== HELPER: Save dead profile & mark name used ====================
-async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName) {
+// ==================== HELPER: Save dead profile & mark name used + RELEASE HOSPITALS ====================
+async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, io = null) {
   if (!targetDisplayName) return;
 
   // Save snapshot for dead profile
@@ -59,6 +59,36 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName) 
     taken: true,
     takenAt: admin.firestore.FieldValue.serverTimestamp()
   });
+
+  // ==================== NEW: RELEASE ALL PRIVATE HOSPITALS OWNED BY THIS PLAYER ====================
+  try {
+    const hospitalsSnapshot = await db.collection('hospitals')
+      .where('ownerEmail', '==', targetEmail)
+      .get();
+
+    if (!hospitalsSnapshot.empty) {
+      const batch = db.batch();
+      hospitalsSnapshot.docs.forEach((doc) => {
+        batch.update(doc.ref, {
+          ownerEmail: null,
+          ownerDisplayName: null,
+          claimedAt: null
+        });
+      });
+      await batch.commit();
+
+      console.log(`[DEATH] Released ${hospitalsSnapshot.size} private hospital(s) owned by ${targetDisplayName}`);
+
+      // Live update to all clients
+      if (io) {
+        io.emit('hospital-ownership-update');
+      }
+    }
+  } catch (error) {
+    console.error('[DEATH] Error releasing hospitals:', error);
+  }
+
+  console.log(`[DEATH] ${targetDisplayName} marked as dead and all assets released`);
 }
 
 // ==================== MAIN HANDLER ====================
@@ -147,7 +177,7 @@ async function handleKillAttempt(db, socket, data, deps) {
     message = 'Kill successful! Target eliminated.';
 
     // === DEATH LOGIC ===
-    await markPlayerAsDead(db, target, targetEmail, data.target);
+    await markPlayerAsDead(db, target, targetEmail, data.target, io);
 
     target.dead = true;
     target.health = 0;

@@ -667,7 +667,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     }
 
     if (oldName) {
-      await markPlayerAsDead(db, p, email, oldName);
+      await markPlayerAsDead(db, p, email, oldName, io);
     }
 
     await docRef.set(p);
