@@ -204,7 +204,7 @@ const hospitalCounts = {
   "Montclair": 1,
   "Valleora": 1,
   "Lónghǎi": 2,
-  "Sakuragawa": 1,
+  "Sakuragawa": 2,
   "Cawayan Heights": 1
 };
 
