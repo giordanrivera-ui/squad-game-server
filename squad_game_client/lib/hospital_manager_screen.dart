@@ -33,23 +33,55 @@ class HospitalManagerScreen extends StatelessWidget {
                 style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 60),
 
-              // Placeholder button (does nothing for now)
+              // Release Hospital Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Future functionality will go here
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Hospital settings coming soon...')),
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Release Hospital'),
+                        content: const Text(
+                          'Are you sure you want to release this hospital?\n\n'
+                          'It will no longer belong to you and can be claimed by any other player.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            child: const Text('Release Hospital'),
+                          ),
+                        ],
+                      ),
                     );
+
+                    if (confirm == true) {
+                      SocketService().socket?.emit('release-hospital', {
+                        'docId': hospital['docId'],
+                      });
+
+                      Navigator.pop(context); // Close manager screen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Hospital released successfully.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 18),
+                    backgroundColor: Colors.red[700],
                   ),
                   child: const Text(
-                    'Manage Hospital',
+                    'Release Hospital',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),

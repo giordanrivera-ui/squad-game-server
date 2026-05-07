@@ -903,6 +903,37 @@ socket.on('respawn', async () => {
     io.emit('hospital-ownership-update', freshOwnership);
   });
 
+  socket.on('release-hospital', async (data) => {
+    const email = socket.data.email;
+    const docId = data.docId;
+
+    if (!email || !docId) return;
+
+    const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+    if (!hospitalDoc.exists) return;
+
+    const hospitalData = hospitalDoc.data();
+
+    // Only the owner can release it
+    if (hospitalData.ownerEmail !== email) {
+      socket.emit('error', { message: 'You do not own this hospital.' });
+      return;
+    }
+
+    // Release ownership
+    await hospitalOwnershipRef.doc(docId).update({
+      ownerEmail: null,
+      ownerDisplayName: null,
+      claimedAt: null
+    });
+
+    console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
+
+    // Broadcast updated ownership to everyone
+    const freshOwnership = await getAllHospitalOwnership();
+    io.emit('hospital-ownership-update', freshOwnership);
+  });
+
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.photoURL !== 'string') return;
