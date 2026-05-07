@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'public_hospital_screen.dart';
 import 'socket_service.dart';
-import 'owned_hospitals_screen.dart';   // ← NEW IMPORT
+import 'owned_hospitals_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HospitalScreen extends StatelessWidget {
@@ -104,7 +104,9 @@ class HospitalScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    isPublic ? 'Public Hospital' : 'Private Hospital',
+                                    isPublic 
+                                        ? '$currentLocation Public Hospital'
+                                        : 'Private Hospital',
                                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 6),

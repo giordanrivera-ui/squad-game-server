@@ -20,7 +20,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
-const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
+const { handleStartHealing, handleClaimHealing, handleHealBrokenBone } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { courseTemplates, handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { handleTravel } = require('./travel.js');
@@ -790,10 +790,9 @@ socket.on('respawn', async () => {
   });
 
   // ==================== HOSPITAL / HEALING HANDLERS ====================
-  socket.on('heal', async () => { await handleHeal(db, socket); });
-
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
-
+  socket.on('start-healing', async () => { await handleStartHealing(db, socket) });
+  socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
   socket.on('claim-hospital', async (data) => {
     const email = socket.data.email;
     const displayName = socket.data.displayName;
@@ -1119,75 +1118,6 @@ socket.on('respawn', async () => {
   socket.on('claim-income', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });
-
-  // ==================== START DELAYED HEALING ====================
-socket.on('start-healing', async () => {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
-
-  let p = doc.data();
-
-  if (p.dead === true || (p.health ?? 100) <= 0) {
-    socket.emit('heal-result', { success: false, message: 'You are dead and cannot heal.' });
-    return;
-  }
-
-  if (p.healingEndTime && p.healingEndTime > Date.now()) {
-    socket.emit('heal-result', { success: false, message: 'You are already healing.' });
-    return;
-  }
-
-  const cost = 50;
-  if (p.balance < cost) {
-    socket.emit('heal-result', { success: false, message: 'Not enough money.' });
-    return;
-  }
-
-  await logTransaction(socket, -cost, 'Started Healing ($50)', p, docRef);
-
-  p.balance -= cost;
-  p.healingEndTime = Date.now() + 120000;   // exactly 2 minutes
-
-  await docRef.set(p);
-  socket.emit('update-stats', p);
-  socket.emit('heal-result', { 
-    success: true, 
-    message: 'Healing started... (2 minutes remaining)' 
-  });
-});
-
-// ==================== CLAIM HEALING (SECURE) ====================
-socket.on('claim-healing', async () => {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
-
-  let p = doc.data();
-
-  // CRITICAL SECURITY CHECK
-  if (!p.healingEndTime || p.healingEndTime > Date.now()) {
-    socket.emit('heal-result', { success: false, message: 'Healing is not finished yet.' });
-    return;
-  }
-
-  // Healing time is up → apply full heal
-  p.health = 100;
-  p.healingEndTime = 0;
-
-  await docRef.set(p);
-  socket.emit('update-stats', p);
-  socket.emit('heal-result', { 
-    success: true, 
-    message: '✅ You are now fully healed!' 
-  });
-});
 
   // ==================== BOND MARKET HANDLERS (with 2-minute cooldown) ====================
   socket.on('request-bond-market', async () => {
