@@ -1,74 +1,63 @@
 import 'package:flutter/material.dart';
-import 'socket_service.dart';
 import 'status_app_bar.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'socket_service.dart';
 
 class HospitalManagerScreen extends StatelessWidget {
-  const HospitalManagerScreen({super.key});
+  final Map<String, dynamic> hospital;
+
+  const HospitalManagerScreen({super.key, required this.hospital});
 
   @override
   Widget build(BuildContext context) {
-    final String? myEmail = FirebaseAuth.instance.currentUser?.email;
+    final String location = hospital['location'] ?? 'Unknown';
+    final int index = hospital['index'] ?? 0;
+    final String hospitalName = '$location Hospital #$index';
 
-    return ValueListenableBuilder<Map<String, dynamic>>(
-      valueListenable: SocketService().hospitalOwnershipNotifier,
-      builder: (context, ownership, child) {
-        final myHospitals = <Map<String, dynamic>>[];
+    return Scaffold(
+      appBar: StatusAppBar(
+        title: hospitalName,
+        statsNotifier: SocketService().statsNotifier,
+        time: 'Live',
+        onMenuPressed: () => Navigator.pop(context),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.local_hospital, size: 120, color: Colors.purple[300]),
+              const SizedBox(height: 24),
+              Text(
+                hospitalName,
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
 
-        ownership.forEach((docId, data) {
-          final hospitalData = data as Map<String, dynamic>;
-          if (hospitalData['ownerEmail'] == myEmail) {
-            myHospitals.add({
-              'docId': docId,
-              ...hospitalData,
-            });
-          }
-        });
-
-        return Scaffold(
-          appBar: StatusAppBar(
-            title: 'Hospital Manager',
-            statsNotifier: SocketService().statsNotifier,
-            time: 'Live',
-            onMenuPressed: () => Navigator.pop(context),
-          ),
-          body: myHospitals.isEmpty
-              ? const Center(
-                  child: Text(
-                    'You currently own no hospitals.',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: myHospitals.length,
-                  itemBuilder: (context, index) {
-                    final h = myHospitals[index];
-                    final location = h['location'] ?? 'Unknown';
-                    final indexNum = h['index'] ?? 0;
-                    final docId = h['docId'];
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: const Icon(Icons.local_hospital, color: Colors.purple, size: 48),
-                        title: Text('$location Hospital #$indexNum'),
-                        subtitle: Text('Hospital ID: $docId'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // Future expansion point (e.g. pricing, upgrades, revenue stats)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Managing $location Hospital #$indexNum (future features coming)'),
-                            ),
-                          );
-                        },
-                      ),
+              // Placeholder button (does nothing for now)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Future functionality will go here
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Hospital settings coming soon...')),
                     );
                   },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                  ),
+                  child: const Text(
+                    'Manage Hospital',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
-        );
-      },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

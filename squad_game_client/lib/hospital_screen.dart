@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'public_hospital_screen.dart';
 import 'socket_service.dart';
-import 'hospital_manager_screen.dart';   // ← NEW IMPORT
+import 'owned_hospitals_screen.dart';   // ← NEW IMPORT
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HospitalScreen extends StatelessWidget {
@@ -31,7 +31,7 @@ class HospitalScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const HospitalManagerScreen()),
+                      MaterialPageRoute(builder: (_) => const OwnedHospitalsScreen()),
                     );
                   },
                 ),
