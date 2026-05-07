@@ -12,11 +12,32 @@ class HospitalManagerScreen extends StatefulWidget {
 }
 
 class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
-  // Switch states (you can later save these to Firestore)
-  bool offerInjuryHealing = true;
-  bool offerOrthopedicServices = true;
-  bool offerPerformanceTherapy = false;
-  bool offerDiseaseTherapy = false;
+  // Switch states loaded from Firestore
+  late bool offerInjuryHealing;
+  late bool offerOrthopedicServices;
+  late bool offerPerformanceTherapy;
+  late bool offerDiseaseTherapy;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load current state from the hospital document (defaults to false if newly claimed)
+    offerInjuryHealing = widget.hospital['offerInjuryHealing'] ?? false;
+    offerOrthopedicServices = widget.hospital['offerOrthopedicServices'] ?? false;
+    offerPerformanceTherapy = widget.hospital['offerPerformanceTherapy'] ?? false;
+    offerDiseaseTherapy = widget.hospital['offerDiseaseTherapy'] ?? false;
+  }
+
+  void _saveSwitchState(String field, bool value) {
+    final docId = widget.hospital['docId'];
+    if (docId == null) return;
+
+    SocketService().socket?.emit('update-hospital-service', {
+      'docId': docId,
+      'field': field,
+      'value': value,
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,29 +54,33 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       ),
       body: Column(
         children: [
-          // ==================== 2x2 SWITCHES (now ~28% height) ====================
+          // ==================== 2x2 SWITCHES ====================
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.2,   // ← Increased from 0.15
+            height: MediaQuery.of(context).size.height * 0.2,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: GridView.count(
                 crossAxisCount: 2,
-                mainAxisSpacing: 6,
+                mainAxisSpacing: 8,
                 crossAxisSpacing: 6,
-                childAspectRatio: 3,
+                childAspectRatio: 2.8,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildSwitch("Injury healing", offerInjuryHealing, (v) {
                     setState(() => offerInjuryHealing = v);
+                    _saveSwitchState('offerInjuryHealing', v);
                   }),
                   _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
                     setState(() => offerOrthopedicServices = v);
+                    _saveSwitchState('offerOrthopedicServices', v);
                   }),
                   _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
                     setState(() => offerPerformanceTherapy = v);
+                    _saveSwitchState('offerPerformanceTherapy', v);
                   }),
                   _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
                     setState(() => offerDiseaseTherapy = v);
+                    _saveSwitchState('offerDiseaseTherapy', v);
                   }),
                 ],
               ),
@@ -81,7 +106,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                     ),
                     const SizedBox(height: 60),
 
-                    // Release Hospital Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -154,6 +178,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
         onChanged: onChanged,
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 11),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

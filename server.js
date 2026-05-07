@@ -825,7 +825,13 @@ socket.on('respawn', async () => {
     await hospitalOwnershipRef.doc(docId).update({
       ownerEmail: email,
       ownerDisplayName: displayName,
-      claimedAt: Date.now()
+      claimedAt: Date.now(),
+      
+      // NEW: Default all services to OFF when first claimed
+      offerInjuryHealing: false,
+      offerOrthopedicServices: false,
+      offerPerformanceTherapy: false,
+      offerDiseaseTherapy: false
     });
 
     socket.emit('hospital-claim-result', { 
@@ -864,6 +870,52 @@ socket.on('respawn', async () => {
     console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
 
     // Broadcast updated ownership to everyone
+    const freshOwnership = await getAllHospitalOwnership();
+    io.emit('hospital-ownership-update', freshOwnership);
+  });
+
+  // ==================== UPDATE HOSPITAL SERVICES (SWITCHES) ====================
+  socket.on('update-hospital-service', async (data) => {
+    const email = socket.data.email;
+    const { docId, field, value } = data;
+
+    if (!email || !docId || !field || typeof value !== 'boolean') {
+      socket.emit('error', { message: 'Invalid hospital service update.' });
+      return;
+    }
+
+    const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+    if (!hospitalDoc.exists) return;
+
+    const hospitalData = hospitalDoc.data();
+
+    // Security: Only the owner can change services
+    if (hospitalData.ownerEmail !== email) {
+      socket.emit('error', { message: 'You do not own this hospital.' });
+      return;
+    }
+
+    // Allowed fields only
+    const allowedFields = [
+      'offerInjuryHealing',
+      'offerOrthopedicServices',
+      'offerPerformanceTherapy',
+      'offerDiseaseTherapy'
+    ];
+
+    if (!allowedFields.includes(field)) {
+      socket.emit('error', { message: 'Invalid service field.' });
+      return;
+    }
+
+    // Update the specific field
+    await hospitalOwnershipRef.doc(docId).update({
+      [field]: value
+    });
+
+    console.log(`[HOSPITAL] ${email} updated ${field} to ${value} on ${docId}`);
+
+    // Broadcast updated ownership to all players
     const freshOwnership = await getAllHospitalOwnership();
     io.emit('hospital-ownership-update', freshOwnership);
   });
