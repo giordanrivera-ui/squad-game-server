@@ -24,6 +24,7 @@ const { handleHeal, handleHealBrokenBone } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { courseTemplates, handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { handleTravel } = require('./travel.js');
+const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -537,68 +538,9 @@ socket.on('respawn', async () => {
 });
 
   // ==================== TEST BUTTONS ====================
-  socket.on('add-test-exp', async (amount) => {
-    const email = socket.data.email;
-    if (!email || typeof amount !== 'number') return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-    p = await addExperienceAndGrantPoints(docRef, p, amount);
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
-
-  socket.on('add-test-money', async (amount) => {
-    const email = socket.data.email;
-    if (!email || typeof amount !== 'number') return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    await logTransaction(socket, amount, 'Test Money Added', p, docRef);   // p = playerData, docRef = the Firestore reference
-
-    p.balance = (p.balance || 0) + amount;
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
-
-  socket.on('add-test-bullets', async (amount) => {
-    const email = socket.data.email;
-    if (!email || typeof amount !== 'number') {
-      console.log(`[SERVER ERROR] Invalid add-test-bullets: email=${email}, amount=${amount}`);
-      return;
-    }
-
-    console.log(`[SERVER] Processing add-test-bullets for ${email}, adding ${amount}`);
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      console.log(`[SERVER ERROR] No player doc for ${email}`);
-      return;
-    }
-  
-    let p = doc.data();
-    const oldBullets = p.bullets || 0;
-    p.bullets = oldBullets + amount;
-    console.log(`[SERVER] Updated bullets for ${email}: ${oldBullets} -> ${p.bullets}`);
-
-    try {
-      await docRef.set(p);
-      socket.emit('update-stats', p);
-      console.log(`[SERVER] Sent update-stats to ${email}`);
-    } catch (error) {
-      console.log(`[SERVER ERROR] Failed to save/update for ${email}: ${error}`);
-    }
-  });
+  socket.on('add-test-exp', async (amount) => { await handleAddTestExp(db, socket, amount) });
+  socket.on('add-test-money', async (amount) => { await handleAddTestMoney(db, socket, amount) });
+  socket.on('add-test-bullets', async (amount) => { await handleAddTestBullets(db, socket, amount) });
 
   // ==================== COURSES ====================
   socket.on('request-courses', () => {
@@ -625,19 +567,12 @@ socket.on('respawn', async () => {
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
   socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
-
   socket.on('remove-from-fleet', async (payload) => { await handleRemoveFromFleet(db, socket, payload); });
-
   socket.on('scout-drivers', async (count) => { await handleScoutDrivers(db, socket, count); });
-
   socket.on('clear-scouted-drivers', async () => { await handleClearScoutedDrivers(db, socket); });
-
   socket.on('assign-driver-to-vehicle', async (data) => { await handleAssignDriverToVehicle(db, socket, data); });
-
   socket.on('unassign-driver-from-vehicle', async (data) => { await handleUnassignDriverFromVehicle(db, socket, data); });
-
   socket.on('hire-drivers', async (payload) => { await handleHireDrivers(db, socket, payload); });
-
   socket.on('fire-drivers', async (payload) => { await handleFireDrivers(db, socket, payload); });
 
   // ====================== KILL ATTEMPT ======================
