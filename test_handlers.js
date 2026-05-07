@@ -1,7 +1,6 @@
 // test_handlers.js
 const admin = require('firebase-admin');
-const { logTransaction, getRankTitle } = require('./utils');
-const { addExperienceAndGrantPoints } = require('./server'); // We'll export this helper too
+const { logTransaction, getRankTitle, addExperienceAndGrantPoints } = require('./utils');
 
 // ==================== TEST HANDLERS ====================
 

@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 
-// ==================== CENTRALIZED TRANSACTION LOGGER (SHARED UTILITY) ====================
+// ==================== CENTRALIZED TRANSACTION LOGGER ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
     console.warn('[TX] Invalid logTransaction call - missing params');
@@ -16,14 +16,12 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
 
-  // Live update to client (for immediate UI)
   socket.emit('new-transaction', {
     amount: amount,
     description: description,
     balanceAfter: Math.round(newBalance)
   });
 
-  // Permanent storage on server
   try {
     await docRef.collection('transactions').add(txData);
     console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
@@ -32,6 +30,7 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
   }
 }
 
+// ==================== RANK SYSTEM ====================
 const RANK_THRESHOLDS = [
   { maxExp: 49, title: 'Beggar' },
   { maxExp: 514, title: 'Thug' },
@@ -59,4 +58,34 @@ function getRankTitle(exp) {
   return 'Supreme Commander';
 }
 
-module.exports = { logTransaction, getRankTitle, RANK_THRESHOLDS };
+// ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
+// ← MOVED HERE FROM server.js TO BREAK CIRCULAR DEPENDENCY
+async function addExperienceAndGrantPoints(docRef, playerData, amount, { onlineSockets } = {}) {
+  const oldExp = playerData.experience || 0;
+  playerData.experience = oldExp + amount;
+
+  const oldRank = getRankTitle(oldExp);
+  const newRank = getRankTitle(playerData.experience);
+
+  if (newRank !== oldRank && playerData.experience > oldExp) {
+    if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
+    playerData.unallocatedAttributePoints += 3;
+    console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
+
+    if (playerData.activeSpecialOperationParty && onlineSockets) {
+      // Optional: sync party rank if you have the function
+      // syncPartyMemberRank(...) 
+    }
+  }
+
+  playerData.rank = newRank;   // Always attach current rank for client
+
+  return playerData;
+}
+
+module.exports = { 
+  logTransaction, 
+  getRankTitle, 
+  RANK_THRESHOLDS,
+  addExperienceAndGrantPoints
+};

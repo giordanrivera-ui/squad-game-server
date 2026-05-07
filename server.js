@@ -12,17 +12,17 @@ const io = new Server(server, {
   pingInterval: 5000   // NEW: Ping every 5 sec to check alive
 });
 
-const { logTransaction, getRankTitle } = require('./utils');
-const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
+const { logTransaction, getRankTitle, addExperienceAndGrantPoints } = require('./utils');
+const { handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
-const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
+const { handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { handleStartHealing, handleClaimHealing, handleHealBrokenBone } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
-const { courseTemplates, handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
+const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { handleTravel } = require('./travel.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
 
@@ -33,30 +33,6 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-
-// ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
-async function addExperienceAndGrantPoints(docRef, playerData, amount) {
-  const oldExp = playerData.experience || 0;
-  playerData.experience = oldExp + amount;
-
-  const oldRank = getRankTitle(oldExp);
-  const newRank = getRankTitle(playerData.experience);
-
-  if (newRank !== oldRank && playerData.experience > oldExp) {
-    if (playerData.unallocatedAttributePoints === undefined) playerData.unallocatedAttributePoints = 0;
-    playerData.unallocatedAttributePoints += 3;
-    console.log(`[SERVER] Rank-up: ${oldRank} → ${newRank} | +3 points (total: ${playerData.unallocatedAttributePoints})`);
-
-    if (playerData.activeSpecialOperationParty) {
-      syncPartyMemberRank(db, docRef.id, newRank, { onlineSockets });
-    }
-  }
-
-  // === NEW: Always attach current rank so client gets it automatically ===
-  playerData.rank = newRank;
-
-  return playerData;
-}
 
 // Initialize default hospitals if they don't exist
 async function initializeHospitals() {
