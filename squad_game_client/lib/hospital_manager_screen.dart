@@ -33,28 +33,28 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       ),
       body: Column(
         children: [
-          // ==================== 2x2 SWITCHES (max 15% height) ====================
+          // ==================== 2x2 SWITCHES (now ~28% height) ====================
           SizedBox(
-            height: MediaQuery.of(context).size.height * 0.15,
+            height: MediaQuery.of(context).size.height * 0.2,   // ← Increased from 0.15
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: GridView.count(
                 crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 12,
-                childAspectRatio: 2.8, // makes switches nicely proportioned
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 3,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _buildSwitch("Offer injury healing", offerInjuryHealing, (v) {
+                  _buildSwitch("Injury healing", offerInjuryHealing, (v) {
                     setState(() => offerInjuryHealing = v);
                   }),
-                  _buildSwitch("Offer orthopedic services", offerOrthopedicServices, (v) {
+                  _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
                     setState(() => offerOrthopedicServices = v);
                   }),
-                  _buildSwitch("Offer performance enhancing therapy", offerPerformanceTherapy, (v) {
+                  _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
                     setState(() => offerPerformanceTherapy = v);
                   }),
-                  _buildSwitch("Offer Disease therapy", offerDiseaseTherapy, (v) {
+                  _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
                     setState(() => offerDiseaseTherapy = v);
                   }),
                 ],
@@ -95,10 +95,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                                 'It will no longer belong to you and can be claimed by any other player.',
                               ),
                               actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text('Cancel'),
-                                ),
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, true),
                                   style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -142,7 +139,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     );
   }
 
-  // Helper to build each switch
   Widget _buildSwitch(String label, bool value, Function(bool) onChanged) {
     return Container(
       decoration: BoxDecoration(
@@ -152,12 +148,12 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       child: SwitchListTile(
         title: Text(
           label,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         value: value,
         onChanged: onChanged,
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 11),
       ),
     );
   }

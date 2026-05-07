@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'status_app_bar.dart';   // ← ADD THIS IMPORT
+import 'status_app_bar.dart';
+import 'dart:async';
 
 class PublicHospitalScreen extends StatefulWidget {
   const PublicHospitalScreen({super.key});
@@ -10,8 +11,24 @@ class PublicHospitalScreen extends StatefulWidget {
 }
 
 class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
+  Timer? _countdownTimer;
   static const int healCost = 50;
   static const int boneHealCost = 110;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh UI every second while healing is active
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,21 +38,24 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
         final String location = stats['location'] ?? 'Unknown';
         final int balance = (stats['balance'] ?? 0).toInt();
         final int health = stats['health'] ?? 100;
+        final int? healingEndTime = stats['healingEndTime'] as int?;
         final bool hasBrokenBone = stats['hasBrokenBone'] == true;
 
-        final bool canHeal = health < 100 && balance >= healCost;
+        final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
+        final int remainingSeconds = isHealing 
+            ? ((healingEndTime! - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120)
+            : 0;
+
+        final bool canStartHealing = !isHealing && health < 100 && balance >= 50;
         final bool canHealBone = hasBrokenBone && balance >= boneHealCost && location == "Lónghǎi";
 
         return Scaffold(
-          // ==================== STATUS APP BAR (now added) ====================
           appBar: StatusAppBar(
             title: 'Public Hospital',
             statsNotifier: SocketService().statsNotifier,
-            time: 'Live',                    // You can change this to real time if you want
+            time: 'Live',
             onMenuPressed: () => Navigator.pop(context),
           ),
-          // ==================================================================
-
           body: Column(
             children: [
               Container(
@@ -60,22 +80,24 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                       Text('Balance: \$$balance', style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 40),
 
-                      // Normal heal button
+                      // Heal Button (now properly reacts to healing state)
                       SizedBox(
                         width: double.infinity,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: ElevatedButton(
-                            onPressed: canHeal
-                                ? () => SocketService().heal()
+                            onPressed: canStartHealing
+                                ? () => SocketService().startHealing()
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: canHeal ? Colors.green : Colors.grey,
+                              backgroundColor: canStartHealing ? Colors.green : Colors.grey,
                               padding: const EdgeInsets.symmetric(vertical: 18),
                             ),
-                            child: const Text(
-                              '🏥 HEAL NOW (2 minutes) 🏥',
-                              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            child: Text(
+                              isHealing
+                                  ? 'HEALING... ${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}'
+                                  : '🏥 HEAL NOW (2 minutes) 🏥',
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
@@ -83,7 +105,6 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Orthopedic Surgeon (only in Lónghǎi)
                       if (location == "Lónghǎi")
                         SizedBox(
                           width: double.infinity,
@@ -109,7 +130,9 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
 
                       const SizedBox(height: 30),
 
-                      if (health == 100)
+                      if (isHealing)
+                        const Text('Healing in progress...', style: TextStyle(color: Colors.orange, fontSize: 16))
+                      else if (health == 100)
                         const Text('You are already at full health!', style: TextStyle(color: Colors.green, fontSize: 16))
                       else if (balance < healCost)
                         const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16)),

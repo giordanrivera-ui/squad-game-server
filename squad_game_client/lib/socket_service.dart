@@ -546,6 +546,10 @@ class SocketService {
     _healingClaimWatcher = null;
   }
 
+  void startHealing() {
+    socket?.emit('start-healing');
+  }
+
   void healBrokenBone() => socket?.emit('heal-broken-bone');
 
   void updatePhotoURL(String url) => socket?.emit('update-profile', {'photoURL': url});
