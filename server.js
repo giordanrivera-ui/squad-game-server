@@ -13,7 +13,7 @@ const io = new Server(server, {
 });
 
 const { logTransaction, getRankTitle, addExperienceAndGrantPoints } = require('./utils');
-const { handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
+const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
@@ -23,7 +23,7 @@ const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, hand
 const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
-const { handleTravel } = require('./travel.js');
+const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
 
 // Firebase Admin
@@ -161,17 +161,6 @@ setInterval(async () => {
     console.error('Error in hit cleanup: ', error);
   }
 }, 2000); // Check every 2 seconds
-
-const normalLocations = [ // ==================== LOCATIONS ====================
-  "Riverstone", "Thornbury", "Vostokgrad", "Eichenwald", "Montclair",
-  "Valleora", "Lónghǎi", "Sakuragawa", "Cawayan Heights"
-];
-
-const travelCosts = { // ==================== TRAVEL COSTS ====================
-  "Riverstone": 40, "Thornbury": 45, "Vostokgrad": 110, "Eichenwald": 60,
-  "Montclair": 85, "Valleora": 70, "Lónghǎi": 140, "Sakuragawa": 95,
-  "Cawayan Heights": 55
-};
 
 const hospitalCounts = {
   "Riverstone": 1,
