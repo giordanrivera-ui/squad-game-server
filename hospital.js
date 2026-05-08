@@ -130,8 +130,122 @@ async function handleHealBrokenBone(db, socket) {
   socket.emit('update-stats', p);
 }
 
+async function handleClaimHospital(socket, data) {
+  const email = socket.data.email;
+  const displayName = socket.data.displayName;
+
+  if (!email || !displayName || typeof data.location !== 'string' || typeof data.index !== 'number') {
+    socket.emit('hospital-claim-result', { success: false, message: 'Invalid request.' });
+    return;
+  }
+
+  const docId = `${data.location}-hospital-${data.index}`;
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+
+  if (!hospitalDoc.exists) {
+    socket.emit('hospital-claim-result', { success: false, message: 'Hospital does not exist.' });
+    return;
+  }
+
+  const hospital = hospitalDoc.data();
+
+  if (hospital.isPublic) {
+    socket.emit('hospital-claim-result', { success: false, message: 'Public hospitals cannot be claimed.' });
+    return;
+  }
+
+  if (hospital.ownerEmail) {
+    socket.emit('hospital-claim-result', { success: false, message: 'This hospital is already owned.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({
+    ownerEmail: email,
+    ownerDisplayName: displayName,
+    claimedAt: Date.now(),
+    offerInjuryHealing: false,
+    offerOrthopedicServices: false,
+    offerPerformanceTherapy: false,
+    offerDiseaseTherapy: false
+  });
+
+  socket.emit('hospital-claim-result', { 
+    success: true, 
+    message: `You now own the private hospital in ${data.location}!` 
+  });
+
+  const freshOwnership = await getAllHospitalOwnership();
+  socket.server.emit('hospital-ownership-update', freshOwnership);   // uses socket.server = io
+}
+
+async function handleReleaseHospital(socket, data) {
+  const email = socket.data.email;
+  const { docId } = data;
+
+  if (!email || !docId) return;
+
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({
+    ownerEmail: null,
+    ownerDisplayName: null,
+    claimedAt: null
+  });
+
+  console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
+
+  const freshOwnership = await getAllHospitalOwnership();
+  socket.server.emit('hospital-ownership-update', freshOwnership);
+}
+
+async function handleUpdateHospitalService(socket, data) {
+  const email = socket.data.email;
+  const { docId, field, value } = data;
+
+  if (!email || !docId || !field || typeof value !== 'boolean') {
+    socket.emit('error', { message: 'Invalid hospital service update.' });
+    return;
+  }
+
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  const allowedFields = ['offerInjuryHealing', 'offerOrthopedicServices', 'offerPerformanceTherapy', 'offerDiseaseTherapy'];
+
+  if (!allowedFields.includes(field)) {
+    socket.emit('error', { message: 'Invalid service field.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({ [field]: value });
+
+  console.log(`[HOSPITAL] ${email} updated ${field} to ${value} on ${docId}`);
+
+  const freshOwnership = await getAllHospitalOwnership();
+  socket.server.emit('hospital-ownership-update', freshOwnership);
+}
+
+// ==================== EXPORTS ====================
 module.exports = {
   handleStartHealing,
   handleClaimHealing,
-  handleHealBrokenBone
+  handleHealBrokenBone,
+  handleClaimHospital,
+  handleReleaseHospital,
+  handleUpdateHospitalService
 };
