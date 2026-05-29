@@ -1,8 +1,9 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
-// Keep the reference here now (moved from server.js for cleanliness)
-const hospitalOwnershipRef = admin.firestore().collection('hospitals');
+function getHospitalOwnershipRef() {
+  return admin.firestore().collection('hospitals');
+}
 
 // ==================== GET ALL HOSPITAL OWNERSHIP ====================
 async function getAllHospitalOwnership() {
@@ -173,7 +174,7 @@ async function handleClaimHospital(socket, data, io) {
     return;
   }
 
-  await hospitalOwnershipRef.doc(docId).update({
+  await getHospitalOwnershipRef().doc(docId).update({
     ownerEmail: email,
     ownerDisplayName: displayName,
     claimedAt: Date.now(),
@@ -208,7 +209,7 @@ async function handleReleaseHospital(socket, data, io) {
     return;
   }
 
-  await hospitalOwnershipRef.doc(docId).update({
+  await getHospitalOwnershipRef().doc(docId).update({
     ownerEmail: null,
     ownerDisplayName: null,
     claimedAt: null
@@ -246,7 +247,7 @@ async function handleUpdateHospitalService(socket, data, io) {
     return;
   }
 
-  await hospitalOwnershipRef.doc(docId).update({ [field]: value });
+  await getHospitalOwnershipRef().doc(docId).update({ [field]: value });
 
   console.log(`[HOSPITAL] ${email} updated ${field} to ${value} on ${docId}`);
 

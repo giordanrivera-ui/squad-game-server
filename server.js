@@ -34,6 +34,8 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+const hospitalModule = require('./hospital.js');
+
 // Initialize default hospitals if they don't exist
 async function initializeHospitals() {
   for (const [location, count] of Object.entries(hospitalCounts)) {
