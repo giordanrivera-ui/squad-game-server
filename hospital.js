@@ -1,6 +1,19 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
+// Keep the reference here now (moved from server.js for cleanliness)
+const hospitalOwnershipRef = admin.firestore().collection('hospitals');
+
+// ==================== GET ALL HOSPITAL OWNERSHIP ====================
+async function getAllHospitalOwnership() {
+  const snapshot = await hospitalOwnershipRef.get();
+  const ownership = {};
+  snapshot.docs.forEach(doc => {
+    ownership[doc.id] = doc.data();
+  });
+  return ownership;
+}
+
 // ==================== TIMED HEALING (START) ====================
 async function handleStartHealing(db, socket) {
   const email = socket.data.email;
@@ -130,7 +143,8 @@ async function handleHealBrokenBone(db, socket) {
   socket.emit('update-stats', p);
 }
 
-async function handleClaimHospital(socket, data) {
+// ==================== HOSPITAL OWNERSHIP HANDLERS (FIXED) ====================
+async function handleClaimHospital(socket, data, io) {
   const email = socket.data.email;
   const displayName = socket.data.displayName;
 
@@ -175,10 +189,10 @@ async function handleClaimHospital(socket, data) {
   });
 
   const freshOwnership = await getAllHospitalOwnership();
-  socket.server.emit('hospital-ownership-update', freshOwnership);   // uses socket.server = io
+  io.emit('hospital-ownership-update', freshOwnership);
 }
 
-async function handleReleaseHospital(socket, data) {
+async function handleReleaseHospital(socket, data, io) {
   const email = socket.data.email;
   const { docId } = data;
 
@@ -203,10 +217,10 @@ async function handleReleaseHospital(socket, data) {
   console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
 
   const freshOwnership = await getAllHospitalOwnership();
-  socket.server.emit('hospital-ownership-update', freshOwnership);
+  io.emit('hospital-ownership-update', freshOwnership);
 }
 
-async function handleUpdateHospitalService(socket, data) {
+async function handleUpdateHospitalService(socket, data, io) {
   const email = socket.data.email;
   const { docId, field, value } = data;
 
@@ -237,11 +251,13 @@ async function handleUpdateHospitalService(socket, data) {
   console.log(`[HOSPITAL] ${email} updated ${field} to ${value} on ${docId}`);
 
   const freshOwnership = await getAllHospitalOwnership();
-  socket.server.emit('hospital-ownership-update', freshOwnership);
+  io.emit('hospital-ownership-update', freshOwnership);
 }
 
 // ==================== EXPORTS ====================
 module.exports = {
+  hospitalOwnershipRef,
+  getAllHospitalOwnership,
   handleStartHealing,
   handleClaimHealing,
   handleHealBrokenBone,
