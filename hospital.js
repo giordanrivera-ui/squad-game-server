@@ -7,7 +7,7 @@ function getHospitalOwnershipRef() {
 
 // ==================== GET ALL HOSPITAL OWNERSHIP ====================
 async function getAllHospitalOwnership() {
-  const snapshot = await hospitalOwnershipRef.get();
+  const snapshot = await getHospitalOwnershipRef.get();
   const ownership = {};
   snapshot.docs.forEach(doc => {
     ownership[doc.id] = doc.data();
@@ -257,7 +257,7 @@ async function handleUpdateHospitalService(socket, data, io) {
 
 // ==================== EXPORTS ====================
 module.exports = {
-  hospitalOwnershipRef,
+  getHospitalOwnershipRef,
   getAllHospitalOwnership,
   handleStartHealing,
   handleClaimHealing,
