@@ -389,5 +389,7 @@ module.exports = {
   handleClaimHospital,
   handleReleaseHospital,
   handleUpdateHospitalService,
-  startHospitalMaintenanceChecker
+  startHospitalMaintenanceChecker,
+  handleStartPrivateHealing,
+  handleClaimPrivateHealing
 };
