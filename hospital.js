@@ -325,6 +325,63 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
   }, 120000); // 2 minutes
 }
 
+// ==================== PRIVATE HOSPITAL HEALING (Owner receives money) ====================
+async function handleStartPrivateHealing(db, socket, data) {
+  const patientEmail = socket.data.email;
+  const hospitalDocId = data.hospitalDocId;
+  const ownerEmail = data.ownerEmail;
+
+  if (!patientEmail || !hospitalDocId || !ownerEmail) return;
+
+  const patientRef = db.collection('players').doc(patientEmail);
+  const ownerRef = db.collection('players').doc(ownerEmail);
+
+  const patientDoc = await patientRef.get();
+  const ownerDoc = await ownerRef.get();
+
+  if (!patientDoc.exists || !ownerDoc.exists) return;
+
+  let patient = patientDoc.data();
+  let owner = ownerDoc.data();
+
+  if (patient.balance < 50) {
+    socket.emit('heal-result', { success: false, message: 'Not enough money ($50).' });
+    return;
+  }
+
+  // Transfer $50 to owner
+  await patientRef.update({ balance: admin.firestore.FieldValue.increment(-50) });
+  await ownerRef.update({ balance: admin.firestore.FieldValue.increment(50) });
+
+  // Start healing for patient
+  patient.healingEndTime = Date.now() + 120000;
+  await patientRef.set(patient);
+
+  socket.emit('update-stats', patient);
+  socket.emit('heal-result', { success: true, message: 'Healing started at private hospital... (2 minutes)' });
+
+  console.log(`[PRIVATE HEAL] ${patientEmail} paid $50 to ${ownerEmail}`);
+}
+
+async function handleClaimPrivateHealing(db, socket) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+  if (!p.healingEndTime || p.healingEndTime > Date.now()) return;
+
+  p.health = 100;
+  p.healingEndTime = 0;
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+  socket.emit('heal-result', { success: true, message: '✅ Fully healed at private hospital!' });
+}
+
 module.exports = {
   handleStartHealing,
   handleClaimHealing,

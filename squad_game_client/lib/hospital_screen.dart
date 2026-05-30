@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'public_hospital_screen.dart';
+import 'private_hospital_heal_screen.dart';
 import 'hospital_manager_screen.dart';
 import 'socket_service.dart';
 import 'owned_hospitals_screen.dart';
@@ -15,7 +16,7 @@ class HospitalScreen extends StatelessWidget {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: SocketService().hospitalOwnershipNotifier,
       builder: (context, ownership, child) {
-        // Check if player owns at least one hospital
+        // Check if player owns any hospital (for the Manage button)
         final ownsHospital = ownership.values.any((h) {
           final data = h as Map<String, dynamic>;
           return data['ownerEmail'] == currentUserEmail;
@@ -28,7 +29,7 @@ class HospitalScreen extends StatelessWidget {
               if (ownsHospital)
                 IconButton(
                   icon: const Icon(Icons.settings, size: 28),
-                  tooltip: 'Manage Hospitals',
+                  tooltip: 'Manage My Hospitals',
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -36,6 +37,10 @@ class HospitalScreen extends StatelessWidget {
                     );
                   },
                 ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => SocketService().socket?.emit('request-hospital-ownership'), // Optional refresh
+              ),
             ],
           ),
           body: ValueListenableBuilder<Map<String, dynamic>>(
@@ -57,7 +62,7 @@ class HospitalScreen extends StatelessWidget {
                   final ownerName = hospitalData['ownerDisplayName'] as String?;
                   final isOwnedByMe = ownerEmail == currentUserEmail;
 
-                  // Extract active services
+                  // Active services for display
                   final List<String> activeServices = [];
                   if (hospitalData['offerInjuryHealing'] == true) activeServices.add('Injury Healing');
                   if (hospitalData['offerOrthopedicServices'] == true) activeServices.add('Orthopedic');
@@ -70,43 +75,50 @@ class HospitalScreen extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 16),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(20),
-                      onTap: isPublic
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const PublicHospitalScreen()),
-                              );
-                            }
-                          : () async {
-                              if (ownerName == null) {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Claim Private Hospital'),
-                                    content: Text('Claim this private hospital in $currentLocation?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Claim')),
-                                    ],
-                                  ),
-                                );
-
-                                if (confirm == true) {
-                                  SocketService().socket?.emit('claim-hospital', {
-                                    'location': currentLocation,
-                                    'index': hospitalIndex,
-                                  });
-                                }
-                              } else if (isOwnedByMe) {
-                                // Open manager screen if you own it
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => HospitalManagerScreen(hospital: {...hospitalData, 'docId': key}),
-                                  ),
-                                );
-                              }
-                            },
+                      onTap: () async {
+                        if (isPublic) {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PublicHospitalScreen()));
+                        } else if (ownerName == null) {
+                          // Claim
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Claim Private Hospital'),
+                              content: Text('Claim this private hospital in $currentLocation?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Claim')),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            SocketService().socket?.emit('claim-hospital', {
+                              'location': currentLocation,
+                              'index': hospitalIndex,
+                            });
+                          }
+                        } else if (isOwnedByMe) {
+                          // Owner → Open Manager
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => HospitalManagerScreen(hospital: {...hospitalData, 'docId': key}),
+                            ),
+                          );
+                        } else if (hospitalData['offerInjuryHealing'] == true) {
+                          // Other player → Open Healing Screen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PrivateHospitalHealScreen(hospital: {...hospitalData, 'docId': key}),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("This hospital currently has no services enabled.")),
+                          );
+                        }
+                      },
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Row(
@@ -138,7 +150,7 @@ class HospitalScreen extends StatelessWidget {
 
                                   const SizedBox(height: 10),
 
-                                  // ==================== SERVICES DISPLAY ====================
+                                  // Services Display
                                   if (!isPublic && ownerName != null) ...[
                                     const Text('Services Offered:', style: TextStyle(fontSize: 15, color: Colors.grey)),
                                     const SizedBox(height: 6),
@@ -151,7 +163,7 @@ class HospitalScreen extends StatelessWidget {
                                         children: activeServices.map((service) => Chip(
                                           label: Text(service, style: const TextStyle(fontSize: 13)),
                                           backgroundColor: Colors.purple[100],
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                                         )).toList(),
                                       ),
                                   ],
