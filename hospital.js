@@ -325,5 +325,6 @@ module.exports = {
   handleHealBrokenBone,
   handleClaimHospital,
   handleReleaseHospital,
-  handleUpdateHospitalService
+  handleUpdateHospitalService,
+  startHospitalMaintenanceChecker
 };
