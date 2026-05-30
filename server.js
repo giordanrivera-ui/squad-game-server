@@ -758,9 +758,9 @@ socket.on('respawn', async () => {
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
   socket.on('start-healing', async () => { await handleStartHealing(db, socket) });
   socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
-  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data));
-  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data));
-  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data));
+  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { hospitalOwnershipRef }));
+  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef }));
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
