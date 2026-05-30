@@ -326,7 +326,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
 }
 
 // ==================== PRIVATE HOSPITAL HEALING (Owner receives money + transaction log) ====================
-async function handleStartPrivateHealing(db, socket, data) {
+async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {   // ← Added { onlineSockets }
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
   const ownerEmail = data.ownerEmail;
@@ -364,7 +364,7 @@ async function handleStartPrivateHealing(db, socket, data) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   });
 
-  // Log transaction for the PATIENT (so they see why money was deducted)
+  // Log transaction for the PATIENT
   const patientTxRef = patientRef.collection('transactions').doc();
   await patientTxRef.set({
     amount: -50,
@@ -385,15 +385,17 @@ async function handleStartPrivateHealing(db, socket, data) {
   });
 
   // Notify owner if online
-  const ownerSocket = onlineSockets.get(owner.displayName);
-  if (ownerSocket) {
-    const freshOwner = await ownerRef.get();
-    ownerSocket.emit('update-stats', freshOwner.data());
-    ownerSocket.emit('new-transaction', {
-      amount: 50,
-      description: 'Private Hospital Healing Fee',
-      balanceAfter: freshOwner.data().balance
-    });
+  if (owner.displayName) {
+    const ownerSocket = onlineSockets.get(owner.displayName);
+    if (ownerSocket) {
+      const freshOwner = await ownerRef.get();
+      ownerSocket.emit('update-stats', freshOwner.data());
+      ownerSocket.emit('new-transaction', {
+        amount: 50,
+        description: 'Private Hospital Healing Fee',
+        balanceAfter: freshOwner.data().balance
+      });
+    }
   }
 
   console.log(`[PRIVATE HEAL] ${patientEmail} paid $50 to hospital owner ${ownerEmail}`);

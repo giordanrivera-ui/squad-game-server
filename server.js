@@ -763,7 +763,7 @@ socket.on('respawn', async () => {
   socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
   socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef }));
   socket.on('start-private-healing', async (data) => {
-    await handleStartPrivateHealing(db, socket, data);
+    await handleStartPrivateHealing(db, socket, data, { onlineSockets });
   });
 
   socket.on('claim-private-healing', async () => {
