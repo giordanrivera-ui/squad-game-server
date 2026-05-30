@@ -326,7 +326,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
 }
 
 // ==================== PRIVATE HOSPITAL HEALING (Owner receives money + transaction log) ====================
-async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {   // ← Added { onlineSockets }
+async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
   const ownerEmail = data.ownerEmail;
@@ -336,69 +336,84 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) { 
   const patientRef = db.collection('players').doc(patientEmail);
   const ownerRef = db.collection('players').doc(ownerEmail);
 
-  const patientDoc = await patientRef.get();
-  const ownerDoc = await ownerRef.get();
+  try {
+    await db.runTransaction(async (transaction) => {
+      const patientDoc = await transaction.get(patientRef);
+      const ownerDoc = await transaction.get(ownerRef);
 
-  if (!patientDoc.exists || !ownerDoc.exists) return;
+      if (!patientDoc.exists || !ownerDoc.exists) return;
 
-  let patient = patientDoc.data();
-  let owner = ownerDoc.data();
+      const patient = patientDoc.data();
+      const owner = ownerDoc.data();
 
-  if ((patient.balance || 0) < 50) {
-    socket.emit('heal-result', { success: false, message: 'Not enough money ($50).' });
-    return;
-  }
+      if ((patient.balance || 0) < 50) {
+        throw new Error('Not enough money');
+      }
 
-  // === Deduct from patient ===
-  await patientRef.update({ balance: admin.firestore.FieldValue.increment(-50) });
+      const newPatientBalance = (patient.balance || 0) - 50;
+      const newOwnerBalance = (owner.balance || 0) + 50;
 
-  // === Add to owner + create transaction log ===
-  await ownerRef.update({ balance: admin.firestore.FieldValue.increment(50) });
+      // Update patient (balance + healing time)
+      transaction.update(patientRef, {
+        balance: newPatientBalance,
+        healingEndTime: Date.now() + 120000
+      });
 
-  // Log transaction for the OWNER
-  const ownerTxRef = ownerRef.collection('transactions').doc();
-  await ownerTxRef.set({
-    amount: 50,
-    description: 'Private Hospital Healing Fee',
-    balanceAfter: (owner.balance || 0) + 50,
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  });
+      // Update owner
+      transaction.update(ownerRef, {
+        balance: newOwnerBalance
+      });
 
-  // Log transaction for the PATIENT
-  const patientTxRef = patientRef.collection('transactions').doc();
-  await patientTxRef.set({
-    amount: -50,
-    description: 'Healed at Private Hospital',
-    balanceAfter: (patient.balance || 0) - 50,
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
-  });
+      // Log for patient
+      const patientTxRef = patientRef.collection('transactions').doc();
+      transaction.set(patientTxRef, {
+        amount: -50,
+        description: 'Healed at Private Hospital',
+        balanceAfter: newPatientBalance,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
 
-  // Start healing for patient
-  patient.healingEndTime = Date.now() + 120000;
-  await patientRef.set(patient);
-
-  // Notify patient
-  socket.emit('update-stats', patient);
-  socket.emit('heal-result', { 
-    success: true, 
-    message: 'Healing started at private hospital... (2 minutes)' 
-  });
-
-  // Notify owner if online
-  if (owner.displayName) {
-    const ownerSocket = onlineSockets.get(owner.displayName);
-    if (ownerSocket) {
-      const freshOwner = await ownerRef.get();
-      ownerSocket.emit('update-stats', freshOwner.data());
-      ownerSocket.emit('new-transaction', {
+      // Log for owner
+      const ownerTxRef = ownerRef.collection('transactions').doc();
+      transaction.set(ownerTxRef, {
         amount: 50,
         description: 'Private Hospital Healing Fee',
-        balanceAfter: freshOwner.data().balance
+        balanceAfter: newOwnerBalance,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
+    });
+
+    // Send fresh data to patient
+    const freshPatient = await patientRef.get();
+    socket.emit('update-stats', freshPatient.data());
+    socket.emit('heal-result', { 
+      success: true, 
+      message: 'Healing started at private hospital... (2 minutes)' 
+    });
+
+    // Notify owner if online
+    const ownerDoc = await ownerRef.get();
+    const owner = ownerDoc.data();
+    if (owner && owner.displayName) {
+      const ownerSocket = onlineSockets.get(owner.displayName);
+      if (ownerSocket) {
+        ownerSocket.emit('update-stats', ownerDoc.data());
+        ownerSocket.emit('new-transaction', {
+          amount: 50,
+          description: 'Private Hospital Healing Fee',
+          balanceAfter: ownerDoc.data().balance
+        });
+      }
+    }
+
+    console.log(`[PRIVATE HEAL] ${patientEmail} paid $50 to hospital owner ${ownerEmail}`);
+
+  } catch (error) {
+    console.error('Private healing error:', error);
+    if (error.message === 'Not enough money') {
+      socket.emit('heal-result', { success: false, message: 'Not enough money ($50).' });
     }
   }
-
-  console.log(`[PRIVATE HEAL] ${patientEmail} paid $50 to hospital owner ${ownerEmail}`);
 }
 
 async function handleClaimPrivateHealing(db, socket) {
