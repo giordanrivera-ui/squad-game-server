@@ -168,6 +168,7 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     return;
   }
 
+  // Claim it
   await hospitalOwnershipRef.doc(docId).update({
     ownerEmail: email,
     ownerDisplayName: displayName,
@@ -183,8 +184,13 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     message: `You now own the private hospital in ${data.location}!` 
   });
 
+  // ==================== FIXED: PROPER GLOBAL BROADCAST ====================
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  socket.server?.emit || socket.emit('hospital-ownership-update', freshOwnership);
+  
+  // This is the correct pattern used in release (broadcast to EVERYONE)
+  io.emit('hospital-ownership-update', freshOwnership);   // ← This was the missing line
+
+  console.log(`[HOSPITAL] ${displayName} claimed ${docId} — broadcast sent to all players`);
 }
 
 async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
