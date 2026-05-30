@@ -246,10 +246,16 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef 
 
   await hospitalOwnershipRef.doc(docId).update({ [field]: value });
 
-  console.log(`[HOSPITAL] ${email} updated ${field} on ${docId}`);
+  console.log(`[HOSPITAL] ${email} updated ${field} on ${docId} → ${value}`);
 
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+
+  // ==================== NEW: Instant fee stop when turning off Injury Healing ====================
+  if (field === 'offerInjuryHealing' && value === false) {
+    console.log(`[HOSPITAL] Injury Healing turned OFF for ${docId} — maintenance fee stopped`);
+    // Optional: You can also notify the owner here if you want
+  }
 }
 
 function startHospitalMaintenanceChecker(db, { onlineSockets }) {
