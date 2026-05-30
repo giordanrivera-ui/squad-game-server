@@ -325,7 +325,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
   }, 120000); // 2 minutes
 }
 
-// ==================== PRIVATE HOSPITAL HEALING (Owner receives money + transaction log) ====================
+// ==================== PRIVATE HOSPITAL HEALING (Fixed) ====================
 async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
@@ -353,13 +353,11 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       const newPatientBalance = (patient.balance || 0) - 50;
       const newOwnerBalance = (owner.balance || 0) + 50;
 
-      // Update patient (balance + healing time)
       transaction.update(patientRef, {
         balance: newPatientBalance,
         healingEndTime: Date.now() + 120000
       });
 
-      // Update owner
       transaction.update(ownerRef, {
         balance: newOwnerBalance
       });
@@ -383,7 +381,14 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       });
     });
 
-    // Send fresh data to patient
+    // === FIXED: Send new-transaction to PATIENT (this was missing) ===
+    socket.emit('new-transaction', {
+      amount: -50,
+      description: 'Healed at Private Hospital',
+      balanceAfter: (await patientRef.get()).data().balance
+    });
+
+    // Send fresh stats to patient
     const freshPatient = await patientRef.get();
     socket.emit('update-stats', freshPatient.data());
     socket.emit('heal-result', { 
@@ -391,7 +396,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       message: 'Healing started at private hospital... (2 minutes)' 
     });
 
-    // Notify owner if online
+    // Notify owner (unchanged)
     const ownerDoc = await ownerRef.get();
     const owner = ownerDoc.data();
     if (owner && owner.displayName) {
