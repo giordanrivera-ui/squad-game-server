@@ -20,7 +20,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
-const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService } = require('./hospital.js');
+const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
@@ -187,6 +187,7 @@ startBondMaturityChecker(db, { onlineSockets });
 startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
+startHospitalMaintenanceChecker(db, { onlineSockets });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 

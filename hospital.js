@@ -252,7 +252,73 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef 
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
 
-// ==================== EXPORTS ====================
+function startHospitalMaintenanceChecker(db, { onlineSockets }) {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      const batch = db.batch();
+      const playersToNotify = [];
+
+      // ONLY fetch hospitals that actually have Injury Healing enabled
+      const activeHospitals = await db.collection('hospitals')
+        .where('offerInjuryHealing', '==', true)
+        .get();
+
+      for (const doc of activeHospitals.docs) {
+        const h = doc.data();
+        if (!h.ownerEmail) continue;
+
+        const ownerRef = db.collection('players').doc(h.ownerEmail);
+        const ownerDoc = await ownerRef.get();
+        if (!ownerDoc.exists) continue;
+
+        const owner = ownerDoc.data();
+        const fee = 10;
+
+        if ((owner.balance || 0) >= fee) {
+          batch.update(ownerRef, {
+            balance: admin.firestore.FieldValue.increment(-fee)
+          });
+
+          const txRef = ownerRef.collection('transactions').doc();
+          batch.set(txRef, {
+            amount: -fee,
+            description: 'Hospital Maintenance - Injury Healing',
+            balanceAfter: (owner.balance || 0) - fee,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          playersToNotify.push({
+            email: h.ownerEmail,
+            displayName: owner.displayName,
+            fee: fee
+          });
+
+          console.log(`[HOSPITAL MAINT] $${fee} deducted from ${owner.displayName || h.ownerEmail}`);
+        }
+      }
+
+      await batch.commit();
+
+      // Live UI updates
+      for (const p of playersToNotify) {
+        const socket = onlineSockets.get(p.displayName);
+        if (socket) {
+          const fresh = await db.collection('players').doc(p.email).get();
+          socket.emit('update-stats', fresh.data());
+          socket.emit('new-transaction', {
+            amount: -p.fee,
+            description: 'Hospital Maintenance - Injury Healing',
+            balanceAfter: fresh.data().balance
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Hospital maintenance error:', e);
+    }
+  }, 120000); // 2 minutes
+}
+
 module.exports = {
   handleStartHealing,
   handleClaimHealing,
