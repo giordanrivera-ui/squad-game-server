@@ -34,8 +34,6 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-const hospitalModule = require('./hospital.js');
-
 // Initialize default hospitals if they don't exist
 async function initializeHospitals() {
   for (const [location, count] of Object.entries(hospitalCounts)) {
@@ -760,9 +758,9 @@ socket.on('respawn', async () => {
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
   socket.on('start-healing', async () => { await handleStartHealing(db, socket) });
   socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
-  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { io, hospitalOwnershipRef, getAllHospitalOwnership }));
-  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { io, hospitalOwnershipRef, getAllHospitalOwnership }));
-  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { io, hospitalOwnershipRef, getAllHospitalOwnership }));
+  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data));
+  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data));
+  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data));
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
