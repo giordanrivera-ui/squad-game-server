@@ -325,13 +325,22 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
   }, 120000); // 2 minutes
 }
 
-// ==================== PRIVATE HOSPITAL HEALING (Fixed) ====================
 async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
   const ownerEmail = data.ownerEmail;
 
   if (!patientEmail || !hospitalDocId || !ownerEmail) return;
+
+  const patientDocCheck = await patientRef.get();
+  const patientData = patientDocCheck.data();
+  if (patientData.healingEndTime && patientData.healingEndTime > Date.now()) {
+    socket.emit('heal-result', { 
+      success: false, 
+      message: 'You are already healing.' 
+    });
+    return;
+  }
 
   const patientRef = db.collection('players').doc(patientEmail);
   const ownerRef = db.collection('players').doc(ownerEmail);
@@ -381,7 +390,6 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       });
     });
 
-    // === FIXED: Send new-transaction to PATIENT (this was missing) ===
     socket.emit('new-transaction', {
       amount: -50,
       description: 'Healed at Private Hospital',

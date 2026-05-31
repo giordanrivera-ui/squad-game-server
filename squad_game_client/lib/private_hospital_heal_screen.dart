@@ -15,6 +15,7 @@ class PrivateHospitalHealScreen extends StatefulWidget {
 class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
   Timer? _countdownTimer;
   static const int healCost = 50;
+  bool _isHealingRequested = false;
 
   @override
   void initState() {
@@ -64,21 +65,32 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                 const SizedBox(height: 40),
 
                 SizedBox(
-                  width: 300,
-                  child: ElevatedButton(
-                    onPressed: canHeal ? () {
-                      SocketService().socket?.emit('start-private-healing', {
-                        'hospitalDocId': hospital['docId'],
-                        'ownerEmail': hospital['ownerEmail'],
-                      });
-                    } : null,
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
-                    child: Text(
-                      isHealing ? 'HEALING... $remaining seconds' : 'Heal for $healCost (2 minutes)',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
+  width: 300,
+  child: ElevatedButton(
+    onPressed: canHeal && !_isHealingRequested 
+        ? () async {
+            setState(() => _isHealingRequested = true);
+            
+            SocketService().socket?.emit('start-private-healing', {
+              'hospitalDocId': hospital['docId'],
+              'ownerEmail': hospital['ownerEmail'],
+            });
+            
+            // Optional: re-enable button after 3 seconds (safety net)
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted) setState(() => _isHealingRequested = false);
+            });
+          } 
+        : null,
+    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+    child: Text(
+      _isHealingRequested 
+          ? 'Requesting healing...' 
+          : 'Heal for $healCost (2 minutes)',
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+    ),
+  ),
+),
 
                 if (isHealing)
                   Padding(
