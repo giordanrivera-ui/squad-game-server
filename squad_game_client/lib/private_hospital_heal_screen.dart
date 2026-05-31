@@ -44,7 +44,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
         final int health = stats['health'] ?? 100;
         final int? healingEndTime = stats['healingEndTime'] as int?;
         final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
-        final int remaining = isHealing ? ((healingEndTime! - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120) : 0;
+        final int remaining = isHealing ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120) : 0;
 
         final bool canHeal = !isHealing && health < 100 && balance >= healCost;
 

@@ -43,7 +43,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
 
         final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
         final int remainingSeconds = isHealing 
-            ? ((healingEndTime! - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120)
+            ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120)
             : 0;
 
         final bool canStartHealing = !isHealing && health < 100 && balance >= 50;
