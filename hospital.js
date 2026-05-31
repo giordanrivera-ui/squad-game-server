@@ -332,6 +332,11 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
 
   if (!patientEmail || !hospitalDocId || !ownerEmail) return;
 
+  // === MOVED THESE UP SO THEY EXIST BEFORE THE GUARD ===
+  const patientRef = db.collection('players').doc(patientEmail);
+  const ownerRef = db.collection('players').doc(ownerEmail);
+
+  // === ANTI-SPAM GUARD (now works) ===
   const patientDocCheck = await patientRef.get();
   const patientData = patientDocCheck.data();
   if (patientData.healingEndTime && patientData.healingEndTime > Date.now()) {
@@ -341,9 +346,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
     });
     return;
   }
-
-  const patientRef = db.collection('players').doc(patientEmail);
-  const ownerRef = db.collection('players').doc(ownerEmail);
+  // ====================================================
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -390,6 +393,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       });
     });
 
+    // Send transaction log to patient immediately
     socket.emit('new-transaction', {
       amount: -50,
       description: 'Healed at Private Hospital',
@@ -404,7 +408,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       message: 'Healing started at private hospital... (2 minutes)' 
     });
 
-    // Notify owner (unchanged)
+    // Notify owner
     const ownerDoc = await ownerRef.get();
     const owner = ownerDoc.data();
     if (owner && owner.displayName) {
