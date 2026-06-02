@@ -14,7 +14,6 @@ class PrivateHospitalHealScreen extends StatefulWidget {
 
 class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
   Timer? _countdownTimer;
-  static const int healCost = 50;
   bool _isHealingRequested = false;
 
   @override
@@ -44,9 +43,14 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
         final int health = stats['health'] ?? 100;
         final int? healingEndTime = stats['healingEndTime'] as int?;
         final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
-        final int remaining = isHealing ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120) : 0;
+        final int remaining = isHealing
+            ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120)
+            : 0;
 
-        final bool canHeal = !isHealing && health < 100 && balance >= healCost;
+        // ==================== FIXED: Use dynamic cost everywhere ====================
+        final int healCost = (hospital['customHealCost'] ?? 50).toInt();
+        final bool isDead = stats['dead'] ?? false;
+final bool canHeal = !isHealing && !isDead && health < 100 && balance >= healCost;
 
         return Scaffold(
           appBar: StatusAppBar(
@@ -61,36 +65,40 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
               children: [
                 Text("🏥 $ownerName's Private Hospital", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 30),
+
+                // ==================== FIXED: Dynamic cost in info text ====================
                 Text("Healing Cost: \$$healCost → Paid to owner", style: const TextStyle(fontSize: 18, color: Colors.green)),
                 const SizedBox(height: 40),
 
                 SizedBox(
-  width: 300,
-  child: ElevatedButton(
-    onPressed: canHeal && !_isHealingRequested 
-        ? () async {
-            setState(() => _isHealingRequested = true);
-            
-            SocketService().socket?.emit('start-private-healing', {
-              'hospitalDocId': hospital['docId'],
-              'ownerEmail': hospital['ownerEmail'],
-            });
-            
-            // Optional: re-enable button after 3 seconds (safety net)
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted) setState(() => _isHealingRequested = false);
-            });
-          } 
-        : null,
-    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
-    child: Text(
-      _isHealingRequested 
-          ? 'Requesting healing...' 
-          : 'Heal for $healCost (2 minutes)',
-      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-    ),
-  ),
-),
+                  width: 300,
+                  child: ElevatedButton(
+                    onPressed: (canHeal && !_isHealingRequested)
+                        ? () {
+                            setState(() => _isHealingRequested = true);
+
+                            SocketService().socket?.emit('start-private-healing', {
+                              'hospitalDocId': hospital['docId'],
+                              'ownerEmail': hospital['ownerEmail'],
+                            });
+
+                            // Safety net: re-enable button after 3 seconds if no response
+                            Future.delayed(const Duration(seconds: 3), () {
+                              if (mounted) setState(() => _isHealingRequested = false);
+                            });
+                          }
+                        : null,
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+                    child: Text(
+                      _isHealingRequested
+                          ? 'Requesting healing...'
+                          : isHealing
+                              ? 'HEALING... $remaining seconds'
+                              : 'Heal for \$$healCost (2 minutes)',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
 
                 if (isHealing)
                   Padding(

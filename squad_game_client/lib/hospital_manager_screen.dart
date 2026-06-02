@@ -12,20 +12,25 @@ class HospitalManagerScreen extends StatefulWidget {
 }
 
 class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
-  // Switch states loaded from Firestore
   late bool offerInjuryHealing;
   late bool offerOrthopedicServices;
   late bool offerPerformanceTherapy;
   late bool offerDiseaseTherapy;
 
+  late int _healCost;
+
+  final TextEditingController _costController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
-    // Load current state from the hospital document (defaults to false if newly claimed)
     offerInjuryHealing = widget.hospital['offerInjuryHealing'] ?? false;
     offerOrthopedicServices = widget.hospital['offerOrthopedicServices'] ?? false;
     offerPerformanceTherapy = widget.hospital['offerPerformanceTherapy'] ?? false;
     offerDiseaseTherapy = widget.hospital['offerDiseaseTherapy'] ?? false;
+
+    _healCost = widget.hospital['customHealCost'] ?? 50;
+    _costController.text = _healCost.toString();
   }
 
   void _saveSwitchState(String field, bool value) {
@@ -37,6 +42,29 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       'field': field,
       'value': value,
     });
+  }
+
+  void _updateHealCost() {
+    final newCost = int.tryParse(_costController.text);
+    if (newCost == null || newCost < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid cost ≥ \$1')),
+      );
+      return;
+    }
+
+    final docId = widget.hospital['docId'];
+    if (docId == null) return;
+
+    SocketService().socket?.emit('update-hospital-heal-cost', {
+      'docId': docId,
+      'newCost': newCost,
+    });
+
+    setState(() => _healCost = newCost);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Heal cost updated to \$$newCost')),
+    );
   }
 
   @override
@@ -54,6 +82,36 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       ),
       body: Column(
         children: [
+          // ==================== CUSTOM HEAL COST ====================
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Text('Heal Cost: ', style: TextStyle(fontSize: 18)),
+                    Expanded(
+                      child: TextField(
+                        controller: _costController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          prefixText: '\$',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _updateHealCost,
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           // ==================== 2x2 SWITCHES ====================
           SizedBox(
             height: MediaQuery.of(context).size.height * 0.2,
@@ -89,7 +147,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
           const Divider(height: 1),
 
-          // ==================== MAIN CONTENT ====================
+          // Rest of your screen (Release button) remains the same
           Expanded(
             child: Center(
               child: Padding(
@@ -99,17 +157,13 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                   children: [
                     Icon(Icons.local_hospital, size: 120, color: Colors.purple[300]),
                     const SizedBox(height: 24),
-                    Text(
-                      hospitalName,
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
+                    Text(hospitalName, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                     const SizedBox(height: 60),
 
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
+                        onPressed: () async { 
                           final confirm = await showDialog<bool>(
                             context: context,
                             builder: (ctx) => AlertDialog(
@@ -142,15 +196,9 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                               ),
                             );
                           }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          backgroundColor: Colors.red[700],
-                        ),
-                        child: const Text(
-                          'Release Hospital',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
+                         },
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: Colors.red[700]),
+                        child: const Text('Release Hospital', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -165,15 +213,9 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
   Widget _buildSwitch(String label, bool value, Function(bool) onChanged) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
       child: SwitchListTile(
-        title: Text(
-          label,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-        ),
+        title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
         value: value,
         onChanged: onChanged,
         dense: true,
