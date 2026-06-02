@@ -264,6 +264,7 @@ io.on('connection', (socket) => {
       if (playerData.hiredDrivers === undefined) playerData.hiredDrivers = [];
       if (playerData.activeSpecialOperation === undefined) playerData.activeSpecialOperation = null;
       if (playerData.activeSpecialOperationParty === undefined) playerData.activeSpecialOperationParty = null;
+      if (playerData.usedAdForHealing === undefined) playerData.usedAdForHealing = false;
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -323,6 +324,7 @@ io.on('connection', (socket) => {
         bonePenaltyEndTimeMid: 0,
         bonePenaltyEndTimeHigh: 0,
         dead: false,
+        usedAdForHealing: false,
         ownedUpgrades: {},
         unallocatedAttributePoints: 0,
         taxiFleet: [],
@@ -479,6 +481,7 @@ socket.on('respawn', async () => {
       bonePenaltyEndTimeMid: 0,
       bonePenaltyEndTimeHigh: 0,
       dead: false,
+      usedAdForHealing: false,
       ownedUpgrades: {},
       unallocatedAttributePoints: 0,
       taxiFleet: [],

@@ -145,7 +145,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                                 ? 'Requesting healing...'
                                 : isHealing
                                     ? 'HEALING... $remaining seconds'
-                                    : 'Heal for \$$healCost (2 minutes)',
+                                    : 'Heal for \$$healCost (4 minutes)',
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                         ),

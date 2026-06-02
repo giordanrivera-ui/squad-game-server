@@ -27,6 +27,7 @@ import 'kill_player_screen.dart';
 import 'hall_of_fame_screen.dart';
 import 'bonds_screen.dart';
 import 'businesses_screen.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 // FIXED: Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -47,6 +48,8 @@ void main() async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();  // No options - uses google-services.json on Android
   }
+
+  await MobileAds.instance.initialize();
 
     // NEW: Activate App Check with the updated syntax
   await FirebaseAppCheck.instance.activate(

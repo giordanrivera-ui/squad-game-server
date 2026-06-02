@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
 import 'dart:async';
+import 'ad_service.dart';
 
 class PublicHospitalScreen extends StatefulWidget {
   const PublicHospitalScreen({super.key});
@@ -18,6 +19,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
   @override
   void initState() {
     super.initState();
+    AdService.loadRewardedAd();
     // Refresh UI every second while healing is active
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
@@ -90,38 +92,69 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // ==================== NEW: Simulate Watch Ad Button ====================
-                            SizedBox(
-                              width: double.infinity,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    SocketService().socket?.emit('watch-ad-for-faster-healing');
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Simulating ad watch...'),
-                                        duration: Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.purple,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                            // ==================== AD BUTTON (only show if NOT used yet) ====================
+                            if (stats['usedAdForHealing'] != true)
+                              SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      AdService.showRewardedAd(
+                                        context: context,
+                                        onAdWatched: () {
+                                          SocketService().socket?.emit('watch-ad-for-faster-healing');
+                                        },
+                                        onAdFailed: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('Ad could not be shown. Please try again.')),
+                                          );
+                                        },
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.purple,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                    ),
+                                    child: const Text(
+                                      '🎬 Watch Ad to Heal in 3 Minutes',
+                                      style: TextStyle(fontSize: 18),
+                                    ),
                                   ),
-                                  child: const Text(
-                                    '🎬 Watch Ad to Heal in 3 Minutes (Simulate)',
-                                    style: TextStyle(fontSize: 18),
+                                ),
+                              )
+                            else
+                              // Show this nice message instead of the button after they used the ad
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.green.withOpacity(0.4)),
+                                  ),
+                                  child: const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.check_circle, color: Colors.green, size: 22),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        '✅ Ad used — healing will finish faster!',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            ),
+
                             const SizedBox(height: 12),
-                            const Text(
-                              'You are healing...',
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                            const Text('You are healing...', style: TextStyle(color: Colors.grey)),
                           ],
                         )
                       else if (canStartHealing)
