@@ -43,7 +43,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
 
         final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
         final int remainingSeconds = isHealing 
-            ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 120)
+            ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 360)
             : 0;
 
         final bool canStartHealing = !isHealing && health < 100 && balance >= 50;
@@ -80,31 +80,82 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                       Text('Balance: \$$balance', style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 40),
 
-                      // Heal Button (now properly reacts to healing state)
-                      SizedBox(
-                        width: double.infinity,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: ElevatedButton(
-                            onPressed: canStartHealing
-                                ? () => SocketService().startHealing()
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: canStartHealing ? Colors.green : Colors.grey,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
+                      // ==================== HEALING SECTION ====================
+                      if (isHealing)
+                        Column(
+                          children: [
+                            Text(
+                              'Healing in progress... $remainingSeconds seconds remaining',
+                              style: const TextStyle(fontSize: 20, color: Colors.orange),
                             ),
-                            child: Text(
-                              isHealing
-                                  ? 'HEALING... ${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}'
-                                  : '🏥 HEAL NOW (2 minutes) 🏥',
-                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            const SizedBox(height: 20),
+
+                            // ==================== NEW: Simulate Watch Ad Button ====================
+                            SizedBox(
+                              width: double.infinity,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 24),
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    SocketService().socket?.emit('watch-ad-for-faster-healing');
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Simulating ad watch...'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.purple,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                  ),
+                                  child: const Text(
+                                    '🎬 Watch Ad to Heal in 3 Minutes (Simulate)',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'You are healing...',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        )
+                      else if (canStartHealing)
+                        SizedBox(
+                          width: double.infinity,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: ElevatedButton(
+                              onPressed: () => SocketService().startHealing(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                              ),
+                              child: const Text(
+                                '🏥 HEAL NOW (6 minutes) 🏥',
+                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ),
+                        )
+                      else if (health == 100)
+                        const Text(
+                          'You are already at full health!',
+                          style: TextStyle(color: Colors.green, fontSize: 18),
+                        )
+                      else if (balance < healCost)
+                        const Text(
+                          'Not enough money!',
+                          style: TextStyle(color: Colors.red, fontSize: 18),
                         ),
-                      ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 30),
 
+                      // Broken Bone Healing Button
                       if (location == "Lónghǎi")
                         SizedBox(
                           width: double.infinity,
@@ -127,15 +178,6 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                           ),
                         ),
-
-                      const SizedBox(height: 30),
-
-                      if (isHealing)
-                        const Text('Healing in progress...', style: TextStyle(color: Colors.orange, fontSize: 16))
-                      else if (health == 100)
-                        const Text('You are already at full health!', style: TextStyle(color: Colors.green, fontSize: 16))
-                      else if (balance < healCost)
-                        const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16)),
                     ],
                   ),
                 ),

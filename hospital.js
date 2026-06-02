@@ -40,13 +40,14 @@ async function handleStartHealing(db, socket) {
   await logTransaction(socket, -cost, 'Started Healing ($50)', p, docRef);
 
   p.balance -= cost;
-  p.healingEndTime = Date.now() + 120000;   // exactly 2 minutes
+  p.usedAdForHealing = false;
+  p.healingEndTime = Date.now() + 360000;
 
   await docRef.set(p);
   socket.emit('update-stats', p);
   socket.emit('heal-result', { 
     success: true, 
-    message: 'Healing started... (2 minutes remaining)' 
+    message: 'Healing started... (6 minutes remaining)' 
   });
 }
 
@@ -429,7 +430,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
 
       transaction.update(patientRef, {
         balance: newPatientBalance,
-        healingEndTime: Date.now() + 120000
+        healingEndTime: Date.now() + 240000
       });
 
       transaction.update(ownerRef, {
@@ -570,6 +571,60 @@ async function handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
 
+// ==================== WATCH AD TO REDUCE HEALING TIME ====================
+async function handleWatchAdForFasterHealing(db, socket) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+
+  // 1. Check if player is currently healing
+  if (!p.healingEndTime || p.healingEndTime <= Date.now()) {
+    socket.emit('heal-result', { 
+      success: false, 
+      message: 'You are not currently healing.' 
+    });
+    return;
+  }
+
+  // 2. Check if they already used the ad for this healing session
+  if (p.usedAdForHealing === true) {
+    socket.emit('heal-result', { 
+      success: false, 
+      message: 'You already used an ad to speed up this healing.' 
+    });
+    return;
+  }
+
+  // 3. Reduce healing time to 3 minutes total from now
+  const threeMinutesInMs = 3 * 60 * 1000; // 180000 ms
+  const newHealingEndTime = Date.now() + threeMinutesInMs;
+
+  // Only update if the new time is actually shorter
+  if (newHealingEndTime < p.healingEndTime) {
+    p.healingEndTime = newHealingEndTime;
+  }
+
+  // 4. Mark that they used the ad (so they can't use it again for this healing)
+  p.usedAdForHealing = true;
+
+  // 5. Save to database
+  await docRef.set(p);
+
+  // 6. Send updated data to client
+  socket.emit('update-stats', p);
+  socket.emit('heal-result', { 
+    success: true, 
+    message: '✅ Ad watched! Healing time reduced to 3 minutes total.' 
+  });
+
+  console.log(`[HEALING] ${email} used ad to reduce healing time`);
+}
+
 module.exports = {
   handleStartHealing,
   handleClaimHealing,
@@ -580,5 +635,6 @@ module.exports = {
   startHospitalMaintenanceChecker,
   handleStartPrivateHealing,
   handleClaimPrivateHealing,
-  handleUpdateHospitalHealCost
+  handleUpdateHospitalHealCost,
+  handleWatchAdForFasterHealing
 };

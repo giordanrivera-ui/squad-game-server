@@ -20,7 +20,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
-const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, handleUpdateHospitalHealCost } = require('./hospital.js');
+const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, handleUpdateHospitalHealCost, handleWatchAdForFasterHealing } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
@@ -758,6 +758,7 @@ socket.on('respawn', async () => {
   // ==================== HOSPITAL / HEALING HANDLERS ====================
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
   socket.on('start-healing', async () => { await handleStartHealing(db, socket) });
+  socket.on('watch-ad-for-faster-healing', async () => { await handleWatchAdForFasterHealing(db, socket)});
   socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
   socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { hospitalOwnershipRef }));
   socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
