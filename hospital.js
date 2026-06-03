@@ -275,7 +275,7 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
   }
 }
 
-function startHospitalMaintenanceChecker(db, { onlineSockets }) {
+function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
   setInterval(async () => {
     try {
       const now = Date.now();
@@ -338,17 +338,32 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
       }
 
       // Disable hospitals that couldn't afford the fee
-      for (const hospitalRef of hospitalsToDisable) {
-        batch.update(hospitalRef, { offerInjuryHealing: false });
-      }
+for (const hospitalRef of hospitalsToDisable) {
+  batch.update(hospitalRef, { offerInjuryHealing: false });
+}
 
-      await batch.commit();
+await batch.commit();
 
-      if (hospitalsToDisable.length > 0) {
-        console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
-        // Optional: You can broadcast updated ownership here if you pass `io` into the checker
-        const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
+if (hospitalsToDisable.length > 0) {
+  console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
+
+  // === FIX: Broadcast the update to all clients ===
+  const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
+  io.emit('hospital-ownership-update', freshOwnership);   // ← This line was missing
+
+  // Also notify the specific owners (optional but nice)
+  for (const doc of hospitalsToDisable) {
+    const h = (await doc.get()).data();
+    if (h?.ownerEmail) {
+      const ownerSocket = onlineSockets.get(h.ownerDisplayName);
+      if (ownerSocket) {
+        ownerSocket.emit('error', {
+          message: "Injury Healing has been automatically disabled because you don't have enough money for the $10 maintenance fee."
+        });
       }
+    }
+  }
+}
 
       // Notify players who paid
       for (const p of playersToNotify) {

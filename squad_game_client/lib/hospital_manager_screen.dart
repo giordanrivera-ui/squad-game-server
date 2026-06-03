@@ -335,45 +335,56 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
           return Column(
             children: [
               // ==================== 2x2 SWITCHES ====================
-              ValueListenableBuilder<Map<String, dynamic>>(
-                valueListenable: SocketService().statsNotifier,
-                builder: (context, stats, _) {
-                  final int balance = (stats['balance'] ?? 0).toInt();
-                  final bool canAffordInjuryHealing = balance >= 10;
+ValueListenableBuilder<Map<String, dynamic>>(
+  valueListenable: SocketService().statsNotifier,
+  builder: (context, stats, _) {
+    final int balance = (stats['balance'] ?? 0).toInt();
+    final bool canAffordMaintenance = balance >= 10;
 
-                  return SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.2,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: GridView.count(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 6,
-                        childAspectRatio: 2.8,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                          _buildSwitch("Injury healing", offerInjuryHealing, (v) {
-                              setState(() => offerInjuryHealing = v);
-                              _saveSwitchState('offerInjuryHealing', v);
-                            }, enabled: canAffordInjuryHealing ),
-                          _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
-                            setState(() => offerOrthopedicServices = v);
-                            _saveSwitchState('offerOrthopedicServices', v);
-                          }),
-                          _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
-                            setState(() => offerPerformanceTherapy = v);
-                            _saveSwitchState('offerPerformanceTherapy', v);
-                          }),
-                          _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
-                            setState(() => offerDiseaseTherapy = v);
-                            _saveSwitchState('offerDiseaseTherapy', v);
-                          }),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+    // NEW LOGIC: Only grey out Injury Healing switch AFTER it has been turned off
+    final bool isInjuryHealingCurrentlyOn = freshHospital['offerInjuryHealing'] ?? false;
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.2,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 6,
+          childAspectRatio: 2.8,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            // ==================== INJURY HEALING (updated greying logic) ====================
+            _buildSwitch(
+              "Injury healing",
+              isInjuryHealingCurrentlyOn,
+              (v) {
+                setState(() => offerInjuryHealing = v);
+                _saveSwitchState('offerInjuryHealing', v);
+              },
+              enabled: isInjuryHealingCurrentlyOn || canAffordMaintenance,
+            ),
+
+            // The other three switches stay simple
+            _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
+              setState(() => offerOrthopedicServices = v);
+              _saveSwitchState('offerOrthopedicServices', v);
+            }),
+            _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
+              setState(() => offerPerformanceTherapy = v);
+              _saveSwitchState('offerPerformanceTherapy', v);
+            }),
+            _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
+              setState(() => offerDiseaseTherapy = v);
+              _saveSwitchState('offerDiseaseTherapy', v);
+            }),
+          ],
+        ),
+      ),
+    );
+  },
+),
 
               const Divider(height: 1),
 
@@ -392,11 +403,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     String label, 
     bool value, 
     Function(bool) onChanged, {
-    bool enabled = true,                    // ← NEW parameter
+    bool enabled = true,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled ? Colors.grey[100] : Colors.grey[200],   // Grey out background when disabled
+        color: enabled ? Colors.grey[100] : Colors.grey[200],
         borderRadius: BorderRadius.circular(12),
       ),
       child: SwitchListTile(
@@ -405,11 +416,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: enabled ? Colors.black : Colors.grey[600],   // Grey out text
+            color: enabled ? Colors.black : Colors.grey[600],
           ),
         ),
         value: value,
-        onChanged: enabled ? onChanged : null,                    // ← Disable interaction
+        onChanged: enabled ? onChanged : null,
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 11),
         visualDensity: VisualDensity.compact,

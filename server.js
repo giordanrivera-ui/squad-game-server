@@ -187,7 +187,7 @@ startBondMaturityChecker(db, { onlineSockets });
 startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
-startHospitalMaintenanceChecker(db, { onlineSockets });
+startHospitalMaintenanceChecker(db, { onlineSockets, io });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
