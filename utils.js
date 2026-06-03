@@ -59,7 +59,6 @@ function getRankTitle(exp) {
 }
 
 // ==================== CENTRALIZED EXP + ATTRIBUTE POINTS HELPER ====================
-// ← MOVED HERE FROM server.js TO BREAK CIRCULAR DEPENDENCY
 async function addExperienceAndGrantPoints(docRef, playerData, amount, { onlineSockets } = {}) {
   const oldExp = playerData.experience || 0;
   playerData.experience = oldExp + amount;
@@ -78,7 +77,7 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount, { onlineS
     }
   }
 
-  playerData.rank = newRank;   // Always attach current rank for client
+  playerData.rank = newRank;
 
   return playerData;
 }

@@ -62,7 +62,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
             final int remaining = isHealing
                 ? ((healingEndTime - SocketService().currentServerTime) / 1000)
                     .ceil()
-                    .clamp(0, 120)
+                    .clamp(0, 750)
                 : 0;
 
             // === UPDATED canHeal logic with fresh service check ===

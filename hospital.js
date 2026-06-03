@@ -221,7 +221,7 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
 
-async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef }) {
+async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db }) {
   const email = socket.data.email;
   const { docId, field, value } = data;
 
@@ -247,6 +247,20 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef 
     return;
   }
 
+  // ==================== NEW: Require $10 to enable Injury Healing ====================
+  if (field === 'offerInjuryHealing' && value === true) {
+    const playerDoc = await db.collection('players').doc(email).get();
+    const currentBalance = playerDoc.exists ? (playerDoc.data().balance || 0) : 0;
+
+    if (currentBalance < 10) {
+      socket.emit('error', { 
+        message: 'You need at least $10 balance to enable Injury Healing (maintenance fee).' 
+      });
+      return;
+    }
+  }
+  // ===================================================================================
+
   await hospitalOwnershipRef.doc(docId).update({ [field]: value });
 
   console.log(`[HOSPITAL] ${email} updated ${field} on ${docId} → ${value}`);
@@ -254,7 +268,7 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef 
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 
-  // ==================== NEW: Instant fee stop when turning off Injury Healing ====================
+  // ==================== Log when Injury Healing is turned OFF ====================
   if (field === 'offerInjuryHealing' && value === false) {
     console.log(`[HOSPITAL] Injury Healing turned OFF for ${docId} — maintenance fee stopped`);
     // Optional: You can also notify the owner here if you want
@@ -267,6 +281,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
       const now = Date.now();
       const batch = db.batch();
       const playersToNotify = [];
+      let hospitalsToDisable = [];
 
       // ONLY fetch hospitals that actually have Injury Healing enabled
       const activeHospitals = await db.collection('hospitals')
@@ -285,6 +300,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
         const fee = 10;
 
         if ((owner.balance || 0) >= fee) {
+          // Has enough money → deduct normally
           batch.update(ownerRef, {
             balance: admin.firestore.FieldValue.increment(-fee)
           });
@@ -304,12 +320,36 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
           });
 
           console.log(`[HOSPITAL MAINT] $${fee} deducted from ${owner.displayName || h.ownerEmail}`);
+        } else {
+          // ==================== AUTO-DISABLE LOGIC ====================
+          console.log(`[HOSPITAL MAINT] ${owner.displayName || h.ownerEmail} has insufficient funds ($${(owner.balance || 0)}). Auto-disabling Injury Healing for hospital ${doc.id}`);
+
+          hospitalsToDisable.push(doc.ref);
+
+          if (owner.displayName) {
+            const ownerSocket = onlineSockets.get(owner.displayName);
+            if (ownerSocket) {
+              ownerSocket.emit('error', {
+                message: "Injury Healing has been automatically disabled on your hospital because you don't have enough money for the $10 maintenance fee."
+              });
+            }
+          }
         }
+      }
+
+      // Disable hospitals that couldn't afford the fee
+      for (const hospitalRef of hospitalsToDisable) {
+        batch.update(hospitalRef, { offerInjuryHealing: false });
       }
 
       await batch.commit();
 
-      // Live UI updates
+      if (hospitalsToDisable.length > 0) {
+        console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
+        // Optional: You can broadcast updated ownership here if you pass `io` into the checker
+      }
+
+      // Notify players who paid
       for (const p of playersToNotify) {
         const socket = onlineSockets.get(p.displayName);
         if (socket) {
@@ -325,7 +365,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
     } catch (e) {
       console.error('Hospital maintenance error:', e);
     }
-  }, 120000); // 2 minutes
+  }, 120000);
 }
 
 // ==================== PRIVATE HOSPITAL HEALING (Fixed stale healCost) ====================

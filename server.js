@@ -765,13 +765,9 @@ socket.on('respawn', async () => {
   socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
   socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { hospitalOwnershipRef }));
   socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
-  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db }));
   socket.on('start-private-healing', async (data) => { await handleStartPrivateHealing(db, socket, data, { onlineSockets })});
-
-  socket.on('claim-private-healing', async () => {
-    await handleClaimPrivateHealing(db, socket);
-  });
-
+  socket.on('claim-private-healing', async () => { await handleClaimPrivateHealing(db, socket)});
   socket.on('update-hospital-heal-cost', (data) => handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef }));
 
   socket.on('update-profile', async (data) => {
