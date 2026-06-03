@@ -311,37 +311,45 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       ),
       body: Column(
         children: [
-          // ==================== 2x2 SWITCHES ====================
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 6,
-                childAspectRatio: 2.8,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _buildSwitch("Injury healing", offerInjuryHealing, (v) {
-                    setState(() => offerInjuryHealing = v);
-                    _saveSwitchState('offerInjuryHealing', v);
-                  }),
-                  _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
-                    setState(() => offerOrthopedicServices = v);
-                    _saveSwitchState('offerOrthopedicServices', v);
-                  }),
-                  _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
-                    setState(() => offerPerformanceTherapy = v);
-                    _saveSwitchState('offerPerformanceTherapy', v);
-                  }),
-                  _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
-                    setState(() => offerDiseaseTherapy = v);
-                    _saveSwitchState('offerDiseaseTherapy', v);
-                  }),
-                ],
-              ),
-            ),
+          // ==================== 2x2 SWITCHES (with live balance check) ====================
+          ValueListenableBuilder<Map<String, dynamic>>(
+            valueListenable: SocketService().statsNotifier,
+            builder: (context, stats, child) {
+              final int balance = (stats['balance'] ?? 0).toInt();
+              final bool canAffordInjuryHealing = balance >= 10;
+
+              return SizedBox(
+                height: MediaQuery.of(context).size.height * 0.2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 2.8,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _buildSwitch("Injury healing", offerInjuryHealing, (v) {
+                          setState(() => offerInjuryHealing = v);
+                          _saveSwitchState('offerInjuryHealing', v);
+                        }, enabled: canAffordInjuryHealing ),
+                      _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
+                        setState(() => offerOrthopedicServices = v);
+                        _saveSwitchState('offerOrthopedicServices', v);
+                      }),
+                      _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
+                        setState(() => offerPerformanceTherapy = v);
+                        _saveSwitchState('offerPerformanceTherapy', v);
+                      }),
+                      _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
+                        setState(() => offerDiseaseTherapy = v);
+                        _saveSwitchState('offerDiseaseTherapy', v);
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
 
           const Divider(height: 1),
@@ -355,13 +363,28 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     );
   }
 
-  Widget _buildSwitch(String label, bool value, Function(bool) onChanged) {
+  Widget _buildSwitch(
+    String label, 
+    bool value, 
+    Function(bool) onChanged, {
+    bool enabled = true,                    // ← NEW parameter
+  }) {
     return Container(
-      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: enabled ? Colors.grey[100] : Colors.grey[200],   // Grey out background when disabled
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: SwitchListTile(
-        title: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: enabled ? Colors.black : Colors.grey[600],   // Grey out text
+          ),
+        ),
         value: value,
-        onChanged: onChanged,
+        onChanged: enabled ? onChanged : null,                    // ← Disable interaction
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 11),
         visualDensity: VisualDensity.compact,
