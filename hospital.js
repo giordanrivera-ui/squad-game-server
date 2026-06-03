@@ -347,6 +347,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets }) {
       if (hospitalsToDisable.length > 0) {
         console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
         // Optional: You can broadcast updated ownership here if you pass `io` into the checker
+        const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
       }
 
       // Notify players who paid

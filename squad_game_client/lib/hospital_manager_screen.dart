@@ -18,25 +18,28 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   late bool offerDiseaseTherapy;
 
   late int _healCost;
-  
   final TextEditingController _costController = TextEditingController();
 
-  // ==================== NEW: Healing time slider state ====================
-  int _healingTimeInSeconds = 180; // Default = 3:00
+  int _healingTimeInSeconds = 180;
 
   @override
   void initState() {
     super.initState();
-    offerInjuryHealing = widget.hospital['offerInjuryHealing'] ?? false;
-    offerOrthopedicServices = widget.hospital['offerOrthopedicServices'] ?? false;
-    offerPerformanceTherapy = widget.hospital['offerPerformanceTherapy'] ?? false;
-    offerDiseaseTherapy = widget.hospital['offerDiseaseTherapy'] ?? false;
+    _syncFromHospitalData(widget.hospital);
+  }
 
-    _healCost = widget.hospital['customHealCost'] ?? 50;
+  // ==================== NEW: Sync local state from hospital data ====================
+  void _syncFromHospitalData(Map<String, dynamic> hospitalData) {
+    offerInjuryHealing = hospitalData['offerInjuryHealing'] ?? false;
+    offerOrthopedicServices = hospitalData['offerOrthopedicServices'] ?? false;
+    offerPerformanceTherapy = hospitalData['offerPerformanceTherapy'] ?? false;
+    offerDiseaseTherapy = hospitalData['offerDiseaseTherapy'] ?? false;
+
+    _healCost = (hospitalData['customHealCost'] as num?)?.toInt() ?? 50;
     _costController.text = _healCost.toString();
   }
 
-  void _saveSwitchState(String field, bool value) {
+    void _saveSwitchState(String field, bool value) {
     final docId = widget.hospital['docId'];
     if (docId == null) return;
 
@@ -69,7 +72,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       SnackBar(content: Text('Heal cost updated to \$$newCost')),
     );
   }
-
+  
   // ==================== Get list of currently active services ====================
   List<String> _getActiveServices() {
     final List<String> active = [];
@@ -309,56 +312,78 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
         time: 'Live',
         onMenuPressed: () => Navigator.pop(context),
       ),
-      body: Column(
-        children: [
-          // ==================== 2x2 SWITCHES (with live balance check) ====================
-          ValueListenableBuilder<Map<String, dynamic>>(
-            valueListenable: SocketService().statsNotifier,
-            builder: (context, stats, child) {
-              final int balance = (stats['balance'] ?? 0).toInt();
-              final bool canAffordInjuryHealing = balance >= 10;
+      body: ValueListenableBuilder<Map<String, dynamic>>(
+        valueListenable: SocketService().hospitalOwnershipNotifier,
+        builder: (context, ownership, child) {
+          // Get the latest hospital data from the live notifier
+          final String docId = widget.hospital['docId'] ?? '';
+          final Map<String, dynamic> freshHospital = 
+              (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
 
-              return SizedBox(
-                height: MediaQuery.of(context).size.height * 0.2,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 6,
-                    childAspectRatio: 2.8,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      _buildSwitch("Injury healing", offerInjuryHealing, (v) {
-                          setState(() => offerInjuryHealing = v);
-                          _saveSwitchState('offerInjuryHealing', v);
-                        }, enabled: canAffordInjuryHealing ),
-                      _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
-                        setState(() => offerOrthopedicServices = v);
-                        _saveSwitchState('offerOrthopedicServices', v);
-                      }),
-                      _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
-                        setState(() => offerPerformanceTherapy = v);
-                        _saveSwitchState('offerPerformanceTherapy', v);
-                      }),
-                      _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
-                        setState(() => offerDiseaseTherapy = v);
-                        _saveSwitchState('offerDiseaseTherapy', v);
-                      }),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+          // Sync local state if server changed anything (especially auto-disable)
+          if (freshHospital['offerInjuryHealing'] != offerInjuryHealing) {
+            // Use addPostFrameCallback to avoid setState during build
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _syncFromHospitalData(freshHospital);
+                });
+              }
+            });
+          }
 
-          const Divider(height: 1),
+          return Column(
+            children: [
+              // ==================== 2x2 SWITCHES ====================
+              ValueListenableBuilder<Map<String, dynamic>>(
+                valueListenable: SocketService().statsNotifier,
+                builder: (context, stats, _) {
+                  final int balance = (stats['balance'] ?? 0).toInt();
+                  final bool canAffordInjuryHealing = balance >= 10;
 
-          // ==================== DYNAMIC BOTTOM SECTION ====================
-          Expanded(
-            child: _buildBottomSection(),
-          ),
-        ],
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.2,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: GridView.count(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 6,
+                        childAspectRatio: 2.8,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildSwitch("Injury healing", offerInjuryHealing, (v) {
+                              setState(() => offerInjuryHealing = v);
+                              _saveSwitchState('offerInjuryHealing', v);
+                            }, enabled: canAffordInjuryHealing ),
+                          _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
+                            setState(() => offerOrthopedicServices = v);
+                            _saveSwitchState('offerOrthopedicServices', v);
+                          }),
+                          _buildSwitch("Performance enhancing", offerPerformanceTherapy, (v) {
+                            setState(() => offerPerformanceTherapy = v);
+                            _saveSwitchState('offerPerformanceTherapy', v);
+                          }),
+                          _buildSwitch("Disease therapy", offerDiseaseTherapy, (v) {
+                            setState(() => offerDiseaseTherapy = v);
+                            _saveSwitchState('offerDiseaseTherapy', v);
+                          }),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const Divider(height: 1),
+
+              // ==================== DYNAMIC BOTTOM SECTION ====================
+              Expanded(
+                child: _buildBottomSection(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
