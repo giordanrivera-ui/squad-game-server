@@ -178,7 +178,8 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     offerOrthopedicServices: false,
     offerPerformanceTherapy: false,
     offerDiseaseTherapy: false,
-    customHealCost: 50          // ← FIX: reset to default so new owner doesn't inherit old price
+    customHealCost: 50,
+    customHealingDuration: 240000          // ← NEW: default 4 minutes
   });
 
   socket.emit('hospital-claim-result', { 
@@ -186,10 +187,8 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     message: `You now own the private hospital in ${data.location}!` 
   });
 
-  // ==================== FIXED: PROPER GLOBAL BROADCAST (same pattern as release) ====================
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);   // ← This is the correct line
+  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 
   console.log(`[HOSPITAL] ${displayName} claimed ${docId} — broadcast sent to all players`);
 }
@@ -212,7 +211,8 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
     ownerEmail: null,
     ownerDisplayName: null,
     claimedAt: null,
-    customHealCost: 50
+    customHealCost: 50,
+    customHealingDuration: 240000
   });
 
   console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
@@ -247,7 +247,6 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
     return;
   }
 
-  // ==================== NEW: Require $10 to enable Injury Healing ====================
   if (field === 'offerInjuryHealing' && value === true) {
     const playerDoc = await db.collection('players').doc(email).get();
     const currentBalance = playerDoc.exists ? (playerDoc.data().balance || 0) : 0;
@@ -259,7 +258,6 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
       return;
     }
   }
-  // ===================================================================================
 
   await hospitalOwnershipRef.doc(docId).update({ [field]: value });
 
@@ -268,10 +266,8 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 
-  // ==================== Log when Injury Healing is turned OFF ====================
   if (field === 'offerInjuryHealing' && value === false) {
     console.log(`[HOSPITAL] Injury Healing turned OFF for ${docId} — maintenance fee stopped`);
-    // Optional: You can also notify the owner here if you want
   }
 }
 
@@ -384,7 +380,7 @@ if (hospitalsToDisable.length > 0) {
   }, 120000);
 }
 
-// ==================== PRIVATE HOSPITAL HEALING (Fixed stale healCost) ====================
+// ==================== PRIVATE HOSPITAL HEALING (Updated to use custom duration) ====================
 async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
@@ -396,7 +392,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const ownerRef = db.collection('players').doc(ownerEmail);
   const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
 
-  // === FAST-PATH CHECKS (good UX, non-authoritative) ===
+  // Fast-path checks
   const patientDocCheck = await patientRef.get();
   if (patientDocCheck.exists) {
     const patientData = patientDocCheck.data();
@@ -418,7 +414,6 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
     }
   }
 
-  // Fast-path hospital check + ownership verification
   const hospitalDocCheck = await hospitalRef.get();
   if (!hospitalDocCheck.exists) {
     socket.emit('heal-result', { success: false, message: 'Hospital no longer exists.' });
@@ -465,12 +460,12 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
         throw new Error('Service not offered');
       }
 
-      // NEW: Authoritative ownership check inside transaction
       if (!hospitalData.ownerEmail || hospitalData.ownerEmail !== ownerEmail) {
         throw new Error('Invalid hospital owner');
       }
 
       const healCost = hospitalData.customHealCost ?? 50;
+      const healingDuration = hospitalData.customHealingDuration ?? 240000;   // ← USE CUSTOM DURATION
 
       const ownerDoc = await transaction.get(ownerRef);
       if (!ownerDoc.exists) return;
@@ -486,7 +481,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
 
       transaction.update(patientRef, {
         balance: newPatientBalance,
-        healingEndTime: Date.now() + 240000
+        healingEndTime: Date.now() + healingDuration     // ← DYNAMIC DURATION
       });
 
       transaction.update(ownerRef, {
@@ -516,6 +511,16 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       ? (freshHospital.data().customHealCost ?? 50) 
       : 50;
 
+    const actualDurationMs = freshHospital.exists 
+      ? (freshHospital.data().customHealingDuration ?? 240000) 
+      : 240000;
+
+    const durationMinutes = Math.floor(actualDurationMs / 60000);
+    const durationSeconds = Math.floor((actualDurationMs % 60000) / 1000);
+    const durationText = durationSeconds > 0 
+      ? `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}` 
+      : `${durationMinutes} minutes`;
+
     socket.emit('new-transaction', {
       amount: -actualHealCost,
       description: `Healed at Private Hospital ($${actualHealCost})`,
@@ -526,7 +531,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
     socket.emit('update-stats', freshPatient.data());
     socket.emit('heal-result', { 
       success: true, 
-      message: `Healing started for $${actualHealCost} (2 minutes)` 
+      message: `Healing started for $${actualHealCost} (${durationText})` 
     });
 
     // Notify owner
@@ -544,7 +549,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       }
     }
 
-    console.log(`[PRIVATE HEAL] ${patientEmail} paid $${actualHealCost} to ${ownerEmail}`);
+    console.log(`[PRIVATE HEAL] ${patientEmail} paid $${actualHealCost} to ${ownerEmail} — duration: ${actualDurationMs}ms`);
 
   } catch (error) {
     console.error('Private healing error:', error);
@@ -622,7 +627,35 @@ async function handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef
 
   console.log(`[HOSPITAL] ${email} changed heal cost of ${docId} to $${newCost}`);
 
-  // Broadcast to everyone so private healing screens update instantly
+  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
+  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+}
+
+// ==================== UPDATE CUSTOM HEALING DURATION (NEW) ====================
+async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }) {
+  const email = socket.data.email;
+  const { docId, healingDurationMs } = data;
+
+  if (!email || !docId || typeof healingDurationMs !== 'number' || healingDurationMs < 180000 || healingDurationMs > 240000) {
+    socket.emit('error', { message: 'Invalid healing duration.' });
+    return;
+  }
+
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({ 
+    customHealingDuration: healingDurationMs 
+  });
+
+  console.log(`[HOSPITAL] ${email} changed healing duration of ${docId} to ${healingDurationMs} ms`);
+
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
@@ -638,7 +671,6 @@ async function handleWatchAdForFasterHealing(db, socket) {
 
   let p = doc.data();
 
-  // 1. Check if player is currently healing
   if (!p.healingEndTime || p.healingEndTime <= Date.now()) {
     socket.emit('heal-result', { 
       success: false, 
@@ -647,7 +679,6 @@ async function handleWatchAdForFasterHealing(db, socket) {
     return;
   }
 
-  // 2. Check if they already used the ad for this healing session
   if (p.usedAdForHealing === true) {
     socket.emit('heal-result', { 
       success: false, 
@@ -656,22 +687,17 @@ async function handleWatchAdForFasterHealing(db, socket) {
     return;
   }
 
-  // 3. Reduce healing time to 3 minutes total from now
-  const threeMinutesInMs = 3 * 60 * 1000; // 180000 ms
+  const threeMinutesInMs = 3 * 60 * 1000;
   const newHealingEndTime = Date.now() + threeMinutesInMs;
 
-  // Only update if the new time is actually shorter
   if (newHealingEndTime < p.healingEndTime) {
     p.healingEndTime = newHealingEndTime;
   }
 
-  // 4. Mark that they used the ad (so they can't use it again for this healing)
   p.usedAdForHealing = true;
 
-  // 5. Save to database
   await docRef.set(p);
 
-  // 6. Send updated data to client
   socket.emit('update-stats', p);
   socket.emit('heal-result', { 
     success: true, 
@@ -692,5 +718,6 @@ module.exports = {
   handleStartPrivateHealing,
   handleClaimPrivateHealing,
   handleUpdateHospitalHealCost,
-  handleWatchAdForFasterHealing
+  handleWatchAdForFasterHealing,
+  handleUpdateHospitalHealingDuration   // ← NEW
 };

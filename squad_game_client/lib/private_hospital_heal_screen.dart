@@ -31,6 +31,17 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     super.dispose();
   }
 
+  // ==================== NEW: Format duration nicely ====================
+  String _formatDuration(int durationMs) {
+    final totalSeconds = (durationMs / 1000).round();
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (seconds == 0) {
+      return '$minutes minutes';
+    }
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final String docId = widget.hospital['docId'] ?? '';
@@ -38,15 +49,17 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: SocketService().hospitalOwnershipNotifier,
       builder: (context, ownership, _) {
-        // === LIVE hospital data lookup (fixes stale object issue) ===
         final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
 
         final ownerName = freshHospital['ownerDisplayName'] ?? 'Unknown Owner';
         final location = freshHospital['location'] ?? 'Unknown';
         final bool isOfferingHealing = freshHospital['offerInjuryHealing'] == true;
 
-        // Use fresh customHealCost (or fallback to 50)
         final int healCost = (freshHospital['customHealCost'] as num?)?.toInt() ?? 50;
+
+        // NEW: Read custom duration from live data (default 4 minutes)
+        final int healingDurationMs = (freshHospital['customHealingDuration'] as num?)?.toInt() ?? 240000;
+        final String formattedDuration = _formatDuration(healingDurationMs);
 
         return ValueListenableBuilder<Map<String, dynamic>>(
           valueListenable: SocketService().statsNotifier,
@@ -65,12 +78,11 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                     .clamp(0, 750)
                 : 0;
 
-            // === UPDATED canHeal logic with fresh service check ===
             final bool canHeal = !isHealing &&
                 !isDead &&
                 health < 100 &&
                 balance >= healCost &&
-                isOfferingHealing; // ← Important: service must still be active
+                isOfferingHealing;
 
             return Scaffold(
               appBar: StatusAppBar(
@@ -92,14 +104,12 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                       ),
                       const SizedBox(height: 30),
 
-                      // === LIVE price display ===
                       Text(
                         "Healing Cost: \$$healCost → Paid to owner",
                         style: const TextStyle(fontSize: 18, color: Colors.green),
                       ),
                       const SizedBox(height: 12),
 
-                      // Show warning if owner turned off the service
                       if (!isOfferingHealing)
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -130,7 +140,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                                     'ownerEmail': freshHospital['ownerEmail'],
                                   });
 
-                                  // Safety net: re-enable button after 3 seconds
                                   Future.delayed(const Duration(seconds: 3), () {
                                     if (mounted) setState(() => _isHealingRequested = false);
                                   });
@@ -145,7 +154,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                                 ? 'Requesting healing...'
                                 : isHealing
                                     ? 'HEALING... $remaining seconds'
-                                    : 'Heal for \$$healCost (4 minutes)',
+                                    : 'Heal for \$$healCost ($formattedDuration)',   // ← DYNAMIC
                             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                           ),
                         ),

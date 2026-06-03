@@ -20,7 +20,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   late int _healCost;
   final TextEditingController _costController = TextEditingController();
 
-  int _healingTimeInSeconds = 180;
+  // ==================== NEW: Healing Duration Slider State ====================
+  int _healingTimeInSeconds = 240; // Default 4:00
 
   @override
   void initState() {
@@ -28,7 +29,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     _syncFromHospitalData(widget.hospital);
   }
 
-  // ==================== NEW: Sync local state from hospital data ====================
+  // ==================== Sync local state from hospital data (now includes duration) ====================
   void _syncFromHospitalData(Map<String, dynamic> hospitalData) {
     offerInjuryHealing = hospitalData['offerInjuryHealing'] ?? false;
     offerOrthopedicServices = hospitalData['offerOrthopedicServices'] ?? false;
@@ -37,6 +38,10 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
     _healCost = (hospitalData['customHealCost'] as num?)?.toInt() ?? 50;
     _costController.text = _healCost.toString();
+
+    // NEW: Load custom healing duration (default 240 seconds = 4 minutes)
+    final durationMs = (hospitalData['customHealingDuration'] as num?)?.toInt() ?? 240000;
+    _healingTimeInSeconds = (durationMs / 1000).round().clamp(180, 240);
   }
 
     void _saveSwitchState(String field, bool value) {
@@ -70,6 +75,24 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     setState(() => _healCost = newCost);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Heal cost updated to \$$newCost')),
+    );
+  }
+
+  // ==================== NEW: Update Healing Duration on Server ====================
+  void _updateHealingDuration(int seconds) {
+    final docId = widget.hospital['docId'];
+    if (docId == null) return;
+
+    final durationMs = seconds * 1000;
+
+    SocketService().socket?.emit('update-hospital-healing-duration', {
+      'docId': docId,
+      'healingDurationMs': durationMs,
+    });
+
+    setState(() => _healingTimeInSeconds = seconds);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Healing time updated to ${_formatTime(seconds)}')),
     );
   }
   
@@ -190,11 +213,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               ),
             ),
 
-          // ==================== NEW: Healing Time Slider (only in Injury Healing tab) ====================
+          // ==================== HEALING DURATION SLIDER (only in Injury Healing tab) ====================
           if (serviceName == 'Injury Healing') ...[
             const SizedBox(height: 8),
             const Text(
-              'Healing Duration',
+              'Healing Duration (for new patients)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -209,6 +232,10 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                   _healingTimeInSeconds = value.round();
                 });
               },
+              onChangeEnd: (double value) {
+                // Emit to server only when user finishes dragging
+                _updateHealingDuration(value.round());
+              },
             ),
             // Time labels
             Padding(
@@ -222,6 +249,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                   Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Changes only affect new healing sessions',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: 24),
           ],
@@ -315,14 +347,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       body: ValueListenableBuilder<Map<String, dynamic>>(
         valueListenable: SocketService().hospitalOwnershipNotifier,
         builder: (context, ownership, child) {
-          // Get the latest hospital data from the live notifier
           final String docId = widget.hospital['docId'] ?? '';
           final Map<String, dynamic> freshHospital = 
               (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
 
-          // Sync local state if server changed anything (especially auto-disable)
           if (freshHospital['offerInjuryHealing'] != offerInjuryHealing) {
-            // Use addPostFrameCallback to avoid setState during build
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
@@ -340,8 +369,6 @@ ValueListenableBuilder<Map<String, dynamic>>(
   builder: (context, stats, _) {
     final int balance = (stats['balance'] ?? 0).toInt();
     final bool canAffordMaintenance = balance >= 10;
-
-    // NEW LOGIC: Only grey out Injury Healing switch AFTER it has been turned off
     final bool isInjuryHealingCurrentlyOn = freshHospital['offerInjuryHealing'] ?? false;
 
     return SizedBox(
@@ -355,7 +382,6 @@ ValueListenableBuilder<Map<String, dynamic>>(
           childAspectRatio: 2.8,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            // ==================== INJURY HEALING (updated greying logic) ====================
             _buildSwitch(
               "Injury healing",
               isInjuryHealingCurrentlyOn,
@@ -365,8 +391,6 @@ ValueListenableBuilder<Map<String, dynamic>>(
               },
               enabled: isInjuryHealingCurrentlyOn || canAffordMaintenance,
             ),
-
-            // The other three switches stay simple
             _buildSwitch("Orthopedic services", offerOrthopedicServices, (v) {
               setState(() => offerOrthopedicServices = v);
               _saveSwitchState('offerOrthopedicServices', v);
