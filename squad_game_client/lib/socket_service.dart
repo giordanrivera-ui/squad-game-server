@@ -242,6 +242,14 @@ class SocketService {
         }
       });
 
+      socket?.on('research-result', (data) {
+        if (data is Map<String, dynamic>) {
+          // We will handle showing the snackbar inside HospitalManagerScreen
+          // But we can still print it for debugging
+          print('[RESEARCH RESULT] ${data['success']} - ${data['message']}');
+        }
+      });
+
       socket?.on('courses-list', (data) {
         if (data is List) {
           coursesNotifier.value = List<Map<String, dynamic>>.from(data);

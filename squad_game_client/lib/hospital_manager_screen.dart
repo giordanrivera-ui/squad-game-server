@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'status_app_bar.dart';
 import 'socket_service.dart';
+import 'dart:async';
 
 class HospitalManagerScreen extends StatefulWidget {
   final Map<String, dynamic> hospital;
@@ -22,14 +23,75 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
   // ==================== NEW: Healing Duration Slider State ====================
   int _healingTimeInSeconds = 240; // Default 4:00
+  Map<String, dynamic>? _lastSyncedHospitalData;
+
+  // ==================== EFFICIENT DOCTORS RESEARCH STATE ====================
+  Timer? _researchTimer;
+  bool _isStartingResearch = false;
 
   @override
   void initState() {
     super.initState();
     _syncFromHospitalData(widget.hospital);
+    _startResearchTimer();
+
+    SocketService().socket?.on('research-result', _onResearchResult);
   }
 
-  // ==================== Sync local state from hospital data (now includes duration) ====================
+  @override
+  void dispose() {
+    // ✅ ADD THIS LINE - Cleanly remove the listener
+    SocketService().socket?.off('research-result', _onResearchResult);
+    
+    _researchTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onResearchResult(dynamic data) {
+    if (!mounted) return;
+
+    if (data is Map<String, dynamic>) {
+      final bool success = data['success'] ?? false;
+      final String message = data['message'] ?? 'Research action completed.';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: success ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        setState(() => _isStartingResearch = false);
+      }
+    }
+  }
+
+  void _startResearchTimer() {
+    _researchTimer?.cancel();
+    _researchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+
+      // === AUTO-CLAIM RESEARCH WHEN TIMER HITS ZERO ===
+      final docId = widget.hospital['docId'];
+      if (docId != null) {
+        final fresh = SocketService().hospitalOwnershipNotifier.value[docId] 
+            as Map<String, dynamic>? ?? widget.hospital;
+
+        final int? researchEndTime = fresh['efficientDoctorsResearchEndTime'] as int?;
+
+        if (researchEndTime != null && researchEndTime > 0 && researchEndTime <= SocketService().currentServerTime) {
+            SocketService().socket?.emit('claim-efficient-doctors-research', {'hospitalDocId': docId});
+            print('[RESEARCH] Auto-claimed Efficient Doctors research for $docId');
+        }
+      }
+
+      setState(() {}); // Refresh UI for countdown
+    });
+  }
+
+  // ==================== Sync local state from hospital data (now includes duration + research) ====================
   void _syncFromHospitalData(Map<String, dynamic> hospitalData) {
     offerInjuryHealing = hospitalData['offerInjuryHealing'] ?? false;
     offerOrthopedicServices = hospitalData['offerOrthopedicServices'] ?? false;
@@ -41,7 +103,9 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
     // NEW: Load custom healing duration (default 240 seconds = 4 minutes)
     final durationMs = (hospitalData['customHealingDuration'] as num?)?.toInt() ?? 240000;
-    _healingTimeInSeconds = (durationMs / 1000).round().clamp(180, 240);
+    final bool hasEfficient = hospitalData['hasEfficientDoctors'] == true;
+    final int minClamp = hasEfficient ? 120 : 180;
+    _healingTimeInSeconds = (durationMs / 1000).round().clamp(minClamp, 240);
   }
 
     void _saveSwitchState(String field, bool value) {
@@ -172,7 +236,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   Widget _buildServiceTab(String serviceName) {
     return Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(
+      child: SingleChildScrollView(
+          child: Column(
         children: [
           // ==================== HEAL COST EDITOR (only in Injury Healing tab) ====================
           if (serviceName == 'Injury Healing')
@@ -213,62 +278,183 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               ),
             ),
 
+          // ==================== EFFICIENT DOCTORS RESEARCH CARD (Injury Healing tab) ====================
+          if (serviceName == 'Injury Healing')
+            ValueListenableBuilder<Map<String, dynamic>>(
+              valueListenable: SocketService().hospitalOwnershipNotifier,
+              builder: (context, ownership, _) {
+                final docId = widget.hospital['docId'] ?? '';
+                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+
+                final bool hasResearched = freshHospital['hasEfficientDoctors'] == true;
+                final int? researchEndTime = freshHospital['efficientDoctorsResearchEndTime'] as int?;
+                final bool isResearching = researchEndTime != null && researchEndTime > SocketService().currentServerTime;
+
+                int remainingSeconds = 0;
+                if (isResearching) {
+                  remainingSeconds = ((researchEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 30);
+                }
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  color: hasResearched ? Colors.green[900] : Colors.grey[850],
+                  child: InkWell(
+                    onTap: (hasResearched || isResearching || _isStartingResearch)
+                      ? null
+                      : () {
+                          final docId = widget.hospital['docId'];
+                          if (docId != null) {
+                            setState(() => _isStartingResearch = true); // Disable tap immediately
+
+                            SocketService().socket?.emit('start-efficient-doctors-research', {
+                              'hospitalDocId': docId,
+                            });
+                          }
+                        },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                hasResearched ? Icons.check_circle : Icons.science,
+                                color: hasResearched ? Colors.greenAccent : Colors.amber,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Efficient Doctors',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                              if (isResearching)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'RESEARCHING... ${remainingSeconds}s',
+                                    style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                )
+                              else if (hasResearched)
+                                const Text('✅ RESEARCHED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                              else
+                                const Text('\$1000 • 30s', style: TextStyle(color: Colors.amber)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            hasResearched
+                                ? 'Effect: Unlocks 2:00 minimum healing duration with 20-second increments.'
+                                : 'Research this technology to reduce the minimum healing time from 3:00 to 2:00 and allow finer control (every 20 seconds).',
+                            style: TextStyle(fontSize: 15, color: hasResearched ? Colors.greenAccent : Colors.white70),
+                          ),
+                          if (!hasResearched && !isResearching)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Tap to begin research →',
+                                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+
           // ==================== HEALING DURATION SLIDER (only in Injury Healing tab) ====================
-          if (serviceName == 'Injury Healing') ...[
-            const SizedBox(height: 8),
-            const Text(
-              'Healing Duration (for new patients)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Slider(
-              value: _healingTimeInSeconds.toDouble(),
-              min: 180,   // 3:00
-              max: 240,   // 4:00
-              divisions: 3,
-              label: _formatTime(_healingTimeInSeconds),
-              onChanged: (double value) {
-                setState(() {
-                  _healingTimeInSeconds = value.round();
-                });
-              },
-              onChangeEnd: (double value) {
-                // Emit to server only when user finishes dragging
-                _updateHealingDuration(value.round());
-              },
-            ),
-            // Time labels
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Changes only affect new healing sessions',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 24),
-          ],
+          if (serviceName == 'Injury Healing')
+            ValueListenableBuilder<Map<String, dynamic>>(
+              valueListenable: SocketService().hospitalOwnershipNotifier,
+              builder: (context, ownership, _) {
+                final docId = widget.hospital['docId'] ?? '';
+                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
 
-          // Placeholder content for the service
-          Expanded(
-            child: Center(
-              child: Text(
-                '$serviceName settings will go here',
-                style: const TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-            ),
-          ),
+                // Dynamic min / divisions based on research
+                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
+                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
 
-          // Release Hospital button at the bottom of every tab
+                // Clamp current value if research just completed
+                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _healingTimeInSeconds = 120;
+                      });
+                    }
+                  });
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Healing Duration (for new patients)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
+                      min: minTime,
+                      max: 240,
+                      divisions: divisions,
+                      label: _formatTime(_healingTimeInSeconds),
+                      onChanged: (double value) {
+                        setState(() {
+                          _healingTimeInSeconds = value.round();
+                        });
+                      },
+                      onChangeEnd: (double value) {
+                        _updateHealingDuration(value.round());
+                      },
+                    ),
+                    // Dynamic time labels
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: hasEfficientDoctors
+                            ? const [
+                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ]
+                            : const [
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasEfficientDoctors
+                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
+                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+            ),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -285,6 +471,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
           ),
         ],
       ),
+    )
     );
   }
 
@@ -351,7 +538,17 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
           final Map<String, dynamic> freshHospital = 
               (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
 
-          if (freshHospital['offerInjuryHealing'] != offerInjuryHealing) {
+          // ==================== ONLY sync if something important changed ====================
+          final bool shouldSync = _lastSyncedHospitalData == null ||
+              freshHospital['offerInjuryHealing'] != _lastSyncedHospitalData!['offerInjuryHealing'] ||
+              freshHospital['customHealCost'] != _lastSyncedHospitalData!['customHealCost'] ||
+              freshHospital['customHealingDuration'] != _lastSyncedHospitalData!['customHealingDuration'] ||
+              freshHospital['hasEfficientDoctors'] != _lastSyncedHospitalData!['hasEfficientDoctors'] ||
+              freshHospital['efficientDoctorsResearchEndTime'] != _lastSyncedHospitalData!['efficientDoctorsResearchEndTime'];
+
+          if (shouldSync) {
+            _lastSyncedHospitalData = Map<String, dynamic>.from(freshHospital);
+
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
