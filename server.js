@@ -20,7 +20,18 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
-const { handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, handleUpdateHospitalHealCost, handleWatchAdForFasterHealing, handleUpdateHospitalHealingDuration, handleStartEfficientDoctorsResearch, handleClaimEfficientDoctorsResearch, startEfficientDoctorsResearchChecker, catchUpEfficientDoctorsResearch } = require('./hospital.js');
+const { 
+  handleStartHealing, handleClaimHealing, handleHealBrokenBone, 
+  handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, 
+  startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, 
+  handleUpdateHospitalHealCost, handleWatchAdForFasterHealing, handleUpdateHospitalHealingDuration, 
+  handleStartEfficientDoctorsResearch, handleClaimEfficientDoctorsResearch, 
+  startHospitalResearchChecker, catchUpEfficientDoctorsResearch,
+  handleStartPerformanceResearch, handleClaimPerformanceResearch,
+  ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
+  catchUpPerformanceResearches,
+  calculateMaintenanceFee
+} = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
@@ -188,8 +199,9 @@ startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
 startHospitalMaintenanceChecker(db, { onlineSockets, io });
-startEfficientDoctorsResearchChecker(db, { io });
+startHospitalResearchChecker(db, { io });  // generalized checker for all researches
 catchUpEfficientDoctorsResearch(db, { io });
+catchUpPerformanceResearches(db, { io });
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
@@ -772,9 +784,25 @@ socket.on('respawn', async () => {
   socket.on('claim-private-healing', async () => { await handleClaimPrivateHealing(db, socket)});
   socket.on('update-hospital-heal-cost', (data) => handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef }));
   socket.on('update-hospital-healing-duration', (data) => handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }));
+  
+  // Efficient Doctors
   socket.on('start-efficient-doctors-research', async (data) => { await handleStartEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
   socket.on('claim-efficient-doctors-research', async (data) => { await handleClaimEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
-  
+
+  // NEW: Performance Therapy Researches
+  socket.on('start-enhanced-stamina-research', async (data) => { 
+    await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_STAMINA_RESEARCH, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina');
+  });
+  socket.on('claim-enhanced-stamina-research', async (data) => { 
+    await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina');
+  });
+
+  socket.on('start-enhanced-constitution-research', async (data) => { 
+    await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_CONSTITUTION_RESEARCH, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution');
+  });
+  socket.on('claim-enhanced-constitution-research', async (data) => { 
+    await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution');
+  });
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;

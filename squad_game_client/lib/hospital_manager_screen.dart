@@ -29,6 +29,10 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   Timer? _researchTimer;
   bool _isStartingResearch = false;
 
+  // NEW: Track starting research for performance therapies (to disable tap)
+  bool _isStartingStaminaResearch = false;
+  bool _isStartingConstitutionResearch = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,7 +67,11 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
           ),
         );
 
-        setState(() => _isStartingResearch = false);
+        setState(() {
+          _isStartingResearch = false;
+          _isStartingStaminaResearch = false;
+          _isStartingConstitutionResearch = false;
+        });
       }
     }
   }
@@ -73,21 +81,34 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     _researchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
 
-      // === AUTO-CLAIM RESEARCH WHEN TIMER HITS ZERO ===
       final docId = widget.hospital['docId'];
       if (docId != null) {
         final fresh = SocketService().hospitalOwnershipNotifier.value[docId] 
             as Map<String, dynamic>? ?? widget.hospital;
 
-        final int? researchEndTime = fresh['efficientDoctorsResearchEndTime'] as int?;
-
-        if (researchEndTime != null && researchEndTime > 0 && researchEndTime <= SocketService().currentServerTime) {
+        // === AUTO-CLAIM EFFICIENT DOCTORS ===
+        final int? efficientEndTime = fresh['efficientDoctorsResearchEndTime'] as int?;
+        if (efficientEndTime != null && efficientEndTime > 0 && efficientEndTime <= SocketService().currentServerTime) {
             SocketService().socket?.emit('claim-efficient-doctors-research', {'hospitalDocId': docId});
             print('[RESEARCH] Auto-claimed Efficient Doctors research for $docId');
         }
+
+        // === NEW: AUTO-CLAIM ENHANCED STAMINA ===
+        final int? staminaEndTime = fresh['enhancedStaminaResearchEndTime'] as int?;
+        if (staminaEndTime != null && staminaEndTime > 0 && staminaEndTime <= SocketService().currentServerTime) {
+            SocketService().socket?.emit('claim-enhanced-stamina-research', {'hospitalDocId': docId});
+            print('[RESEARCH] Auto-claimed Enhanced Stamina research for $docId');
+        }
+
+        // === NEW: AUTO-CLAIM ENHANCED CONSTITUTION ===
+        final int? constitutionEndTime = fresh['enhancedConstitutionResearchEndTime'] as int?;
+        if (constitutionEndTime != null && constitutionEndTime > 0 && constitutionEndTime <= SocketService().currentServerTime) {
+            SocketService().socket?.emit('claim-enhanced-constitution-research', {'hospitalDocId': docId});
+            print('[RESEARCH] Auto-claimed Enhanced Constitution research for $docId');
+        }
       }
 
-      setState(() {}); // Refresh UI for countdown
+      setState(() {}); // Refresh UI for countdowns
     });
   }
 
@@ -186,7 +207,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     final List<String> active = [];
     if (offerInjuryHealing) active.add('Injury Healing');
     if (offerOrthopedicServices) active.add('Orthopedic Services');
-    if (offerPerformanceTherapy) active.add('Performance Therapy');
+    if (offerPerformanceTherapy) active.add('Performance enhancing');
     if (offerDiseaseTherapy) active.add('Disease Therapy');
     return active;
   }
@@ -325,7 +346,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                       : () {
                           final docId = widget.hospital['docId'];
                           if (docId != null) {
-                            setState(() => _isStartingResearch = true); // Disable tap immediately
+                            setState(() => _isStartingResearch = true);
 
                             SocketService().socket?.emit('start-efficient-doctors-research', {
                               'hospitalDocId': docId,
@@ -516,6 +537,254 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               },
             ),
 
+          // ==================== NEW: PERFORMANCE THERAPY RESEARCH CARDS ====================
+          if (serviceName == 'Performance enhancing')
+            Column(
+              children: [
+                // ========== ENHANCED STAMINA CARD ==========
+                ValueListenableBuilder<Map<String, dynamic>>(
+                  valueListenable: SocketService().hospitalOwnershipNotifier,
+                  builder: (context, ownership, _) {
+                    final docId = widget.hospital['docId'] ?? '';
+                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+
+                    final bool hasResearched = freshHospital['hasEnhancedStamina'] == true;
+                    final int? researchEndTime = freshHospital['enhancedStaminaResearchEndTime'] as int?;
+                    final bool isResearching = researchEndTime != null && researchEndTime > SocketService().currentServerTime;
+
+                    int remainingSeconds = 0;
+                    if (isResearching) {
+                      remainingSeconds = ((researchEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 30);
+                    }
+
+                    final bool offerEnabled = freshHospital['offerEnhancedStamina'] == true;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      color: hasResearched ? Colors.green[900] : Colors.grey[850],
+                      child: InkWell(
+                        onTap: (hasResearched || isResearching || _isStartingStaminaResearch)
+                          ? null
+                          : () {
+                              final docId = widget.hospital['docId'];
+                              if (docId != null) {
+                                setState(() => _isStartingStaminaResearch = true);
+
+                                SocketService().socket?.emit('start-enhanced-stamina-research', {
+                                  'hospitalDocId': docId,
+                                });
+                              }
+                            },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    hasResearched ? Icons.check_circle : Icons.science,
+                                    color: hasResearched ? Colors.greenAccent : Colors.amber,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Enhanced Stamina',
+                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                  if (isResearching)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'RESEARCHING... ${remainingSeconds}s',
+                                        style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                    )
+                                  else if (hasResearched)
+                                    const Text('✅ RESEARCHED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                                  else
+                                    const Text('\$1000 • 30s', style: TextStyle(color: Colors.amber)),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                hasResearched
+                                    ? 'Effect: Unlocks enhanced stamina therapy for patients (toggle below to enable).'
+                                    : 'Research this to unlock Enhanced Stamina therapy options for your hospital.',
+                                style: TextStyle(fontSize: 15, color: hasResearched ? Colors.greenAccent : Colors.white70),
+                              ),
+                              if (!hasResearched && !isResearching)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'Tap to begin research →',
+                                    style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+
+                              // NEW: Toggle switch when researched (off by default)
+                              if (hasResearched)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Enable Enhanced Stamina',
+                                        style: TextStyle(fontSize: 16, color: Colors.white70),
+                                      ),
+                                      Switch(
+                                        value: offerEnabled,
+                                        onChanged: (bool newValue) {
+                                          setState(() {
+                                            // Update local for immediate feedback
+                                          });
+                                          _saveSwitchState('offerEnhancedStamina', newValue);
+                                        },
+                                        activeColor: Colors.greenAccent,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                // ========== ENHANCED CONSTITUTION CARD ==========
+                ValueListenableBuilder<Map<String, dynamic>>(
+                  valueListenable: SocketService().hospitalOwnershipNotifier,
+                  builder: (context, ownership, _) {
+                    final docId = widget.hospital['docId'] ?? '';
+                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+
+                    final bool hasResearched = freshHospital['hasEnhancedConstitution'] == true;
+                    final int? researchEndTime = freshHospital['enhancedConstitutionResearchEndTime'] as int?;
+                    final bool isResearching = researchEndTime != null && researchEndTime > SocketService().currentServerTime;
+
+                    int remainingSeconds = 0;
+                    if (isResearching) {
+                      remainingSeconds = ((researchEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 30);
+                    }
+
+                    final bool offerEnabled = freshHospital['offerEnhancedConstitution'] == true;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      color: hasResearched ? Colors.green[900] : Colors.grey[850],
+                      child: InkWell(
+                        onTap: (hasResearched || isResearching || _isStartingConstitutionResearch)
+                          ? null
+                          : () {
+                              final docId = widget.hospital['docId'];
+                              if (docId != null) {
+                                setState(() => _isStartingConstitutionResearch = true);
+
+                                SocketService().socket?.emit('start-enhanced-constitution-research', {
+                                  'hospitalDocId': docId,
+                                });
+                              }
+                            },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    hasResearched ? Icons.check_circle : Icons.science,
+                                    color: hasResearched ? Colors.greenAccent : Colors.amber,
+                                    size: 28,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Enhanced Constitution',
+                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                  if (isResearching)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        'RESEARCHING... ${remainingSeconds}s',
+                                        style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                    )
+                                  else if (hasResearched)
+                                    const Text('✅ RESEARCHED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                                  else
+                                    const Text('\$1000 • 30s', style: TextStyle(color: Colors.amber)),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                hasResearched
+                                    ? 'Effect: Unlocks enhanced constitution therapy for patients (toggle below to enable).'
+                                    : 'Research this to unlock Enhanced Constitution therapy options for your hospital.',
+                                style: TextStyle(fontSize: 15, color: hasResearched ? Colors.greenAccent : Colors.white70),
+                              ),
+                              if (!hasResearched && !isResearching)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    'Tap to begin research →',
+                                    style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+
+                              // NEW: Toggle switch when researched (off by default)
+                              if (hasResearched)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Enable Enhanced Constitution',
+                                        style: TextStyle(fontSize: 16, color: Colors.white70),
+                                      ),
+                                      Switch(
+                                        value: offerEnabled,
+                                        onChanged: (bool newValue) {
+                                          setState(() {
+                                            // Update local for immediate feedback
+                                          });
+                                          _saveSwitchState('offerEnhancedConstitution', newValue);
+                                        },
+                                        activeColor: Colors.greenAccent,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+              ],
+            ),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -605,7 +874,12 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               freshHospital['customHealCost'] != _lastSyncedHospitalData!['customHealCost'] ||
               freshHospital['customHealingDuration'] != _lastSyncedHospitalData!['customHealingDuration'] ||
               freshHospital['hasEfficientDoctors'] != _lastSyncedHospitalData!['hasEfficientDoctors'] ||
-              freshHospital['efficientDoctorsResearchEndTime'] != _lastSyncedHospitalData!['efficientDoctorsResearchEndTime'];
+              freshHospital['efficientDoctorsResearchEndTime'] != _lastSyncedHospitalData!['efficientDoctorsResearchEndTime'] ||
+              // NEW: also sync on performance research changes
+              freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
+              freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
+              freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
+              freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'];
 
           if (shouldSync) {
             _lastSyncedHospitalData = Map<String, dynamic>.from(freshHospital);
