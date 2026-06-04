@@ -277,6 +277,89 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                 ),
               ),
             ),
+          
+          // ==================== HEALING DURATION SLIDER (only in Injury Healing tab) ====================
+          if (serviceName == 'Injury Healing')
+            ValueListenableBuilder<Map<String, dynamic>>(
+              valueListenable: SocketService().hospitalOwnershipNotifier,
+              builder: (context, ownership, _) {
+                final docId = widget.hospital['docId'] ?? '';
+                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
+
+                // Dynamic min / divisions based on research
+                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
+                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
+
+                // Clamp current value if research just completed
+                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _healingTimeInSeconds = 120;
+                      });
+                    }
+                  });
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Healing Duration (for new patients)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
+                      min: minTime,
+                      max: 240,
+                      divisions: divisions,
+                      label: _formatTime(_healingTimeInSeconds),
+                      onChanged: (double value) {
+                        setState(() {
+                          _healingTimeInSeconds = value.round();
+                        });
+                      },
+                      onChangeEnd: (double value) {
+                        _updateHealingDuration(value.round());
+                      },
+                    ),
+                    // Dynamic time labels
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: hasEfficientDoctors
+                            ? const [
+                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ]
+                            : const [
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasEfficientDoctors
+                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
+                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+            ),
 
           // ==================== EFFICIENT DOCTORS RESEARCH CARD (Injury Healing tab) ====================
           if (serviceName == 'Injury Healing')
@@ -372,89 +455,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               },
             ),
 
-          // ==================== HEALING DURATION SLIDER (only in Injury Healing tab) ====================
-          if (serviceName == 'Injury Healing')
-            ValueListenableBuilder<Map<String, dynamic>>(
-              valueListenable: SocketService().hospitalOwnershipNotifier,
-              builder: (context, ownership, _) {
-                final docId = widget.hospital['docId'] ?? '';
-                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
-                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
-
-                // Dynamic min / divisions based on research
-                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
-                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
-
-                // Clamp current value if research just completed
-                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _healingTimeInSeconds = 120;
-                      });
-                    }
-                  });
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Healing Duration (for new patients)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
-                      min: minTime,
-                      max: 240,
-                      divisions: divisions,
-                      label: _formatTime(_healingTimeInSeconds),
-                      onChanged: (double value) {
-                        setState(() {
-                          _healingTimeInSeconds = value.round();
-                        });
-                      },
-                      onChangeEnd: (double value) {
-                        _updateHealingDuration(value.round());
-                      },
-                    ),
-                    // Dynamic time labels
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: hasEfficientDoctors
-                            ? const [
-                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ]
-                            : const [
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      hasEfficientDoctors
-                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
-                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-            ),
-
+          
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
