@@ -108,6 +108,27 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     _healingTimeInSeconds = (durationMs / 1000).round().clamp(minClamp, 240);
   }
 
+  // ==================== NEW: Dynamic Maintenance Fee Calculator (matches server) ====================
+  int _calculateMaintenanceFee(int durationSeconds) {
+    if (durationSeconds >= 240) return 10;
+    
+    int fee = 10;
+    
+    // Tier 1: 4:00 → 3:00 (every 20s reduced = +$4)
+    if (durationSeconds < 240) {
+      final reductionsTier1 = ((240 - durationSeconds) / 20).floor();
+      fee += reductionsTier1.clamp(0, 3) * 4;
+    }
+    
+    // Tier 2: 3:00 → 2:00 (every 20s reduced = +$5)
+    if (durationSeconds < 180) {
+      final reductionsTier2 = ((180 - durationSeconds) / 20).floor();
+      fee += reductionsTier2 * 5;
+    }
+    
+    return fee;
+  }
+
     void _saveSwitchState(String field, bool value) {
     final docId = widget.hospital['docId'];
     if (docId == null) return;
@@ -277,89 +298,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                 ),
               ),
             ),
-          
-          // ==================== HEALING DURATION SLIDER (only in Injury Healing tab) ====================
-          if (serviceName == 'Injury Healing')
-            ValueListenableBuilder<Map<String, dynamic>>(
-              valueListenable: SocketService().hospitalOwnershipNotifier,
-              builder: (context, ownership, _) {
-                final docId = widget.hospital['docId'] ?? '';
-                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
-                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
-
-                // Dynamic min / divisions based on research
-                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
-                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
-
-                // Clamp current value if research just completed
-                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _healingTimeInSeconds = 120;
-                      });
-                    }
-                  });
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Healing Duration (for new patients)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
-                      min: minTime,
-                      max: 240,
-                      divisions: divisions,
-                      label: _formatTime(_healingTimeInSeconds),
-                      onChanged: (double value) {
-                        setState(() {
-                          _healingTimeInSeconds = value.round();
-                        });
-                      },
-                      onChangeEnd: (double value) {
-                        _updateHealingDuration(value.round());
-                      },
-                    ),
-                    // Dynamic time labels
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: hasEfficientDoctors
-                            ? const [
-                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ]
-                            : const [
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      hasEfficientDoctors
-                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
-                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-            ),
 
           // ==================== EFFICIENT DOCTORS RESEARCH CARD (Injury Healing tab) ====================
           if (serviceName == 'Injury Healing')
@@ -455,7 +393,129 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               },
             ),
 
-          
+          // ==================== HEALING DURATION SLIDER + LIVE MAINTENANCE FEE (Injury Healing tab) ====================
+          if (serviceName == 'Injury Healing')
+            ValueListenableBuilder<Map<String, dynamic>>(
+              valueListenable: SocketService().hospitalOwnershipNotifier,
+              builder: (context, ownership, _) {
+                final docId = widget.hospital['docId'] ?? '';
+                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
+
+                // Dynamic min / divisions based on research
+                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
+                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
+
+                // Clamp current value if research just completed
+                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _healingTimeInSeconds = 120;
+                      });
+                    }
+                  });
+                }
+
+                // ==================== LIVE MAINTENANCE FEE ====================
+                final int currentFee = _calculateMaintenanceFee(_healingTimeInSeconds);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Healing Duration (for new patients)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
+                      min: minTime,
+                      max: 240,
+                      divisions: divisions,
+                      label: _formatTime(_healingTimeInSeconds),
+                      onChanged: (double value) {
+                        setState(() {
+                          _healingTimeInSeconds = value.round();
+                        });
+                      },
+                      onChangeEnd: (double value) {
+                        _updateHealingDuration(value.round());
+                      },
+                    ),
+                    // Dynamic time labels
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: hasEfficientDoctors
+                            ? const [
+                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ]
+                            : const [
+                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      hasEfficientDoctors
+                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
+                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ==================== LIVE MAINTENANCE FEE DISPLAY ====================
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.attach_money, color: Colors.red, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Current Maintenance Fee',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.red),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '\$$currentFee every 2 minutes',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+            ),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

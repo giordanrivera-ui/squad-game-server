@@ -1,6 +1,32 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
+// ==================== DYNAMIC MAINTENANCE FEE CALCULATOR ====================
+// Base: $10 at 4:00 (240s)
+// Tier 1 (4:00 → 3:00): Every 20s reduced = +$4
+// Tier 2 (3:00 → 2:00): Every 20s reduced = +$5
+function calculateMaintenanceFee(healingDurationMs) {
+  const durationSec = Math.round((healingDurationMs || 240000) / 1000);
+  
+  if (durationSec >= 240) return 10;
+  
+  let fee = 10;
+  
+  // Tier 1 reductions (240s → 180s)
+  if (durationSec < 240) {
+    const reductionsTier1 = Math.floor((240 - durationSec) / 20);
+    fee += Math.min(reductionsTier1, 3) * 4;
+  }
+  
+  // Tier 2 reductions (below 180s)
+  if (durationSec < 180) {
+    const reductionsTier2 = Math.floor((180 - durationSec) / 20);
+    fee += reductionsTier2 * 5;
+  }
+  
+  return fee;
+}
+
 async function getAllHospitalOwnership(hospitalOwnershipRef) {
   const snapshot = await hospitalOwnershipRef.get();
   const ownership = {};
@@ -297,7 +323,9 @@ function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
         if (!ownerDoc.exists) continue;
 
         const owner = ownerDoc.data();
-        const fee = 10;
+        
+        // ==================== DYNAMIC FEE ====================
+        const fee = calculateMaintenanceFee(h.customHealingDuration);
 
         if ((owner.balance || 0) >= fee) {
           // Has enough money → deduct normally
@@ -308,7 +336,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
           const txRef = ownerRef.collection('transactions').doc();
           batch.set(txRef, {
             amount: -fee,
-            description: 'Hospital Maintenance - Injury Healing',
+            description: `Hospital Maintenance - Injury Healing ($${fee})`,
             balanceAfter: (owner.balance || 0) - fee,
             timestamp: admin.firestore.FieldValue.serverTimestamp()
           });
@@ -322,7 +350,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
           console.log(`[HOSPITAL MAINT] $${fee} deducted from ${owner.displayName || h.ownerEmail}`);
         } else {
           // ==================== AUTO-DISABLE LOGIC ====================
-          console.log(`[HOSPITAL MAINT] ${owner.displayName || h.ownerEmail} has insufficient funds ($${(owner.balance || 0)}). Auto-disabling Injury Healing for hospital ${doc.id}`);
+          console.log(`[HOSPITAL MAINT] ${owner.displayName || h.ownerEmail} has insufficient funds ($${(owner.balance || 0)}). Auto-disabling Injury Healing for hospital ${doc.id} (fee was $${fee})`);
 
           hospitalsToDisable.push(doc.ref);
 
@@ -330,7 +358,7 @@ function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
             const ownerSocket = onlineSockets.get(owner.displayName);
             if (ownerSocket) {
               ownerSocket.emit('error', {
-                message: "Injury Healing has been automatically disabled on your hospital because you don't have enough money for the $10 maintenance fee."
+                message: `Injury Healing has been automatically disabled on your hospital because you don't have enough money for the $${fee} maintenance fee.`
               });
             }
           }
@@ -338,32 +366,32 @@ function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
       }
 
       // Disable hospitals that couldn't afford the fee
-for (const hospitalRef of hospitalsToDisable) {
-  batch.update(hospitalRef, { offerInjuryHealing: false });
-}
-
-await batch.commit();
-
-if (hospitalsToDisable.length > 0) {
-  console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
-
-  // === FIX: Broadcast the update to all clients ===
-  const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-  io.emit('hospital-ownership-update', freshOwnership);   // ← This line was missing
-
-  // Also notify the specific owners (optional but nice)
-  for (const doc of hospitalsToDisable) {
-    const h = (await doc.get()).data();
-    if (h?.ownerEmail) {
-      const ownerSocket = onlineSockets.get(h.ownerDisplayName);
-      if (ownerSocket) {
-        ownerSocket.emit('error', {
-          message: "Injury Healing has been automatically disabled because you don't have enough money for the $10 maintenance fee."
-        });
+      for (const hospitalRef of hospitalsToDisable) {
+        batch.update(hospitalRef, { offerInjuryHealing: false });
       }
-    }
-  }
-}
+
+      await batch.commit();
+
+      if (hospitalsToDisable.length > 0) {
+        console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
+
+        // === FIX: Broadcast the update to all clients ===
+        const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
+        io.emit('hospital-ownership-update', freshOwnership);
+
+        // Also notify the specific owners (optional but nice)
+        for (const doc of hospitalsToDisable) {
+          const h = (await doc.get()).data();
+          if (h?.ownerEmail) {
+            const ownerSocket = onlineSockets.get(h.ownerDisplayName);
+            if (ownerSocket) {
+              ownerSocket.emit('error', {
+                message: "Injury Healing has been automatically disabled because you don't have enough money for the maintenance fee."
+              });
+            }
+          }
+        }
+      }
 
       // Notify players who paid
       for (const p of playersToNotify) {
@@ -373,7 +401,7 @@ if (hospitalsToDisable.length > 0) {
           socket.emit('update-stats', fresh.data());
           socket.emit('new-transaction', {
             amount: -p.fee,
-            description: 'Hospital Maintenance - Injury Healing',
+            description: `Hospital Maintenance - Injury Healing ($${p.fee})`,
             balanceAfter: fresh.data().balance
           });
         }
@@ -936,5 +964,6 @@ module.exports = {
   handleStartEfficientDoctorsResearch,
   handleClaimEfficientDoctorsResearch,
   startEfficientDoctorsResearchChecker,
-  catchUpEfficientDoctorsResearch
+  catchUpEfficientDoctorsResearch,
+  calculateMaintenanceFee   // ← Exported in case other modules need it later
 };
