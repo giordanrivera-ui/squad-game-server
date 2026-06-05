@@ -33,6 +33,10 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   bool _isStartingStaminaResearch = false;
   bool _isStartingConstitutionResearch = false;
 
+  // ==================== NEW: Price controllers for performance services ====================
+  final TextEditingController _staminaCostController = TextEditingController();
+  final TextEditingController _constitutionCostController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +52,9 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     SocketService().socket?.off('research-result', _onResearchResult);
     
     _researchTimer?.cancel();
+    _costController.dispose();
+    _staminaCostController.dispose();
+    _constitutionCostController.dispose();
     super.dispose();
   }
 
@@ -112,7 +119,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     });
   }
 
-  // ==================== Sync local state from hospital data (now includes duration + research) ====================
+  // ==================== Sync local state from hospital data (now includes duration + research + new costs) ====================
   void _syncFromHospitalData(Map<String, dynamic> hospitalData) {
     offerInjuryHealing = hospitalData['offerInjuryHealing'] ?? false;
     offerOrthopedicServices = hospitalData['offerOrthopedicServices'] ?? false;
@@ -127,6 +134,13 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     final bool hasEfficient = hospitalData['hasEfficientDoctors'] == true;
     final int minClamp = hasEfficient ? 120 : 180;
     _healingTimeInSeconds = (durationMs / 1000).round().clamp(minClamp, 240);
+
+    // ==================== NEW: Sync performance service prices ====================
+    final int staminaCost = (hospitalData['customStaminaCost'] as num?)?.toInt() ?? 150;
+    _staminaCostController.text = staminaCost.toString();
+
+    final int constitutionCost = (hospitalData['customConstitutionCost'] as num?)?.toInt() ?? 150;
+    _constitutionCostController.text = constitutionCost.toString();
   }
 
   // ==================== NEW: Dynamic Maintenance Fee Calculator (matches server) ====================
@@ -199,6 +213,52 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     setState(() => _healingTimeInSeconds = seconds);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Healing time updated to ${_formatTime(seconds)}')),
+    );
+  }
+
+  // ==================== NEW: Update Stamina Cost ====================
+  void _updateStaminaCost() {
+    final newCost = int.tryParse(_staminaCostController.text);
+    if (newCost == null || newCost < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid cost ≥ \$1')),
+      );
+      return;
+    }
+
+    final docId = widget.hospital['docId'];
+    if (docId == null) return;
+
+    SocketService().socket?.emit('update-hospital-stamina-cost', {
+      'docId': docId,
+      'newCost': newCost,
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Stamina price updated to \$$newCost')),
+    );
+  }
+
+  // ==================== NEW: Update Constitution Cost ====================
+  void _updateConstitutionCost() {
+    final newCost = int.tryParse(_constitutionCostController.text);
+    if (newCost == null || newCost < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid cost ≥ \$1')),
+      );
+      return;
+    }
+
+    final docId = widget.hospital['docId'];
+    if (docId == null) return;
+
+    SocketService().socket?.emit('update-hospital-constitution-cost', {
+      'docId': docId,
+      'newCost': newCost,
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Constitution price updated to \$$newCost')),
     );
   }
   
@@ -653,6 +713,44 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                                     ],
                                   ),
                                 ),
+
+                              // ==================== NEW: Stamina Price Editor ====================
+                              if (hasResearched)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Stamina Service Price (paid to you)',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white70),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _staminaCostController,
+                                              keyboardType: TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                prefixText: '\$',
+                                                border: OutlineInputBorder(),
+                                                hintText: 'Enter price',
+                                                fillColor: Colors.white,
+                                                filled: true,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton(
+                                            onPressed: _updateStaminaCost,
+                                            child: const Text('Save'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -773,6 +871,44 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                                     ],
                                   ),
                                 ),
+
+                              // ==================== NEW: Constitution Price Editor ====================
+                              if (hasResearched)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Constitution Service Price (paid to you)',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white70),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextField(
+                                              controller: _constitutionCostController,
+                                              keyboardType: TextInputType.number,
+                                              decoration: const InputDecoration(
+                                                prefixText: '\$',
+                                                border: OutlineInputBorder(),
+                                                hintText: 'Enter price',
+                                                fillColor: Colors.white,
+                                                filled: true,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          ElevatedButton(
+                                            onPressed: _updateConstitutionCost,
+                                            child: const Text('Save'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -879,7 +1015,10 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
               freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
               freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
-              freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'];
+              freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'] ||
+              // NEW: sync on performance cost changes
+              freshHospital['customStaminaCost'] != _lastSyncedHospitalData!['customStaminaCost'] ||
+              freshHospital['customConstitutionCost'] != _lastSyncedHospitalData!['customConstitutionCost'];
 
           if (shouldSync) {
             _lastSyncedHospitalData = Map<String, dynamic>.from(freshHospital);

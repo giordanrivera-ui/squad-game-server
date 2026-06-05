@@ -69,9 +69,12 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
         final int healingDurationMs = (freshHospital['customHealingDuration'] as num?)?.toInt() ?? 240000;
         final String formattedDuration = _formatDuration(healingDurationMs);
 
-        // Check for new performance services (real-time)
+        // ==================== NEW: Dynamic costs for performance services ====================
         final bool offersEnhancedStamina = freshHospital['offerEnhancedStamina'] == true;
         final bool offersEnhancedConstitution = freshHospital['offerEnhancedConstitution'] == true;
+
+        final int staminaCost = (freshHospital['customStaminaCost'] as num?)?.toInt() ?? 150;
+        final int constitutionCost = (freshHospital['customConstitutionCost'] as num?)?.toInt() ?? 150;
 
         return ValueListenableBuilder<Map<String, dynamic>>(
           valueListenable: SocketService().statsNotifier,
@@ -146,10 +149,12 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                         onTap: (canHeal && !_isHealingRequested)
                             ? () {
                                 setState(() => _isHealingRequested = true);
+
                                 SocketService().socket?.emit('start-private-healing', {
                                   'hospitalDocId': docId,
                                   'ownerEmail': freshHospital['ownerEmail'],
                                 });
+
                                 Future.delayed(const Duration(seconds: 3), () {
                                   if (mounted) setState(() => _isHealingRequested = false);
                                 });
@@ -167,9 +172,9 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                           iconColor: Colors.amber,
                           title: 'Enhanced Stamina',
                           subtitle: 'Improved stamina recovery & performance',
-                          costText: 'Coming soon',
+                          costText: '\$$staminaCost  •  Paid to owner',
                           durationText: null,
-                          buttonText: 'Learn More',
+                          buttonText: 'Purchase (Coming Soon)',
                           buttonColor: Colors.amber,
                           onTap: () => _showComingSoon('Enhanced Stamina'),
                         ),
@@ -184,9 +189,9 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                           iconColor: Colors.blue,
                           title: 'Enhanced Constitution',
                           subtitle: 'Improved health & resilience',
-                          costText: 'Coming soon',
+                          costText: '\$$constitutionCost  •  Paid to owner',
                           durationText: null,
-                          buttonText: 'Learn More',
+                          buttonText: 'Purchase (Coming Soon)',
                           buttonColor: Colors.blue,
                           onTap: () => _showComingSoon('Enhanced Constitution'),
                         ),

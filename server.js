@@ -30,7 +30,9 @@ const {
   handleStartPerformanceResearch, handleClaimPerformanceResearch,
   ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
   catchUpPerformanceResearches,
-  calculateMaintenanceFee
+  calculateMaintenanceFee,
+  handleUpdateHospitalStaminaCost,
+  handleUpdateHospitalConstitutionCost
 } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
@@ -784,25 +786,14 @@ socket.on('respawn', async () => {
   socket.on('claim-private-healing', async () => { await handleClaimPrivateHealing(db, socket)});
   socket.on('update-hospital-heal-cost', (data) => handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef }));
   socket.on('update-hospital-healing-duration', (data) => handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }));
-  
-  // Efficient Doctors
   socket.on('start-efficient-doctors-research', async (data) => { await handleStartEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
   socket.on('claim-efficient-doctors-research', async (data) => { await handleClaimEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
-
-  // NEW: Performance Therapy Researches
-  socket.on('start-enhanced-stamina-research', async (data) => { 
-    await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_STAMINA_RESEARCH, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina');
-  });
-  socket.on('claim-enhanced-stamina-research', async (data) => { 
-    await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina');
-  });
-
-  socket.on('start-enhanced-constitution-research', async (data) => { 
-    await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_CONSTITUTION_RESEARCH, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution');
-  });
-  socket.on('claim-enhanced-constitution-research', async (data) => { 
-    await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution');
-  });
+  socket.on('start-enhanced-stamina-research', async (data) => { await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_STAMINA_RESEARCH, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina')});
+  socket.on('claim-enhanced-stamina-research', async (data) => { await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina')});
+  socket.on('start-enhanced-constitution-research', async (data) => { await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_CONSTITUTION_RESEARCH, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution')});
+  socket.on('claim-enhanced-constitution-research', async (data) => { await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution')});
+  socket.on('update-hospital-stamina-cost', (data) => handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-constitution-cost', (data) => handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }));
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;

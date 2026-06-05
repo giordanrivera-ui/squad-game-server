@@ -205,10 +205,11 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     offerPerformanceTherapy: false,
     offerDiseaseTherapy: false,
     customHealCost: 50,
-    customHealingDuration: 240000,          // ← NEW: default 4 minutes
+    customHealingDuration: 240000,
+    customStaminaCost: 150,
+    customConstitutionCost: 150,
     hasEfficientDoctors: false,
     efficientDoctorsResearchEndTime: 0,
-    // NEW: Performance Therapy researches
     hasEnhancedStamina: false,
     enhancedStaminaResearchEndTime: 0,
     hasEnhancedConstitution: false,
@@ -248,6 +249,8 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
     claimedAt: null,
     customHealCost: 50,
     customHealingDuration: 240000,
+    customStaminaCost: 150,
+    customConstitutionCost: 150,
     hasEfficientDoctors: false,
     efficientDoctorsResearchEndTime: 0,
     // NEW: reset performance researches
@@ -680,6 +683,60 @@ async function handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef
   await hospitalOwnershipRef.doc(docId).update({ customHealCost: newCost });
 
   console.log(`[HOSPITAL] ${email} changed heal cost of ${docId} to $${newCost}`);
+
+  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
+  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+}
+
+// ==================== UPDATE CUSTOM STAMINA COST ====================
+async function handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }) {
+  const email = socket.data.email;
+  const { docId, newCost } = data;
+
+  if (!email || !docId || typeof newCost !== 'number' || newCost < 1) {
+    socket.emit('error', { message: 'Invalid stamina cost.' });
+    return;
+  }
+
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({ customStaminaCost: newCost });
+
+  console.log(`[HOSPITAL] ${email} changed Stamina cost of ${docId} to $${newCost}`);
+
+  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
+  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+}
+
+// ==================== UPDATE CUSTOM CONSTITUTION COST ====================
+async function handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }) {
+  const email = socket.data.email;
+  const { docId, newCost } = data;
+
+  if (!email || !docId || typeof newCost !== 'number' || newCost < 1) {
+    socket.emit('error', { message: 'Invalid constitution cost.' });
+    return;
+  }
+
+  const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  await hospitalOwnershipRef.doc(docId).update({ customConstitutionCost: newCost });
+
+  console.log(`[HOSPITAL] ${email} changed Constitution cost of ${docId} to $${newCost}`);
 
   const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
@@ -1191,13 +1248,14 @@ module.exports = {
   handleUpdateHospitalHealingDuration,
   handleStartEfficientDoctorsResearch,
   handleClaimEfficientDoctorsResearch,
-  startHospitalResearchChecker,  // renamed/generalized
+  startHospitalResearchChecker,
   catchUpEfficientDoctorsResearch,
   calculateMaintenanceFee,
-  // NEW exports for performance researches
   handleStartPerformanceResearch,
   handleClaimPerformanceResearch,
   ENHANCED_STAMINA_RESEARCH,
   ENHANCED_CONSTITUTION_RESEARCH,
-  catchUpPerformanceResearches
+  catchUpPerformanceResearches,
+  handleUpdateHospitalStaminaCost,
+  handleUpdateHospitalConstitutionCost,
 };
