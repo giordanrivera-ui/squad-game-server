@@ -23,11 +23,25 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    SocketService().socket?.on('enhanced-stamina-purchased', (data) {
+      if (data is Map && mounted) {
+        final success = data['success'] ?? false;
+        final message = data['message'] ?? '';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    SocketService().socket?.off('enhanced-stamina-purchased');
     super.dispose();
   }
 
@@ -171,12 +185,17 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                           icon: Icons.bolt,
                           iconColor: Colors.amber,
                           title: 'Enhanced Stamina',
-                          subtitle: 'Improved stamina recovery & performance',
+                          subtitle: 'Reduces all operation cooldowns by 3 seconds',
                           costText: '\$$staminaCost  •  Paid to owner',
-                          durationText: null,
-                          buttonText: 'Purchase (Coming Soon)',
+                          durationText: 'Duration: 5 minutes',
+                          buttonText: 'Purchase Enhanced Stamina',
                           buttonColor: Colors.amber,
-                          onTap: () => _showComingSoon('Enhanced Stamina'),
+                          onTap: () {
+                            SocketService().socket?.emit('purchase-enhanced-stamina', {
+                              'hospitalDocId': docId,
+                              'ownerEmail': freshHospital['ownerEmail'],
+                            });
+                          },
                         ),
                       ),
 

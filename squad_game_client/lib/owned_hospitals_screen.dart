@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'hospital_manager_screen.dart';   // ← NEW IMPORT
+import 'hospital_manager/hospital_manager_screen.dart';
 
 class OwnedHospitalsScreen extends StatelessWidget {
   const OwnedHospitalsScreen({super.key});

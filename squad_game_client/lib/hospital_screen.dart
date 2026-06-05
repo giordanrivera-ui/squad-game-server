@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'public_hospital_screen.dart';
 import 'private_hospital_heal_screen.dart';
-import 'hospital_manager_screen.dart';
+import 'hospital_manager/hospital_manager_screen.dart';
 import 'socket_service.dart';
 import 'owned_hospitals_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';

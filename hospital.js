@@ -1233,6 +1233,100 @@ function startHospitalResearchChecker(db, { io }) {
   }, 5000); // Check every 5 seconds
 }
 
+// ==================== ENHANCED STAMINA SERVICE ====================
+async function handlePurchaseEnhancedStamina(db, socket, data) {
+  const patientEmail = socket.data.email;
+  const hospitalDocId = data.hospitalDocId;
+  const ownerEmail = data.ownerEmail;
+
+  if (!patientEmail || !hospitalDocId || !ownerEmail) return;
+
+  const patientRef = db.collection('players').doc(patientEmail);
+  const ownerRef = db.collection('players').doc(ownerEmail);
+  const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const patientDoc = await transaction.get(patientRef);
+      if (!patientDoc.exists) throw new Error('Player not found');
+
+      const patient = patientDoc.data();
+
+      // Check if buff is already active
+      if (patient.enhancedStaminaEndTime && patient.enhancedStaminaEndTime > Date.now()) {
+        throw new Error('Enhanced Stamina is already active');
+      }
+
+      const hospitalDoc = await transaction.get(hospitalRef);
+      if (!hospitalDoc.exists) throw new Error('Hospital not found');
+
+      const hospitalData = hospitalDoc.data();
+
+      if (!hospitalData.offerEnhancedStamina) {
+        throw new Error('This hospital is not offering Enhanced Stamina');
+      }
+
+      const cost = hospitalData.customStaminaCost ?? 150;
+
+      if ((patient.balance || 0) < cost) {
+        throw new Error('Not enough money');
+      }
+
+      const ownerDoc = await transaction.get(ownerRef);
+      if (!ownerDoc.exists) throw new Error('Hospital owner not found');
+
+      const owner = ownerDoc.data();
+
+      const newPatientBalance = (patient.balance || 0) - cost;
+      const newOwnerBalance = (owner.balance || 0) + cost;
+      const buffEndTime = Date.now() + (5 * 60 * 1000); // 5 minutes (change to 90 later)
+
+      // Update patient
+      transaction.update(patientRef, {
+        balance: newPatientBalance,
+        enhancedStaminaEndTime: buffEndTime
+      });
+
+      // Update owner
+      transaction.update(ownerRef, {
+        balance: newOwnerBalance
+      });
+
+      // Log transactions
+      const patientTxRef = patientRef.collection('transactions').doc();
+      transaction.set(patientTxRef, {
+        amount: -cost,
+        description: `Purchased Enhanced Stamina (${hospitalData.location})`,
+        balanceAfter: newPatientBalance,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const ownerTxRef = ownerRef.collection('transactions').doc();
+      transaction.set(ownerTxRef, {
+        amount: cost,
+        description: `Enhanced Stamina Service Fee`,
+        balanceAfter: newOwnerBalance,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    // Success
+    const freshPatient = await patientRef.get();
+    socket.emit('update-stats', freshPatient.data());
+    socket.emit('enhanced-stamina-purchased', { 
+      success: true, 
+      message: 'Enhanced Stamina activated! -3s cooldown for 5 minutes.' 
+    });
+
+  } catch (error) {
+    console.error('Enhanced Stamina purchase error:', error.message);
+    socket.emit('enhanced-stamina-purchased', { 
+      success: false, 
+      message: error.message 
+    });
+  }
+}
+
 module.exports = {
   handleStartHealing,
   handleClaimHealing,
@@ -1258,4 +1352,5 @@ module.exports = {
   catchUpPerformanceResearches,
   handleUpdateHospitalStaminaCost,
   handleUpdateHospitalConstitutionCost,
+  handlePurchaseEnhancedStamina
 };

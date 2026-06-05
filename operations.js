@@ -22,7 +22,11 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
   // ==================== COOLDOWN LOGIC WITH SKILL REDUCTION ====================
   const skill = p.skill || 0;
-  const reductionMs = Math.floor(skill * 500);
+  let reductionMs = Math.floor(skill * 500);
+
+  if (p.enhancedStaminaEndTime && Date.now() < p.enhancedStaminaEndTime) {
+    reductionMs += 3000;
+  }
 
   let isHighLevel = false;
   let cooldownTime = 60000 - reductionMs;

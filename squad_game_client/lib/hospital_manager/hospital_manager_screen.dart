@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'status_app_bar.dart';
-import 'socket_service.dart';
+import '../status_app_bar.dart';
+import '../socket_service.dart';
 import 'dart:async';
+import 'injury_healing_tab_content.dart';
 
 class HospitalManagerScreen extends StatefulWidget {
   final Map<String, dynamic> hospital;
@@ -18,11 +19,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   late bool offerPerformanceTherapy;
   late bool offerDiseaseTherapy;
 
-  late int _healCost;
-  final TextEditingController _costController = TextEditingController();
-
-  // ==================== NEW: Healing Duration Slider State ====================
-  int _healingTimeInSeconds = 240; // Default 4:00
   Map<String, dynamic>? _lastSyncedHospitalData;
 
   // ==================== EFFICIENT DOCTORS RESEARCH STATE ====================
@@ -52,7 +48,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     SocketService().socket?.off('research-result', _onResearchResult);
     
     _researchTimer?.cancel();
-    _costController.dispose();
     _staminaCostController.dispose();
     _constitutionCostController.dispose();
     super.dispose();
@@ -126,15 +121,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     offerPerformanceTherapy = hospitalData['offerPerformanceTherapy'] ?? false;
     offerDiseaseTherapy = hospitalData['offerDiseaseTherapy'] ?? false;
 
-    _healCost = (hospitalData['customHealCost'] as num?)?.toInt() ?? 50;
-    _costController.text = _healCost.toString();
-
-    // NEW: Load custom healing duration (default 240 seconds = 4 minutes)
-    final durationMs = (hospitalData['customHealingDuration'] as num?)?.toInt() ?? 240000;
-    final bool hasEfficient = hospitalData['hasEfficientDoctors'] == true;
-    final int minClamp = hasEfficient ? 120 : 180;
-    _healingTimeInSeconds = (durationMs / 1000).round().clamp(minClamp, 240);
-
     // ==================== NEW: Sync performance service prices ====================
     final int staminaCost = (hospitalData['customStaminaCost'] as num?)?.toInt() ?? 150;
     _staminaCostController.text = staminaCost.toString();
@@ -143,28 +129,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     _constitutionCostController.text = constitutionCost.toString();
   }
 
-  // ==================== NEW: Dynamic Maintenance Fee Calculator (matches server) ====================
-  int _calculateMaintenanceFee(int durationSeconds) {
-    if (durationSeconds >= 240) return 10;
-    
-    int fee = 10;
-    
-    // Tier 1: 4:00 → 3:00 (every 20s reduced = +$4)
-    if (durationSeconds < 240) {
-      final reductionsTier1 = ((240 - durationSeconds) / 20).floor();
-      fee += reductionsTier1.clamp(0, 3) * 4;
-    }
-    
-    // Tier 2: 3:00 → 2:00 (every 20s reduced = +$5)
-    if (durationSeconds < 180) {
-      final reductionsTier2 = ((180 - durationSeconds) / 20).floor();
-      fee += reductionsTier2 * 5;
-    }
-    
-    return fee;
-  }
-
-    void _saveSwitchState(String field, bool value) {
+  void _saveSwitchState(String field, bool value) {
     final docId = widget.hospital['docId'];
     if (docId == null) return;
 
@@ -175,15 +140,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     });
   }
 
-  void _updateHealCost() {
-    final newCost = int.tryParse(_costController.text);
-    if (newCost == null || newCost < 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid cost ≥ \$1')),
-      );
-      return;
-    }
-
+  // ==================== FIXED: Now accepts the cost from the child widget ====================
+  void _updateHealCost(int newCost) {
     final docId = widget.hospital['docId'];
     if (docId == null) return;
 
@@ -192,7 +150,6 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       'newCost': newCost,
     });
 
-    setState(() => _healCost = newCost);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Heal cost updated to \$$newCost')),
     );
@@ -210,7 +167,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
       'healingDurationMs': durationMs,
     });
 
-    setState(() => _healingTimeInSeconds = seconds);
+    // NOTE: Removed setState for _healingTimeInSeconds (no longer exists in parent - child manages it locally)
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Healing time updated to ${_formatTime(seconds)}')),
     );
@@ -272,8 +229,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     return active;
   }
 
-  // ==================== Dynamic bottom section ====================
-  Widget _buildBottomSection() {
+  // ==================== Dynamic bottom section (now receives fresh data) ====================
+  Widget _buildBottomSection(Map<String, dynamic> hospitalData) {
     final activeServices = _getActiveServices();
 
     if (activeServices.isEmpty) {
@@ -286,7 +243,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
               Icon(Icons.local_hospital, size: 120, color: Colors.purple[300]),
               const SizedBox(height: 24),
               Text(
-                '${widget.hospital['location']} Hospital #${widget.hospital['index']}',
+                '${hospitalData['location']} Hospital #${hospitalData['index']}',
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
@@ -324,7 +281,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
             Expanded(
               child: TabBarView(
                 children: activeServices.map((service) {
-                  return _buildServiceTab(service);
+                  return _buildServiceTab(service, hospitalData);
                 }).toList(),
               ),
             ),
@@ -334,266 +291,27 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     }
   }
 
-  // ==================== Content for each service tab ====================
-  Widget _buildServiceTab(String serviceName) {
+  // ==================== Content for each service tab (now receives fresh data) ====================
+  Widget _buildServiceTab(String serviceName, Map<String, dynamic> hospitalData) {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
           child: Column(
         children: [
-          // ==================== HEAL COST EDITOR (only in Injury Healing tab) ====================
           if (serviceName == 'Injury Healing')
-            Card(
-              margin: const EdgeInsets.only(bottom: 24),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Heal Cost (paid to you)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _costController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              prefixText: '\$',
-                              border: OutlineInputBorder(),
-                              hintText: 'Enter amount',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: _updateHealCost,
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // ==================== EFFICIENT DOCTORS RESEARCH CARD (Injury Healing tab) ====================
-          if (serviceName == 'Injury Healing')
-            ValueListenableBuilder<Map<String, dynamic>>(
-              valueListenable: SocketService().hospitalOwnershipNotifier,
-              builder: (context, ownership, _) {
-                final docId = widget.hospital['docId'] ?? '';
-                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
-
-                final bool hasResearched = freshHospital['hasEfficientDoctors'] == true;
-                final int? researchEndTime = freshHospital['efficientDoctorsResearchEndTime'] as int?;
-                final bool isResearching = researchEndTime != null && researchEndTime > SocketService().currentServerTime;
-
-                int remainingSeconds = 0;
-                if (isResearching) {
-                  remainingSeconds = ((researchEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 30);
-                }
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  color: hasResearched ? Colors.green[900] : Colors.grey[850],
-                  child: InkWell(
-                    onTap: (hasResearched || isResearching || _isStartingResearch)
-                      ? null
-                      : () {
-                          final docId = widget.hospital['docId'];
-                          if (docId != null) {
-                            setState(() => _isStartingResearch = true);
-
-                            SocketService().socket?.emit('start-efficient-doctors-research', {
-                              'hospitalDocId': docId,
-                            });
-                          }
-                        },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                hasResearched ? Icons.check_circle : Icons.science,
-                                color: hasResearched ? Colors.greenAccent : Colors.amber,
-                                size: 28,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Efficient Doctors',
-                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
-                              ),
-                              if (isResearching)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    'RESEARCHING... ${remainingSeconds}s',
-                                    style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12),
-                                  ),
-                                )
-                              else if (hasResearched)
-                                const Text('✅ RESEARCHED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
-                              else
-                                const Text('\$1000 • 30s', style: TextStyle(color: Colors.amber)),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            hasResearched
-                                ? 'Effect: Unlocks 2:00 minimum healing duration with 20-second increments.'
-                                : 'Research this technology to reduce the minimum healing time from 3:00 to 2:00 and allow finer control (every 20 seconds).',
-                            style: TextStyle(fontSize: 15, color: hasResearched ? Colors.greenAccent : Colors.white70),
-                          ),
-                          if (!hasResearched && !isResearching)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 12),
-                              child: Text(
-                                'Tap to begin research →',
-                                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-
-          // ==================== HEALING DURATION SLIDER + LIVE MAINTENANCE FEE (Injury Healing tab) ====================
-          if (serviceName == 'Injury Healing')
-            ValueListenableBuilder<Map<String, dynamic>>(
-              valueListenable: SocketService().hospitalOwnershipNotifier,
-              builder: (context, ownership, _) {
-                final docId = widget.hospital['docId'] ?? '';
-                final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
-                final bool hasEfficientDoctors = freshHospital['hasEfficientDoctors'] == true;
-
-                // Dynamic min / divisions based on research
-                final double minTime = hasEfficientDoctors ? 120.0 : 180.0;
-                final int divisions = hasEfficientDoctors ? 6 : 3; // 20s steps
-
-                // Clamp current value if research just completed
-                if (hasEfficientDoctors && _healingTimeInSeconds < 120) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _healingTimeInSeconds = 120;
-                      });
-                    }
+            InjuryHealingTabContent(
+              hospital: hospitalData, // Pass fresh data so child stays in sync
+              isStartingResearch: _isStartingResearch,
+              onUpdateHealCost: _updateHealCost,
+              onUpdateHealingDuration: _updateHealingDuration,
+              onStartEfficientDoctorsResearch: () {
+                final docId = hospitalData['docId'];
+                if (docId != null) {
+                  setState(() => _isStartingResearch = true);
+                  SocketService().socket?.emit('start-efficient-doctors-research', {
+                    'hospitalDocId': docId,
                   });
                 }
-
-                // ==================== LIVE MAINTENANCE FEE ====================
-                final int currentFee = _calculateMaintenanceFee(_healingTimeInSeconds);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Healing Duration (for new patients)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: _healingTimeInSeconds.toDouble().clamp(minTime, 240.0),
-                      min: minTime,
-                      max: 240,
-                      divisions: divisions,
-                      label: _formatTime(_healingTimeInSeconds),
-                      onChanged: (double value) {
-                        setState(() {
-                          _healingTimeInSeconds = value.round();
-                        });
-                      },
-                      onChangeEnd: (double value) {
-                        _updateHealingDuration(value.round());
-                      },
-                    ),
-                    // Dynamic time labels
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: hasEfficientDoctors
-                            ? const [
-                                Text('2:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('2:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ]
-                            : const [
-                                Text('3:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:20', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('3:40', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('4:00', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      hasEfficientDoctors
-                          ? 'Efficient Doctors researched — 2:00 minimum unlocked'
-                          : 'Research "Efficient Doctors" to unlock 2:00 minimum',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ==================== LIVE MAINTENANCE FEE DISPLAY ====================
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.attach_money, color: Colors.red, size: 28),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Current Maintenance Fee',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.red),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '\$$currentFee every 2 minutes',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                );
               },
             ),
 
@@ -605,8 +323,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                 ValueListenableBuilder<Map<String, dynamic>>(
                   valueListenable: SocketService().hospitalOwnershipNotifier,
                   builder: (context, ownership, _) {
-                    final docId = widget.hospital['docId'] ?? '';
-                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+                    final docId = hospitalData['docId'] ?? ''; // Use passed fresh data
+                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? hospitalData;
 
                     final bool hasResearched = freshHospital['hasEnhancedStamina'] == true;
                     final int? researchEndTime = freshHospital['enhancedStaminaResearchEndTime'] as int?;
@@ -626,7 +344,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                         onTap: (hasResearched || isResearching || _isStartingStaminaResearch)
                           ? null
                           : () {
-                              final docId = widget.hospital['docId'];
+                              final docId = hospitalData['docId'];
                               if (docId != null) {
                                 setState(() => _isStartingStaminaResearch = true);
 
@@ -763,8 +481,8 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                 ValueListenableBuilder<Map<String, dynamic>>(
                   valueListenable: SocketService().hospitalOwnershipNotifier,
                   builder: (context, ownership, _) {
-                    final docId = widget.hospital['docId'] ?? '';
-                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+                    final docId = hospitalData['docId'] ?? ''; // Use passed fresh data
+                    final freshHospital = (ownership[docId] as Map<String, dynamic>?) ?? hospitalData;
 
                     final bool hasResearched = freshHospital['hasEnhancedConstitution'] == true;
                     final int? researchEndTime = freshHospital['enhancedConstitutionResearchEndTime'] as int?;
@@ -784,7 +502,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                         onTap: (hasResearched || isResearching || _isStartingConstitutionResearch)
                           ? null
                           : () {
-                              final docId = widget.hospital['docId'];
+                              final docId = hospitalData['docId'];
                               if (docId != null) {
                                 setState(() => _isStartingConstitutionResearch = true);
 
@@ -1006,19 +724,18 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
           // ==================== ONLY sync if something important changed ====================
           final bool shouldSync = _lastSyncedHospitalData == null ||
-              freshHospital['offerInjuryHealing'] != _lastSyncedHospitalData!['offerInjuryHealing'] ||
-              freshHospital['customHealCost'] != _lastSyncedHospitalData!['customHealCost'] ||
-              freshHospital['customHealingDuration'] != _lastSyncedHospitalData!['customHealingDuration'] ||
-              freshHospital['hasEfficientDoctors'] != _lastSyncedHospitalData!['hasEfficientDoctors'] ||
-              freshHospital['efficientDoctorsResearchEndTime'] != _lastSyncedHospitalData!['efficientDoctorsResearchEndTime'] ||
-              // NEW: also sync on performance research changes
-              freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
-              freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
-              freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
-              freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'] ||
-              // NEW: sync on performance cost changes
-              freshHospital['customStaminaCost'] != _lastSyncedHospitalData!['customStaminaCost'] ||
-              freshHospital['customConstitutionCost'] != _lastSyncedHospitalData!['customConstitutionCost'];
+            freshHospital['offerInjuryHealing'] != _lastSyncedHospitalData!['offerInjuryHealing'] ||
+            freshHospital['offerOrthopedicServices'] != _lastSyncedHospitalData!['offerOrthopedicServices'] ||
+            freshHospital['offerPerformanceTherapy'] != _lastSyncedHospitalData!['offerPerformanceTherapy'] ||
+            freshHospital['offerDiseaseTherapy'] != _lastSyncedHospitalData!['offerDiseaseTherapy'] ||
+            // Also sync on performance research changes
+            freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
+            freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
+            freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
+            freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'] ||
+            // NEW: sync on performance cost changes
+            freshHospital['customStaminaCost'] != _lastSyncedHospitalData!['customStaminaCost'] ||
+            freshHospital['customConstitutionCost'] != _lastSyncedHospitalData!['customConstitutionCost'];
 
           if (shouldSync) {
             _lastSyncedHospitalData = Map<String, dynamic>.from(freshHospital);
@@ -1055,7 +772,7 @@ ValueListenableBuilder<Map<String, dynamic>>(
           children: [
             _buildSwitch(
               "Injury healing",
-              isInjuryHealingCurrentlyOn,
+              offerInjuryHealing,
               (v) {
                 setState(() => offerInjuryHealing = v);
                 _saveSwitchState('offerInjuryHealing', v);
@@ -1085,7 +802,7 @@ ValueListenableBuilder<Map<String, dynamic>>(
 
               // ==================== DYNAMIC BOTTOM SECTION ====================
               Expanded(
-                child: _buildBottomSection(),
+                child: _buildBottomSection(freshHospital), // Pass fresh data down
               ),
             ],
           );
