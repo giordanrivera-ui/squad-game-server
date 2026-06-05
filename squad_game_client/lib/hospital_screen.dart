@@ -66,7 +66,12 @@ class HospitalScreen extends StatelessWidget {
                   final List<String> activeServices = [];
                   if (hospitalData['offerInjuryHealing'] == true) activeServices.add('Injury Healing');
                   if (hospitalData['offerOrthopedicServices'] == true) activeServices.add('Orthopedic');
-                  if (hospitalData['offerPerformanceTherapy'] == true) activeServices.add('Performance');
+                  final bool offersEnhancedStamina = hospitalData['offerEnhancedStamina'] == true;
+                  final bool offersEnhancedConstitution = hospitalData['offerEnhancedConstitution'] == true;
+
+                  if (offersEnhancedStamina || offersEnhancedConstitution) {
+                    activeServices.add('Performance');
+                  }
                   if (hospitalData['offerDiseaseTherapy'] == true) activeServices.add('Disease Therapy');
 
                   return Card(

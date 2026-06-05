@@ -31,7 +31,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     super.dispose();
   }
 
-  // ==================== NEW: Format duration nicely ====================
   String _formatDuration(int durationMs) {
     final totalSeconds = (durationMs / 1000).round();
     final minutes = totalSeconds ~/ 60;
@@ -40,6 +39,17 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
       return '$minutes minutes';
     }
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  // Helper to show "Coming Soon" message
+  void _showComingSoon(String serviceName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$serviceName is coming soon!'),
+        backgroundColor: Colors.blueGrey,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -56,10 +66,12 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
         final bool isOfferingHealing = freshHospital['offerInjuryHealing'] == true;
 
         final int healCost = (freshHospital['customHealCost'] as num?)?.toInt() ?? 50;
-
-        // NEW: Read custom duration from live data (default 4 minutes)
         final int healingDurationMs = (freshHospital['customHealingDuration'] as num?)?.toInt() ?? 240000;
         final String formattedDuration = _formatDuration(healingDurationMs);
+
+        // Check for new performance services (real-time)
+        final bool offersEnhancedStamina = freshHospital['offerEnhancedStamina'] == true;
+        final bool offersEnhancedConstitution = freshHospital['offerEnhancedConstitution'] == true;
 
         return ValueListenableBuilder<Map<String, dynamic>>(
           valueListenable: SocketService().statsNotifier,
@@ -91,32 +103,28 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                 time: 'Live',
                 onMenuPressed: () => Navigator.pop(context),
               ),
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "🏥 $ownerName's Private Hospital",
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 30),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Hospital Header
+                    Text(
+                      "🏥 $ownerName's Private Hospital",
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 30),
 
-                      Text(
-                        "Healing Cost: \$$healCost → Paid to owner",
-                        style: const TextStyle(fontSize: 18, color: Colors.green),
-                      ),
-                      const SizedBox(height: 12),
-
+                    // ==================== INJURY HEALING CARD ====================
+                    if (!isHealing) ...[
                       if (!isOfferingHealing)
                         Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.only(bottom: 24),
                           decoration: BoxDecoration(
                             color: Colors.red[50],
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.red.shade200),
                           ),
                           child: const Text(
@@ -126,56 +134,181 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                           ),
                         ),
 
-                      const SizedBox(height: 20),
+                      _buildServiceCard(
+                        icon: Icons.healing,
+                        iconColor: Colors.green,
+                        title: 'Injury Healing',
+                        subtitle: 'Fully restore your health',
+                        costText: '\$$healCost  •  Paid to owner',
+                        durationText: 'Healing Time: $formattedDuration',
+                        buttonText: _isHealingRequested ? 'Requesting...' : 'Start Healing for \$$healCost',
+                        buttonColor: canHeal ? Colors.green : Colors.grey,
+                        onTap: (canHeal && !_isHealingRequested)
+                            ? () {
+                                setState(() => _isHealingRequested = true);
+                                SocketService().socket?.emit('start-private-healing', {
+                                  'hospitalDocId': docId,
+                                  'ownerEmail': freshHospital['ownerEmail'],
+                                });
+                                Future.delayed(const Duration(seconds: 3), () {
+                                  if (mounted) setState(() => _isHealingRequested = false);
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
 
-                      SizedBox(
-                        width: 300,
-                        child: ElevatedButton(
-                          onPressed: (canHeal && !_isHealingRequested)
-                              ? () {
-                                  setState(() => _isHealingRequested = true);
-
-                                  SocketService().socket?.emit('start-private-healing', {
-                                    'hospitalDocId': docId,
-                                    'ownerEmail': freshHospital['ownerEmail'],
-                                  });
-
-                                  Future.delayed(const Duration(seconds: 3), () {
-                                    if (mounted) setState(() => _isHealingRequested = false);
-                                  });
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            backgroundColor: canHeal ? Colors.green : Colors.grey,
-                          ),
-                          child: Text(
-                            _isHealingRequested
-                                ? 'Requesting healing...'
-                                : isHealing
-                                    ? 'HEALING... $remaining seconds'
-                                    : 'Heal for \$$healCost ($formattedDuration)',   // ← DYNAMIC
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
+                    // ==================== ENHANCED STAMINA CARD ====================
+                    if (offersEnhancedStamina)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: _buildServiceCard(
+                          icon: Icons.bolt,
+                          iconColor: Colors.amber,
+                          title: 'Enhanced Stamina',
+                          subtitle: 'Improved stamina recovery & performance',
+                          costText: 'Coming soon',
+                          durationText: null,
+                          buttonText: 'Learn More',
+                          buttonColor: Colors.amber,
+                          onTap: () => _showComingSoon('Enhanced Stamina'),
                         ),
                       ),
 
-                      if (isHealing)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 30),
-                          child: Text(
-                            "You are healing... $remaining seconds left",
-                            style: const TextStyle(color: Colors.orange, fontSize: 18),
-                          ),
+                    // ==================== ENHANCED CONSTITUTION CARD ====================
+                    if (offersEnhancedConstitution)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: _buildServiceCard(
+                          icon: Icons.shield,
+                          iconColor: Colors.blue,
+                          title: 'Enhanced Constitution',
+                          subtitle: 'Improved health & resilience',
+                          costText: 'Coming soon',
+                          durationText: null,
+                          buttonText: 'Learn More',
+                          buttonColor: Colors.blue,
+                          onTap: () => _showComingSoon('Enhanced Constitution'),
                         ),
-                    ],
-                  ),
+                      ),
+
+                    // ==================== ALREADY HEALING STATE ====================
+                    if (isHealing)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 40),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.healing, color: Colors.orange, size: 48),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "You are currently healing...",
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "$remaining seconds remaining",
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  // ==================== Reusable Service Card Widget ====================
+  Widget _buildServiceCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required String costText,
+    String? durationText,
+    required String buttonText,
+    required Color buttonColor,
+    VoidCallback? onTap,
+  }) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: iconColor, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 20),
+
+              if (costText.isNotEmpty)
+                Row(
+                  children: [
+                    const Icon(Icons.attach_money, color: Colors.green, size: 20),
+                    const SizedBox(width: 6),
+                    Text(costText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+
+              if (durationText != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.timer, color: Colors.blue, size: 20),
+                    const SizedBox(width: 6),
+                    Text(durationText, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onTap,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: buttonColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    buttonText,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
