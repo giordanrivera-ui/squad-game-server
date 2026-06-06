@@ -13,6 +13,7 @@ class OperationsScreen extends StatefulWidget {
   final int lastMidLevelOp;
   final int lastHighLevelOp;
   final int skill;
+  final bool hasEnhancedStamina;
 
   const OperationsScreen({
     super.key,
@@ -25,6 +26,7 @@ class OperationsScreen extends StatefulWidget {
     required this.lastMidLevelOp,
     required this.lastHighLevelOp,
     required this.skill,
+    this.hasEnhancedStamina = false,
   });
 
   @override
@@ -699,6 +701,7 @@ Widget _buildPositionCard({
         lastMidLevelOp: widget.lastMidLevelOp,
         lastHighLevelOp: widget.lastHighLevelOp,
         skill: widget.skill,
+        hasEnhancedStamina: widget.hasEnhancedStamina,
         onSelected: (operation) {
           setState(() => _selectedRegularOperation = operation);
           Navigator.pop(context);
@@ -714,6 +717,7 @@ class _BottomSheetContent extends StatefulWidget {
   final int lastMidLevelOp;
   final int lastHighLevelOp;
   final int skill;
+  final bool hasEnhancedStamina;
   final Function(String) onSelected;
 
   const _BottomSheetContent({
@@ -721,6 +725,7 @@ class _BottomSheetContent extends StatefulWidget {
     required this.lastMidLevelOp,
     required this.lastHighLevelOp,
     required this.skill,
+    this.hasEnhancedStamina = false,
     required this.onSelected,
   });
 
@@ -751,7 +756,12 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
   void _updateAllTimers() {
     final now = SocketService().currentServerTime;
     final skill = widget.skill;
-    final reduction = skill * 0.5;
+    double reduction = skill * 0.5;
+
+    if (widget.hasEnhancedStamina) {
+      reduction += 3.0;   // +3 seconds from Enhanced Stamina buff
+    }
+    
     final stats = SocketService().statsNotifier.value;
 
     _boneLow = (stats['bonePenaltyEndTimeLow'] ?? 0) > now

@@ -229,23 +229,22 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool cooldown = false;
   Timer? cooldownTimer;
   Timer? _incomeTimer;
-  Timer? _globalIncomeTimer;  // NEW: App-wide per-second checker
+  Timer? _globalIncomeTimer;  // App-wide per-second checker
+  Timer? _dashboardTimer;
 
-    bool _isTxHistoryMinimized = false;   // ← NEW: Controls minimize state
+  bool _isTxHistoryMinimized = false;   // Controls minimize state
 
   int _currentScreen = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   OverlayEntry? _rescueOverlay;
-
   OverlayEntry? _rankUpOverlay;
 
   @override
   void initState() {
     super.initState();
-    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {
-      SocketService().claimIncome();
-    });
+    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {SocketService().claimIncome();});
+    _dashboardTimer = Timer.periodic(const Duration(seconds: 1), (_) {if (mounted) setState(() {});});
     WidgetsBinding.instance.addObserver(this);
 
     _connectToServer();
@@ -523,6 +522,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                                   lastMidLevelOp: (_socketService.statsNotifier.value['lastMidLevelOp'] ?? 0.toInt()),
                                   lastHighLevelOp: (_socketService.statsNotifier.value['lastHighLevelOp'] ?? 0).toInt(),
                                   skill: _socketService.statsNotifier.value['skill'] ?? 0,
+                                  hasEnhancedStamina: _socketService.statsNotifier.value['enhancedStaminaEndTime'] != null &&
+                                      (_socketService.statsNotifier.value['enhancedStaminaEndTime'] as int) > SocketService().currentServerTime,
                                 )
                               : _currentScreen == 6 
                                   ? ProfileScreen(
@@ -567,6 +568,21 @@ Widget _buildDashboard() {
   return ValueListenableBuilder<Map<String, dynamic>>(
     valueListenable: _socketService.statsNotifier,
     builder: (context, stats, child) {
+      final int? staminaEndTime = stats['enhancedStaminaEndTime'] as int?;
+      final bool hasEnhancedStamina = 
+          staminaEndTime != null && staminaEndTime > SocketService().currentServerTime;
+      
+      String? staminaRemainingText;
+      if (hasEnhancedStamina && staminaEndTime != null) {
+        final remainingMs = staminaEndTime - SocketService().currentServerTime;
+        if (remainingMs > 0) {
+          final remainingSeconds = (remainingMs / 1000).ceil();
+          final minutes = remainingSeconds ~/ 60;
+          final seconds = remainingSeconds % 60;
+          staminaRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
+        }
+      }
+
       return Column(
         children: [
           // Top section (unchanged until health)
@@ -637,19 +653,62 @@ Container(
           // Health bar
           LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green,
           ),
+          SizedBox(
+            height: 6,
+          ),
           Row(
             children: [
               Text(
                 'Health: ${stats['health'] ?? 100}/100',
                 style: const TextStyle(fontSize: 16, color: Colors.white),
               ),
-              if (stats['hasBrokenBone'] == true)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: Icon(
-                    Icons.personal_injury,
-                    color: Colors.orangeAccent,
-                    size: 24,
+              if (stats['hasBrokenBone'] == true || hasEnhancedStamina)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (stats['hasBrokenBone'] == true)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Tooltip(
+                            message: "You have a broken bone. All level operations will have a longer cooldown.",
+                            waitDuration: Duration(milliseconds: 400),
+                            child: Text('🦴', style: TextStyle(fontSize: 16),
+                            ),
+                          )
+                        ),
+                      if (hasEnhancedStamina)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Tooltip(
+                                message: 'Enhanced Stamina active\nOperation cooldowns reduced by 3 seconds',
+                                waitDuration: const Duration(milliseconds: 400),
+                                child: const Icon(
+                                  Icons.bolt,
+                                  color: Colors.amber,
+                                  size: 22,
+                                ),
+                              ),
+                              if (staminaRemainingText != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    staminaRemainingText!,
+                                    style: const TextStyle(
+                                      color: Colors.amber,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
             ],
@@ -1046,7 +1105,8 @@ Container(
     _rankUpOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();
-    _globalIncomeTimer?.cancel();  // NEW: Cancel global timer
+    _globalIncomeTimer?.cancel();  // Cancel global timer
+    _dashboardTimer?.cancel();
     _socketService.deathNotifier.removeListener(() {
       if (mounted) setState(() {});
     });

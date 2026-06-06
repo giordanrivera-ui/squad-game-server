@@ -7,6 +7,39 @@ const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Lo
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
 
+function getEpinephrineQuality(skill, intelligence) {
+  const s = skill || 0;
+  const i = intelligence || 0;
+
+  let chances;
+
+  if (s >= 9 && i >= 9) {
+    chances = [0, 8, 21, 38, 33];        // Quality 1 to 5
+  } else if (s >= 6 && i >= 6) {
+    chances = [6, 14, 25, 30, 25];
+  } else if (s >= 3 && i >= 3) {
+    chances = [10, 19, 28, 25, 18];
+  } else {
+    chances = [16, 24, 26, 22, 12];      // Default
+  }
+
+  // Convert percentages to cumulative weights
+  const cumulative = [];
+  let sum = 0;
+  for (let c of chances) {
+    sum += c;
+    cumulative.push(sum);
+  }
+
+  const roll = Math.random() * 100;
+
+  if (roll < cumulative[0]) return 1;
+  if (roll < cumulative[1]) return 2;
+  if (roll < cumulative[2]) return 3;
+  if (roll < cumulative[3]) return 4;
+  return 5;
+}
+
 async function handleExecuteOperation(db, socket, data, deps) {
   const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
 
@@ -434,6 +467,30 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
+      }
+    }
+
+    // ==================== EPINEPHRINE SOLUTION LOOT ====================
+    if (operation === "Storm a laboratory") {
+
+      const stealRoll = Math.random() * 100;
+
+      if (stealRoll < 60) {   // 60% chance
+        const quality = getEpinephrineQuality(p.skill, p.intelligence || 0);
+        const value = (quality >= 4) ? 30 : 20;
+
+        const epinephrine = {
+          name: "Epinephrine solution",
+          type: "consumable",
+          quality: quality,
+          value: value
+        };
+
+        if (!p.inventory) p.inventory = [];
+        p.inventory.push(epinephrine);
+
+        // Append to the existing message instead of emitting separately
+        message += ` You also stole an Epinephrine solution (Quality ${quality})!`;
       }
     }
     
