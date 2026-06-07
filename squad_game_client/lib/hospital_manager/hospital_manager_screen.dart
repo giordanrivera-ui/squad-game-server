@@ -386,7 +386,16 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                                       ),
                                     )
                                   else if (hasResearched)
-                                    const Text('✅ RESEARCHED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold))
+                                    Switch(
+                                        value: offerEnabled,
+                                        onChanged: (bool newValue) {
+                                          setState(() {
+                                            // Update local for immediate feedback
+                                          });
+                                          _saveSwitchState('offerEnhancedStamina', newValue);
+                                        },
+                                        activeColor: Colors.greenAccent,
+                                      )
                                   else
                                     const Text('\$1000 • 30s', style: TextStyle(color: Colors.amber)),
                                 ],
@@ -407,31 +416,7 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
                                   ),
                                 ),
 
-                              // NEW: Toggle switch when researched (off by default)
-                              if (hasResearched)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Enable Enhanced Stamina',
-                                        style: TextStyle(fontSize: 16, color: Colors.white70),
-                                      ),
-                                      Switch(
-                                        value: offerEnabled,
-                                        onChanged: (bool newValue) {
-                                          setState(() {
-                                            // Update local for immediate feedback
-                                          });
-                                          _saveSwitchState('offerEnhancedStamina', newValue);
-                                        },
-                                        activeColor: Colors.greenAccent,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
+                          
                               // ==================== NEW: Stamina Price Editor ====================
                               if (hasResearched)
                                 Padding(

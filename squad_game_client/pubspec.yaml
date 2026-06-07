@@ -153,6 +153,12 @@ flutter:
     - assets/Team Synergy.jpg
     - assets/Advanced Team Synergy.jpg
     - assets/Exceptional Team Synergy.jpg
+    - assets/epinephrine_empty.png
+    - assets/epinephrine_1.png
+    - assets/epinephrine_2.png
+    - assets/epinephrine_3.png
+    - assets/epinephrine_4.png
+    - assets/epinephrine_5.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
