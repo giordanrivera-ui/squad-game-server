@@ -215,7 +215,8 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     hasEnhancedConstitution: false,
     enhancedConstitutionResearchEndTime: 0,
     offerEnhancedStamina: false,
-    offerEnhancedConstitution: false
+    offerEnhancedConstitution: false,
+    selectedEpinephrineQuality: null
   });
 
   socket.emit('hospital-claim-result', { 
@@ -253,13 +254,13 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
     customConstitutionCost: 150,
     hasEfficientDoctors: false,
     efficientDoctorsResearchEndTime: 0,
-    // NEW: reset performance researches
     hasEnhancedStamina: false,
     enhancedStaminaResearchEndTime: 0,
     hasEnhancedConstitution: false,
     enhancedConstitutionResearchEndTime: 0,
     offerEnhancedStamina: false,
-    offerEnhancedConstitution: false
+    offerEnhancedConstitution: false,
+    selectedEpinephrineQuality: null,
   });
 
   console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
@@ -1279,7 +1280,31 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
 
       const newPatientBalance = (patient.balance || 0) - cost;
       const newOwnerBalance = (owner.balance || 0) + cost;
-      const buffEndTime = Date.now() + (5 * 60 * 1000); // 5 minutes (change to 90 later)
+      let buffDurationMinutes = 5; // Default
+
+      const selectedQuality = hospitalData.selectedEpinephrineQuality; // Can be null
+
+      if (selectedQuality && selectedQuality >= 1 && selectedQuality <= 5) {
+        const ownerInventory = owner.inventory || [];
+        const index = ownerInventory.findIndex(item =>
+          item.name === "Epinephrine solution" && item.quality === selectedQuality
+        );
+
+        if (index !== -1) {
+          // Apply bonus duration
+          if (selectedQuality === 1) buffDurationMinutes = 6;
+          else if (selectedQuality === 2) buffDurationMinutes = 7;
+          else if (selectedQuality === 3) buffDurationMinutes = 8;
+          else if (selectedQuality === 4) buffDurationMinutes = 10;
+          else if (selectedQuality === 5) buffDurationMinutes = 12;
+
+          // Consume the item
+          ownerInventory.splice(index, 1);
+          transaction.update(ownerRef, { inventory: ownerInventory });
+        }
+      }
+
+      const buffEndTime = Date.now() + (buffDurationMinutes * 60 * 1000);
 
       // Update patient
       transaction.update(patientRef, {
@@ -1315,7 +1340,7 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
     socket.emit('update-stats', freshPatient.data());
     socket.emit('enhanced-stamina-purchased', { 
       success: true, 
-      message: 'Enhanced Stamina activated! -3s cooldown for 5 minutes.' 
+      message: `Enhanced Stamina activated! -3s cooldown for ${buffDurationMinutes} minutes.` 
     });
 
   } catch (error) {
@@ -1325,6 +1350,38 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
       message: error.message 
     });
   }
+}
+
+// ==================== SET SELECTED EPINEPHRINE QUALITY ====================
+async function handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef }) {
+  const email = socket.data.email;
+  const { hospitalDocId, quality } = data;
+
+  if (!email || !hospitalDocId) return;
+
+  const hospitalRef = hospitalOwnershipRef.doc(hospitalDocId);
+  const hospitalDoc = await hospitalRef.get();
+
+  if (!hospitalDoc.exists) return;
+
+  const hospitalData = hospitalDoc.data();
+
+  // Security check: only the owner can change this
+  if (hospitalData.ownerEmail !== email) {
+    socket.emit('error', { message: 'You do not own this hospital.' });
+    return;
+  }
+
+  // Save the selected quality (can be null to clear)
+  await hospitalRef.update({
+    selectedEpinephrineQuality: quality || null
+  });
+
+  console.log(`[HOSPITAL] ${email} set selected Epinephrine quality to ${quality} on ${hospitalDocId}`);
+
+  // Broadcast update so all clients (including the owner) see the change
+  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
+  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
 
 module.exports = {
@@ -1352,5 +1409,6 @@ module.exports = {
   catchUpPerformanceResearches,
   handleUpdateHospitalStaminaCost,
   handleUpdateHospitalConstitutionCost,
-  handlePurchaseEnhancedStamina
+  handlePurchaseEnhancedStamina,
+  handleSetSelectedEpinephrineQuality
 };

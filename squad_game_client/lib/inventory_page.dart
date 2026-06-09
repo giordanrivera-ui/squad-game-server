@@ -124,12 +124,27 @@ class _InventoryPageState extends State<InventoryPage> {
 
   void _groupInventory() {
     grouped = {};
+
     for (var item in _inventory) {
       final name = item['name'] as String;
-      if (grouped.containsKey(name)) {
-        grouped[name]!['quantity'] += 1;
+
+      // Special handling for Epinephrine solution (group by name + quality)
+      String groupKey;
+      if (name == "Epinephrine solution") {
+        final quality = item['quality'] ?? 1;
+        groupKey = "$name-Q$quality";           // e.g. "Epinephrine solution-Q3"
       } else {
-        grouped[name] = {...item, 'quantity': 1};
+        groupKey = name;                        // Normal grouping for everything else
+      }
+
+      if (grouped.containsKey(groupKey)) {
+        grouped[groupKey]!['quantity'] += 1;
+      } else {
+        grouped[groupKey] = {
+          ...item,
+          'quantity': 1,
+          'groupKey': groupKey,                 // Store key for later use if needed
+        };
       }
     }
   }
@@ -230,6 +245,7 @@ class _InventoryPageState extends State<InventoryPage> {
                       final description = item['description'] as String? ?? 'No description';
                       final checked = _checked[key] ?? false;
                       final sellQty = _quantities[key] ?? 1;
+                      final name = item['name'] as String;
 
                       return Card(
                         child: Padding(
@@ -251,7 +267,13 @@ class _InventoryPageState extends State<InventoryPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('$key x$quantity', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    // === UPDATED: Show quality for Epinephrine solution ===
+                                    Text(
+                                      name == "Epinephrine solution"
+                                          ? '$name (Quality ${item['quality'] ?? 1}) x$quantity'
+                                          : '$key x$quantity',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
                                     Text(description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                   ],
                                 ),

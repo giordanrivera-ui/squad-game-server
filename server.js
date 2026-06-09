@@ -33,7 +33,7 @@ const {
   calculateMaintenanceFee,
   handleUpdateHospitalStaminaCost,
   handleUpdateHospitalConstitutionCost,
-  handlePurchaseEnhancedStamina
+  handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality
 } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
@@ -796,6 +796,7 @@ socket.on('respawn', async () => {
   socket.on('update-hospital-stamina-cost', (data) => handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }));
   socket.on('update-hospital-constitution-cost', (data) => handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }));
   socket.on('purchase-enhanced-stamina', async (data) => { await handlePurchaseEnhancedStamina(db, socket, data)});
+  socket.on('set-selected-epinephrine-quality', (data) => handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef }));
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;

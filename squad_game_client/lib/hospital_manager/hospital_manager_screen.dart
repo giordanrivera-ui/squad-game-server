@@ -25,13 +25,30 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
   Timer? _researchTimer;
   bool _isStartingResearch = false;
 
-  // NEW: Track starting research for performance therapies (to disable tap)
+  // Track starting research for performance therapies (to disable tap)
   bool _isStartingStaminaResearch = false;
   bool _isStartingConstitutionResearch = false;
+
+  // Track selected Epinephrine image for visual stacking
+  String? _selectedEpinephrineAsset;
 
   // ==================== NEW: Price controllers for performance services ====================
   final TextEditingController _staminaCostController = TextEditingController();
   final TextEditingController _constitutionCostController = TextEditingController();
+
+  // Helper: Get quality number from asset path (e.g. "assets/epinephrine_5.png" → 5)
+int _getQualityFromAsset(String assetPath) {
+  final match = RegExp(r'epinephrine_(\d)').firstMatch(assetPath);
+  return int.tryParse(match?.group(1) ?? '1') ?? 1;
+}
+
+// Helper: Get how many Epinephrine solutions of this quality the player has
+int _getEpinephrineQuantity(int quality) {
+  final inventory = SocketService().statsNotifier.value['inventory'] as List<dynamic>? ?? [];
+  return inventory
+      .where((item) => item['name'] == 'Epinephrine solution' && (item['quality'] as num?)?.toInt() == quality)
+      .length;
+}
 
   @override
   void initState() {
@@ -121,12 +138,20 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     offerPerformanceTherapy = hospitalData['offerPerformanceTherapy'] ?? false;
     offerDiseaseTherapy = hospitalData['offerDiseaseTherapy'] ?? false;
 
-    // ==================== NEW: Sync performance service prices ====================
+    // Load stamina and constitution prices
     final int staminaCost = (hospitalData['customStaminaCost'] as num?)?.toInt() ?? 150;
     _staminaCostController.text = staminaCost.toString();
 
     final int constitutionCost = (hospitalData['customConstitutionCost'] as num?)?.toInt() ?? 150;
     _constitutionCostController.text = constitutionCost.toString();
+
+    // ==================== NEW: Load saved Epinephrine quality ====================
+    final int? savedQuality = (hospitalData['selectedEpinephrineQuality'] as num?)?.toInt();
+    if (savedQuality != null && savedQuality >= 1 && savedQuality <= 5) {
+      _selectedEpinephrineAsset = 'assets/epinephrine_$savedQuality.png';
+    } else {
+      _selectedEpinephrineAsset = null;
+    }
   }
 
   void _saveSwitchState(String field, bool value) {
@@ -418,42 +443,100 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
 
                           
                               // ==================== NEW: Stamina Price Editor ====================
-                              if (hasResearched)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 20),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Stamina Service Price (paid to you)',
-                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white70),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: TextField(
-                                              controller: _staminaCostController,
-                                              keyboardType: TextInputType.number,
-                                              decoration: const InputDecoration(
-                                                prefixText: '\$',
-                                                border: OutlineInputBorder(),
-                                                hintText: 'Enter price',
-                                                fillColor: Colors.white,
-                                                filled: true,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          ElevatedButton(
-                                            onPressed: _updateStaminaCost,
-                                            child: const Text('Save'),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
+if (hasResearched)
+  Padding(
+    padding: const EdgeInsets.only(top: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => _showEpinephrineSelectionDialog(),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Base empty image
+              Image.asset(
+                'assets/epinephrine_empty.png',
+                height: 90,
+                width: 90,
+                fit: BoxFit.contain,
+              ),
+
+              // Overlay selected quality image + quantity badge
+              if (_selectedEpinephrineAsset != null)
+                Stack(
+                  children: [
+                    Image.asset(
+                      _selectedEpinephrineAsset!,
+                      height: 72,
+                      width: 72,
+                      fit: BoxFit.contain,
+                    ),
+
+                    // Quantity badge on bottom left
+                    Positioned(
+                      bottom: 2,
+                      left: 2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.75),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'x${_getEpinephrineQuantity(_getQualityFromAsset(_selectedEpinephrineAsset!))}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Center(
+          child: Text(
+            'Tap to select Epinephrine solution',
+            style: TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        const Text(
+          'Stamina Service Price (paid to you)',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white70),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _staminaCostController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  prefixText: '\$',
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter price',
+                  fillColor: Colors.white,
+                  filled: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: _updateStaminaCost,
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
                             ],
                           ),
                         ),
@@ -650,6 +733,93 @@ class _HospitalManagerScreenState extends State<HospitalManagerScreen> {
     final remainingSeconds = seconds % 60;
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
+
+// ==================== NEW: Epinephrine Selection Dialog (Grouped by Quality) ====================
+void _showEpinephrineSelectionDialog() {
+  final inventory = SocketService().statsNotifier.value['inventory'] as List<dynamic>? ?? [];
+
+  // Filter Epinephrine solutions
+  final epinephrineItems = inventory
+      .where((item) => item['name'] == 'Epinephrine solution')
+      .toList();
+
+  if (epinephrineItems.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You have no Epinephrine solutions in your inventory.')),
+    );
+    return;
+  }
+
+  // Group by quality
+  final Map<int, int> qualityCount = {};
+  for (var item in epinephrineItems) {
+    final quality = (item['quality'] as num?)?.toInt() ?? 1;
+    qualityCount[quality] = (qualityCount[quality] ?? 0) + 1;
+  }
+
+  // Sort qualities from 5 to 1
+  final sortedQualities = qualityCount.keys.toList()
+    ..sort((a, b) => b.compareTo(a));
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Select Epinephrine Solution'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: sortedQualities.length,
+          itemBuilder: (context, index) {
+            final quality = sortedQualities[index];
+            final count = qualityCount[quality]!;
+
+            return ListTile(
+              leading: Image.asset(
+                'assets/epinephrine_$quality.png',
+                width: 40,
+                height: 40,
+              ),
+              title: Text('Quality $quality'),
+              subtitle: Text('Value: \$${quality >= 4 ? 30 : 20}   •   You have: $count'),
+              onTap: () {
+                final docId = widget.hospital['docId'];
+                if (docId != null) {
+                  // Only tell the server — do NOT update locally here
+                  SocketService().socket?.emit('set-selected-epinephrine-quality', {
+                    'hospitalDocId': docId,
+                    'quality': quality,
+                  });
+                }
+                Navigator.pop(context);
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+  onPressed: () {
+    final docId = widget.hospital['docId'];
+    if (docId != null) {
+      // Only tell the server — do NOT update locally here
+      SocketService().socket?.emit('set-selected-epinephrine-quality', {
+        'hospitalDocId': docId,
+        'quality': null,
+      });
+    }
+    Navigator.pop(context);
+  },
+  child: const Text('Clear Selection'),
+),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    ),
+  );
+}
 
   // ==================== Release confirmation dialog ====================
   Future<void> _showReleaseConfirmation() async {
