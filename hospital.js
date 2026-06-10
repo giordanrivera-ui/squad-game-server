@@ -946,14 +946,15 @@ async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }
 
     // === SUCCESS PATH ===
     const freshPatient = await patientRef.get();
-    const freshOwner = await ownerRef.get();
+    const freshOwnerDoc = await ownerRef.get();           // renamed for clarity
+    const ownerData = freshOwnerDoc.data();               // get the actual data
 
     socket.emit('update-stats', freshPatient.data());
 
     // Send update to the hospital owner so their Epinephrine badge updates live
-    const ownerSocket = onlineSockets.get(owner.displayName);
+    const ownerSocket = onlineSockets.get(ownerData.displayName);
     if (ownerSocket) {
-      ownerSocket.emit('update-stats', freshOwner.data());
+      ownerSocket.emit('update-stats', ownerData);
     }
 
     socket.emit('enhanced-stamina-purchased', { 
