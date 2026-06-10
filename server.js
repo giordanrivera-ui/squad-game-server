@@ -21,20 +21,13 @@ const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { 
-  handleStartHealing, handleClaimHealing, handleHealBrokenBone, 
-  handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, 
-  startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, 
-  handleUpdateHospitalHealCost, handleWatchAdForFasterHealing, handleUpdateHospitalHealingDuration, 
+  handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, handleUpdateHospitalHealCost, handleWatchAdForFasterHealing, handleUpdateHospitalHealingDuration, 
   handleStartEfficientDoctorsResearch, handleClaimEfficientDoctorsResearch, 
-  startHospitalResearchChecker, catchUpEfficientDoctorsResearch,
-  handleStartPerformanceResearch, handleClaimPerformanceResearch,
+  startHospitalResearchChecker, catchUpEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimPerformanceResearch,
   ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
-  catchUpPerformanceResearches,
-  calculateMaintenanceFee,
-  handleUpdateHospitalStaminaCost,
-  handleUpdateHospitalConstitutionCost,
-  handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality
-} = require('./hospital.js');
+  catchUpPerformanceResearches, calculateMaintenanceFee,
+  handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost,
+  handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality } = require('./hospital.js');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
@@ -999,7 +992,6 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  // NEW: Handler for buying property (updated to add claim entry)
   socket.on('buy-property', async (propertyName) => {
     await handleBuyProperty(db, socket, propertyName);  // Call the function from properties.js
   });
@@ -1044,7 +1036,7 @@ socket.on('respawn', async () => {
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });
 
-  // NEW: Handler for claiming income (now per-property)
+  // Handler for claiming income (now per-property)
   socket.on('claim-income', async () => {
     await handleClaimIncome(db, socket);  // Call the function from properties.js
   });

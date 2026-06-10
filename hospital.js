@@ -1,6 +1,10 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 
+const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, ALLOWED_HOSPITAL_SERVICE_FIELDS } = require('./hospital_constants');
+const { handleWatchAdForFasterHealing } = require('./ads');
+const { handleStartEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimEfficientDoctorsResearch, handleClaimPerformanceResearch, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, getAllHospitalOwnership } = require('./hospital_research');
+
 // ==================== DYNAMIC MAINTENANCE FEE CALCULATOR ====================
 // Base: $10 at 4:00 (240s)
 // Tier 1 (4:00 → 3:00): Every 20s reduced = +$4
@@ -25,15 +29,6 @@ function calculateMaintenanceFee(healingDurationMs) {
   }
   
   return fee;
-}
-
-async function getAllHospitalOwnership(hospitalOwnershipRef) {
-  const snapshot = await hospitalOwnershipRef.get();
-  const ownership = {};
-  snapshot.docs.forEach(doc => {
-    ownership[doc.id] = doc.data();
-  });
-  return ownership;
 }
 
 // ==================== TIMED HEALING (START) ====================
@@ -288,15 +283,7 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
     return;
   }
 
-  const allowedFields = [
-    'offerInjuryHealing', 
-    'offerOrthopedicServices', 
-    'offerPerformanceTherapy', 
-    'offerDiseaseTherapy',
-    // NEW: allow toggling the new performance enhancements (even if effect not implemented yet)
-    'offerEnhancedStamina',
-    'offerEnhancedConstitution'
-  ];
+  const allowedFields = ALLOWED_HOSPITAL_SERVICE_FIELDS;
 
   if (!allowedFields.includes(field)) {
     socket.emit('error', { message: 'Invalid service field.' });
@@ -793,382 +780,6 @@ async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwner
   (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
 }
 
-// ==================== WATCH AD TO REDUCE HEALING TIME ====================
-async function handleWatchAdForFasterHealing(db, socket) {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
-
-  let p = doc.data();
-
-  if (!p.healingEndTime || p.healingEndTime <= Date.now()) {
-    socket.emit('heal-result', { 
-      success: false, 
-      message: 'You are not currently healing.' 
-    });
-    return;
-  }
-
-  if (p.usedAdForHealing === true) {
-    socket.emit('heal-result', { 
-      success: false, 
-      message: 'You already used an ad to speed up this healing.' 
-    });
-    return;
-  }
-
-  const threeMinutesInMs = 3 * 60 * 1000;
-  const newHealingEndTime = Date.now() + threeMinutesInMs;
-
-  if (newHealingEndTime < p.healingEndTime) {
-    p.healingEndTime = newHealingEndTime;
-  }
-
-  p.usedAdForHealing = true;
-
-  await docRef.set(p);
-
-  socket.emit('update-stats', p);
-  socket.emit('heal-result', { 
-    success: true, 
-    message: '✅ Ad watched! Healing time reduced to 3 minutes total.' 
-  });
-
-  console.log(`[HEALING] ${email} used ad to reduce healing time`);
-}
-
-// ==================== EFFICIENT DOCTORS RESEARCH (Hospital Technology) ====================
-const EFFICIENT_DOCTORS_RESEARCH = {
-  id: "efficient-doctors",
-  name: "Efficient Doctors",
-  cost: 1000,
-  durationMs: 30000, // 30 seconds
-  effect: "Unlocks 2:00 minimum healing duration with 20-second increments (2:00 → 4:00)"
-};
-
-// NEW: Enhanced Stamina Research
-const ENHANCED_STAMINA_RESEARCH = {
-  id: "enhanced-stamina",
-  name: "Enhanced Stamina",
-  cost: 1000,
-  durationMs: 30000, // 30 seconds
-  effect: "Unlocks enhanced stamina therapy options for patients."
-};
-
-// NEW: Enhanced Constitution Research
-const ENHANCED_CONSTITUTION_RESEARCH = {
-  id: "enhanced-constitution",
-  name: "Enhanced Constitution",
-  cost: 1000,
-  durationMs: 30000, // 30 seconds
-  effect: "Unlocks enhanced constitution therapy options for patients."
-};
-
-async function handleStartEfficientDoctorsResearch(db, socket, hospitalDocId) {
-  const email = socket.data.email;
-  if (!email || !hospitalDocId) {
-    socket.emit('research-result', { success: false, message: 'Invalid request.' });
-    return;
-  }
-
-  try {
-    const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
-    const hospitalDoc = await hospitalRef.get();
-    if (!hospitalDoc.exists) {
-      socket.emit('research-result', { success: false, message: 'Hospital not found.' });
-      return;
-    }
-
-    const hospitalData = hospitalDoc.data();
-    if (hospitalData.ownerEmail !== email) {
-      socket.emit('research-result', { success: false, message: 'You do not own this hospital.' });
-      return;
-    }
-
-    if (hospitalData.hasEfficientDoctors === true) {
-      socket.emit('research-result', { success: false, message: 'Efficient Doctors already researched.' });
-      return;
-    }
-
-    if (hospitalData.efficientDoctorsResearchEndTime && hospitalData.efficientDoctorsResearchEndTime > Date.now()) {
-      socket.emit('research-result', { success: false, message: 'Research already in progress.' });
-      return;
-    }
-
-    // Check player balance
-    const playerRef = db.collection('players').doc(email);
-    const playerDoc = await playerRef.get();
-    if (!playerDoc.exists || (playerDoc.data().balance || 0) < EFFICIENT_DOCTORS_RESEARCH.cost) {
-      socket.emit('research-result', { success: false, message: 'Not enough money ($1000 required).' });
-      return;
-    }
-
-    const playerData = playerDoc.data();
-
-    // Deduct money + log transaction
-    await logTransaction(socket, -EFFICIENT_DOCTORS_RESEARCH.cost, 'Researched: Efficient Doctors', playerData, playerRef);
-    
-    await playerRef.update({
-      balance: admin.firestore.FieldValue.increment(-EFFICIENT_DOCTORS_RESEARCH.cost)
-    });
-
-    // Start 30-second research timer
-    const completionTime = Date.now() + EFFICIENT_DOCTORS_RESEARCH.durationMs;
-    await hospitalRef.update({
-      efficientDoctorsResearchEndTime: completionTime
-    });
-
-    // Send success feedback
-    const freshPlayer = await playerRef.get();
-    socket.emit('update-stats', freshPlayer.data());
-    socket.emit('research-result', {
-      success: true,
-      message: `🔬 Researching Efficient Doctors... (30 seconds)`
-    });
-
-    // Tell everyone the hospital changed
-    const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-    (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
-
-    console.log(`[HOSPITAL RESEARCH] ${email} started Efficient Doctors research on ${hospitalDocId}`);
-
-  } catch (error) {
-    console.error('[RESEARCH ERROR]', error);
-    socket.emit('research-result', { 
-      success: false, 
-      message: 'Something went wrong while starting research. Please try again.' 
-    });
-  }
-}
-
-// NEW: Generic research starter for performance therapies (to reduce duplication)
-async function handleStartPerformanceResearch(db, socket, hospitalDocId, researchConfig, hasField, endTimeField, researchName) {
-  const email = socket.data.email;
-  if (!email || !hospitalDocId) {
-    socket.emit('research-result', { success: false, message: 'Invalid request.' });
-    return;
-  }
-
-  try {
-    const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
-    const hospitalDoc = await hospitalRef.get();
-    if (!hospitalDoc.exists) {
-      socket.emit('research-result', { success: false, message: 'Hospital not found.' });
-      return;
-    }
-
-    const hospitalData = hospitalDoc.data();
-    if (hospitalData.ownerEmail !== email) {
-      socket.emit('research-result', { success: false, message: 'You do not own this hospital.' });
-      return;
-    }
-
-    if (hospitalData[hasField] === true) {
-      socket.emit('research-result', { success: false, message: `${researchName} already researched.` });
-      return;
-    }
-
-    if (hospitalData[endTimeField] && hospitalData[endTimeField] > Date.now()) {
-      socket.emit('research-result', { success: false, message: 'Research already in progress.' });
-      return;
-    }
-
-    // Check player balance
-    const playerRef = db.collection('players').doc(email);
-    const playerDoc = await playerRef.get();
-    if (!playerDoc.exists || (playerDoc.data().balance || 0) < researchConfig.cost) {
-      socket.emit('research-result', { success: false, message: 'Not enough money ($1000 required).' });
-      return;
-    }
-
-    const playerData = playerDoc.data();
-
-    // Deduct money + log transaction
-    await logTransaction(socket, -researchConfig.cost, `Researched: ${researchName}`, playerData, playerRef);
-    
-    await playerRef.update({
-      balance: admin.firestore.FieldValue.increment(-researchConfig.cost)
-    });
-
-    // Start 30-second research timer
-    const completionTime = Date.now() + researchConfig.durationMs;
-    await hospitalRef.update({
-      [endTimeField]: completionTime
-    });
-
-    // Send success feedback
-    const freshPlayer = await playerRef.get();
-    socket.emit('update-stats', freshPlayer.data());
-    socket.emit('research-result', {
-      success: true,
-      message: `🔬 Researching ${researchName}... (30 seconds)`
-    });
-
-    // Tell everyone the hospital changed
-    const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-    (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
-
-    console.log(`[HOSPITAL RESEARCH] ${email} started ${researchName} research on ${hospitalDocId}`);
-
-  } catch (error) {
-    console.error('[RESEARCH ERROR]', error);
-    socket.emit('research-result', { 
-      success: false, 
-      message: 'Something went wrong while starting research. Please try again.' 
-    });
-  }
-}
-
-async function handleClaimEfficientDoctorsResearch(db, socket, hospitalDocId) {
-  const email = socket.data.email;
-  if (!email || !hospitalDocId) return;
-
-  const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
-  const hospitalDoc = await hospitalRef.get();
-  if (!hospitalDoc.exists) return;
-
-  const hospitalData = hospitalDoc.data();
-  if (hospitalData.ownerEmail !== email) return;
-
-  if (!hospitalData.efficientDoctorsResearchEndTime || hospitalData.efficientDoctorsResearchEndTime > Date.now()) {
-    return; // Not finished yet
-  }
-
-  // Complete the research
-  await hospitalRef.update({
-    hasEfficientDoctors: true,
-    efficientDoctorsResearchEndTime: 0
-  });
-
-  console.log(`[HOSPITAL RESEARCH] ${email} completed Efficient Doctors research on ${hospitalDocId}`);
-
-  // Broadcast update — this will make the slider extend immediately in open manager screens
-  const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
-
-  socket.emit('research-result', {
-    success: true,
-    message: '✅ Efficient Doctors research complete! Minimum healing time is now 2:00.'
-  });
-}
-
-// NEW: Generic claim for performance research
-async function handleClaimPerformanceResearch(db, socket, hospitalDocId, hasField, endTimeField, researchName) {
-  const email = socket.data.email;
-  if (!email || !hospitalDocId) return;
-
-  const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
-  const hospitalDoc = await hospitalRef.get();
-  if (!hospitalDoc.exists) return;
-
-  const hospitalData = hospitalDoc.data();
-  if (hospitalData.ownerEmail !== email) return;
-
-  if (!hospitalData[endTimeField] || hospitalData[endTimeField] > Date.now()) {
-    return; // Not finished yet
-  }
-
-  // Complete the research
-  await hospitalRef.update({
-    [hasField]: true,
-    [endTimeField]: 0
-  });
-
-  console.log(`[HOSPITAL RESEARCH] ${email} completed ${researchName} research on ${hospitalDocId}`);
-
-  // Broadcast update
-  const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
-
-  socket.emit('research-result', {
-    success: true,
-    message: `✅ ${researchName} research complete!`
-  });
-}
-
-// ==================== CATCH-UP RESEARCH ON SERVER START (for long research times) ====================
-async function catchUpEfficientDoctorsResearch(db, { io }) {
-  try {
-    const now = Date.now();
-
-    const overdue = await db.collection('hospitals')
-      .where('efficientDoctorsResearchEndTime', '>', 0)
-      .where('efficientDoctorsResearchEndTime', '<=', now)
-      .get();
-
-    if (overdue.empty) return;
-
-    const batch = db.batch();
-    for (const doc of overdue.docs) {
-      batch.update(doc.ref, {
-        hasEfficientDoctors: true,
-        efficientDoctorsResearchEndTime: 0
-      });
-    }
-    await batch.commit();
-
-    console.log(`[HOSPITAL RESEARCH] Caught up and completed ${overdue.size} overdue Efficient Doctors research(es) on startup`);
-
-    // Tell all clients immediately
-    const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-    io.emit('hospital-ownership-update', freshOwnership);
-
-  } catch (e) {
-    console.error('Catch-up research error on startup:', e);
-  }
-}
-
-// NEW: Catch up for performance researches
-async function catchUpPerformanceResearches(db, { io }) {
-  try {
-    const now = Date.now();
-    const batch = db.batch();
-    let totalCompleted = 0;
-
-    // Stamina
-    const overdueStamina = await db.collection('hospitals')
-      .where('enhancedStaminaResearchEndTime', '>', 0)
-      .where('enhancedStaminaResearchEndTime', '<=', now)
-      .get();
-
-    for (const doc of overdueStamina.docs) {
-      batch.update(doc.ref, {
-        hasEnhancedStamina: true,
-        enhancedStaminaResearchEndTime: 0
-      });
-      totalCompleted++;
-    }
-
-    // Constitution
-    const overdueConstitution = await db.collection('hospitals')
-      .where('enhancedConstitutionResearchEndTime', '>', 0)
-      .where('enhancedConstitutionResearchEndTime', '<=', now)
-      .get();
-
-    for (const doc of overdueConstitution.docs) {
-      batch.update(doc.ref, {
-        hasEnhancedConstitution: true,
-        enhancedConstitutionResearchEndTime: 0
-      });
-      totalCompleted++;
-    }
-
-    if (totalCompleted > 0) {
-      await batch.commit();
-      console.log(`[HOSPITAL RESEARCH] Caught up and completed ${totalCompleted} overdue Performance research(es) on startup`);
-
-      const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-      io.emit('hospital-ownership-update', freshOwnership);
-    }
-
-  } catch (e) {
-    console.error('Catch-up performance research error on startup:', e);
-  }
-}
-
 // ==================== HOSPITAL RESEARCH COMPLETION CHECKER (generalized) ====================
 function startHospitalResearchChecker(db, { io }) {
   setInterval(async () => {
@@ -1404,11 +1015,11 @@ module.exports = {
   calculateMaintenanceFee,
   handleStartPerformanceResearch,
   handleClaimPerformanceResearch,
-  ENHANCED_STAMINA_RESEARCH,
-  ENHANCED_CONSTITUTION_RESEARCH,
   catchUpPerformanceResearches,
   handleUpdateHospitalStaminaCost,
   handleUpdateHospitalConstitutionCost,
   handlePurchaseEnhancedStamina,
-  handleSetSelectedEpinephrineQuality
+  handleSetSelectedEpinephrineQuality,
+  ENHANCED_STAMINA_RESEARCH,
+  ENHANCED_CONSTITUTION_RESEARCH,
 };

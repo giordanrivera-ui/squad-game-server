@@ -76,7 +76,6 @@ function generateRandomDriver(location, minDrivingSkill = 1, maxDrivingSkill = 3
 
 module.exports = {
   generateRandomDriver,
-  // lists are exported only if you ever need them elsewhere
   vostokgradNames,
   valleoraNames,
   riverstoneNames,
