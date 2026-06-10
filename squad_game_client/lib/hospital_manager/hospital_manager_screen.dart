@@ -367,17 +367,29 @@ int _getEpinephrineQuantity(int quality) {
                       color: hasResearched ? Colors.green[900] : Colors.grey[850],
                       child: InkWell(
                         onTap: (hasResearched || isResearching || _isStartingStaminaResearch)
-                          ? null
-                          : () {
-                              final docId = hospitalData['docId'];
-                              if (docId != null) {
-                                setState(() => _isStartingStaminaResearch = true);
+    ? null
+    : () async {
+        final docId = hospitalData['docId'];
+        if (docId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error: Hospital ID missing. Please reopen this screen.')),
+          );
+          return;
+        }
 
-                                SocketService().socket?.emit('start-enhanced-stamina-research', {
-                                  'hospitalDocId': docId,
-                                });
-                              }
-                            },
+        if (SocketService().socket == null || !SocketService().isConnected.value) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Not connected to server. Please wait or restart the app.')),
+          );
+          return;
+        }
+
+        setState(() => _isStartingStaminaResearch = true);
+
+        SocketService().socket!.emit('start-enhanced-stamina-research', {
+          'hospitalDocId': docId,
+        });
+      },
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(20),
@@ -464,37 +476,42 @@ if (hasResearched)
 
               // Overlay selected quality image + quantity badge
               if (_selectedEpinephrineAsset != null)
-                Stack(
-                  children: [
-                    Image.asset(
-                      _selectedEpinephrineAsset!,
-                      height: 72,
-                      width: 72,
-                      fit: BoxFit.contain,
-                    ),
+  Stack(
+    children: [
+      Image.asset(
+        _selectedEpinephrineAsset!,
+        height: 72,
+        width: 72,
+        fit: BoxFit.contain,
+      ),
 
-                    // Quantity badge on bottom left
-                    Positioned(
-                      bottom: 2,
-                      left: 2,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'x${_getEpinephrineQuantity(_getQualityFromAsset(_selectedEpinephrineAsset!))}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+      // Quantity badge on bottom left - NOW UPDATES LIVE
+      Positioned(
+        bottom: 2,
+        left: 2,
+        child: ValueListenableBuilder<Map<String, dynamic>>(
+          valueListenable: SocketService().statsNotifier,
+          builder: (context, stats, _) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.75),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'x${_getEpinephrineQuantity(_getQualityFromAsset(_selectedEpinephrineAsset!))}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  ),
             ],
           ),
         ),
@@ -874,8 +891,18 @@ void _showEpinephrineSelectionDialog() {
         valueListenable: SocketService().hospitalOwnershipNotifier,
         builder: (context, ownership, child) {
           final String docId = widget.hospital['docId'] ?? '';
-          final Map<String, dynamic> freshHospital = 
+
+          Map<String, dynamic> freshHospital = 
               (ownership[docId] as Map<String, dynamic>?) ?? widget.hospital;
+
+          // === IMPORTANT: Always ensure docId exists ===
+          if (docId.isNotEmpty && 
+              (!freshHospital.containsKey('docId') || freshHospital['docId'] == null)) {
+            freshHospital = {
+              ...freshHospital,
+              'docId': docId,
+            };
+          }
 
           // ==================== ONLY sync if something important changed ====================
           final bool shouldSync = _lastSyncedHospitalData == null ||
@@ -883,6 +910,8 @@ void _showEpinephrineSelectionDialog() {
             freshHospital['offerOrthopedicServices'] != _lastSyncedHospitalData!['offerOrthopedicServices'] ||
             freshHospital['offerPerformanceTherapy'] != _lastSyncedHospitalData!['offerPerformanceTherapy'] ||
             freshHospital['offerDiseaseTherapy'] != _lastSyncedHospitalData!['offerDiseaseTherapy'] ||
+            freshHospital['customHealCost'] != _lastSyncedHospitalData!['customHealCost'] ||
+            freshHospital['customHealingDuration'] != _lastSyncedHospitalData!['customHealingDuration'] ||
             freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
             freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
             freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
@@ -898,6 +927,11 @@ void _showEpinephrineSelectionDialog() {
               if (mounted) {
                 setState(() {
                   _syncFromHospitalData(freshHospital);
+
+                  // === NEW: Reset stuck research flags when fresh data arrives ===
+                  _isStartingStaminaResearch = false;
+                  _isStartingConstitutionResearch = false;
+                  _isStartingResearch = false;
                 });
               }
             });

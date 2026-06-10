@@ -40,9 +40,7 @@ class _InjuryHealingTabContentState extends State<InjuryHealingTabContent> {
   }
 
   void _syncFromHospital(Map<String, dynamic> hospitalData) {
-    final int healCost = (hospitalData['customHealCost'] as num?)?.toInt() ?? 50;
-    _costController.text = healCost.toString();
-
+    // Only sync healing duration (this can change due to research)
     final durationMs = (hospitalData['customHealingDuration'] as num?)?.toInt() ?? 240000;
     final bool hasEfficient = hospitalData['hasEfficientDoctors'] == true;
     final int minClamp = hasEfficient ? 120 : 180;

@@ -944,9 +944,20 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
       });
     });
 
-    // Success
+    // === SUCCESS PATH ===
+
+    // Get fresh data for BOTH players
     const freshPatient = await patientRef.get();
+    const freshOwner = await ownerRef.get();
+
     socket.emit('update-stats', freshPatient.data());
+
+    // NEW: Also send update to the hospital owner
+    const ownerSocket = onlineSockets.get(owner.displayName);
+    if (ownerSocket) {
+      ownerSocket.emit('update-stats', freshOwner.data());
+    }
+
     socket.emit('enhanced-stamina-purchased', { 
       success: true, 
       message: `Enhanced Stamina activated! -3s cooldown for ${buffDurationMinutes} minutes.` 
