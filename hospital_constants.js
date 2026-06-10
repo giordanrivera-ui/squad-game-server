@@ -1,5 +1,4 @@
 // ==================== HOSPITAL RESEARCH CONSTANTS ====================
-
 const EFFICIENT_DOCTORS_RESEARCH = {
   id: "efficient-doctors",
   name: "Efficient Doctors",

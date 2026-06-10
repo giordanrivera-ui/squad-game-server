@@ -1,5 +1,3 @@
-// Handles everything related to attempting to kill another player
-
 const admin = require('firebase-admin');
 const { logTransaction, getRankTitle } = require('./utils');
 
