@@ -857,6 +857,8 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
   const ownerRef = db.collection('players').doc(ownerEmail);
   const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
 
+  let buffDurationMinutes = 5;
+
   try {
     await db.runTransaction(async (transaction) => {
       const patientDoc = await transaction.get(patientRef);
@@ -864,7 +866,6 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
 
       const patient = patientDoc.data();
 
-      // Check if buff is already active
       if (patient.enhancedStaminaEndTime && patient.enhancedStaminaEndTime > Date.now()) {
         throw new Error('Enhanced Stamina is already active');
       }
@@ -891,9 +892,8 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
 
       const newPatientBalance = (patient.balance || 0) - cost;
       const newOwnerBalance = (owner.balance || 0) + cost;
-      let buffDurationMinutes = 5; // Default
 
-      const selectedQuality = hospitalData.selectedEpinephrineQuality; // Can be null
+      const selectedQuality = hospitalData.selectedEpinephrineQuality;
 
       if (selectedQuality && selectedQuality >= 1 && selectedQuality <= 5) {
         const ownerInventory = owner.inventory || [];
@@ -917,18 +917,16 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
 
       const buffEndTime = Date.now() + (buffDurationMinutes * 60 * 1000);
 
-      // Update patient
       transaction.update(patientRef, {
         balance: newPatientBalance,
         enhancedStaminaEndTime: buffEndTime
       });
 
-      // Update owner
       transaction.update(ownerRef, {
         balance: newOwnerBalance
       });
 
-      // Log transactions
+      // Log transactions...
       const patientTxRef = patientRef.collection('transactions').doc();
       transaction.set(patientTxRef, {
         amount: -cost,

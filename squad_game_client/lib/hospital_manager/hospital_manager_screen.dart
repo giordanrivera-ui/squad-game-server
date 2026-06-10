@@ -883,14 +883,13 @@ void _showEpinephrineSelectionDialog() {
             freshHospital['offerOrthopedicServices'] != _lastSyncedHospitalData!['offerOrthopedicServices'] ||
             freshHospital['offerPerformanceTherapy'] != _lastSyncedHospitalData!['offerPerformanceTherapy'] ||
             freshHospital['offerDiseaseTherapy'] != _lastSyncedHospitalData!['offerDiseaseTherapy'] ||
-            // Also sync on performance research changes
             freshHospital['hasEnhancedStamina'] != _lastSyncedHospitalData!['hasEnhancedStamina'] ||
             freshHospital['enhancedStaminaResearchEndTime'] != _lastSyncedHospitalData!['enhancedStaminaResearchEndTime'] ||
             freshHospital['hasEnhancedConstitution'] != _lastSyncedHospitalData!['hasEnhancedConstitution'] ||
             freshHospital['enhancedConstitutionResearchEndTime'] != _lastSyncedHospitalData!['enhancedConstitutionResearchEndTime'] ||
-            // NEW: sync on performance cost changes
             freshHospital['customStaminaCost'] != _lastSyncedHospitalData!['customStaminaCost'] ||
-            freshHospital['customConstitutionCost'] != _lastSyncedHospitalData!['customConstitutionCost'];
+            freshHospital['customConstitutionCost'] != _lastSyncedHospitalData!['customConstitutionCost'] ||
+            freshHospital['selectedEpinephrineQuality'] != _lastSyncedHospitalData!['selectedEpinephrineQuality'];
 
           if (shouldSync) {
             _lastSyncedHospitalData = Map<String, dynamic>.from(freshHospital);
