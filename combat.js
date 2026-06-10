@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const { logTransaction, getRankTitle } = require('./utils');
+const { getAllHospitalOwnership } = require('./hospital_research');
 
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
 function getUpperBound(exp) {
