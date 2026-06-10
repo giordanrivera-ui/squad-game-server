@@ -396,7 +396,14 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     FirebaseMessaging.instance.subscribeToTopic('announcements');
 
     // Listen to socket events
-    _socketService.socket?.on(SocketEvents.time, (data) => setState(() => time = data));
+    _socketService.socket?.on(SocketEvents.time, (data) {
+      if (data is String) {
+        setState(() => time = data);
+      } else if (data is Map && data['formatted'] is String) {
+        // New format from server (when we add serverTime)
+        setState(() => time = data['formatted']);
+      }
+    });
     
     _socketService.socket?.on(SocketEvents.message, (data) {
       setState(() {

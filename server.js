@@ -207,7 +207,10 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
 });
 
 setInterval(() => {
-  io.emit('time', timeFormatter.format(new Date()));
+  io.emit('time', {
+    formatted: timeFormatter.format(new Date()),
+    serverTime: Date.now()           // ← ADD THIS
+  });
 }, 30000);
 
 io.on('connection', (socket) => {

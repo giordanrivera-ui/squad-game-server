@@ -92,6 +92,21 @@ class SocketService {
         });
       });
 
+      // ==================== TIME SYNC (for accurate remaining timers) ====================
+      socket?.on('time', (data) {
+        if (data is Map<String, dynamic>) {
+          if (data['serverTime'] is num) {
+            final serverTime = (data['serverTime'] as num).toInt();
+            final localNow = DateTime.now().millisecondsSinceEpoch;
+            serverTimeOffset = serverTime - localNow;
+            
+            // Optional: print for debugging
+            // print('[TIME SYNC] Offset updated: $serverTimeOffset ms');
+          }
+        }
+        // If server still sends a plain string sometimes, we ignore it here
+      });
+
       socket?.on(SocketEvents.init, (data) {
         if (data is Map) {
           normalLocations = List<String>.from(data['locations'] ?? []);
