@@ -846,7 +846,7 @@ function startHospitalResearchChecker(db, { io }) {
 }
 
 // ==================== ENHANCED STAMINA SERVICE ====================
-async function handlePurchaseEnhancedStamina(db, socket, data) {
+async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
   const ownerEmail = data.ownerEmail;
@@ -945,14 +945,12 @@ async function handlePurchaseEnhancedStamina(db, socket, data) {
     });
 
     // === SUCCESS PATH ===
-
-    // Get fresh data for BOTH players
     const freshPatient = await patientRef.get();
     const freshOwner = await ownerRef.get();
 
     socket.emit('update-stats', freshPatient.data());
 
-    // NEW: Also send update to the hospital owner
+    // Send update to the hospital owner so their Epinephrine badge updates live
     const ownerSocket = onlineSockets.get(owner.displayName);
     if (ownerSocket) {
       ownerSocket.emit('update-stats', freshOwner.data());

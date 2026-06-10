@@ -788,7 +788,7 @@ socket.on('respawn', async () => {
   socket.on('claim-enhanced-constitution-research', async (data) => { await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution')});
   socket.on('update-hospital-stamina-cost', (data) => handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }));
   socket.on('update-hospital-constitution-cost', (data) => handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }));
-  socket.on('purchase-enhanced-stamina', async (data) => { await handlePurchaseEnhancedStamina(db, socket, data)});
+  socket.on('purchase-enhanced-stamina', async (data) => { await handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets })});
   socket.on('set-selected-epinephrine-quality', (data) => handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef }));
 
   socket.on('update-profile', async (data) => {
