@@ -1,6 +1,5 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
-const { getAllHospitalOwnership } = require('./hospital'); // We will import this from hospital.js
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH } = require('./hospital_constants');
 
 async function getAllHospitalOwnership(hospitalOwnershipRef) {
