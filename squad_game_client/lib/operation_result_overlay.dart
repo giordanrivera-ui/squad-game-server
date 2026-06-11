@@ -7,6 +7,7 @@ class OperationResultOverlay extends StatefulWidget {
   final String message;
   final int actualDamage;
   final int totalDefense;
+  final Map<String, dynamic>? stolenWeapon; // NEW
   final VoidCallback onDismiss;
 
   const OperationResultOverlay({
@@ -16,6 +17,7 @@ class OperationResultOverlay extends StatefulWidget {
     required this.message,
     required this.actualDamage,
     required this.totalDefense,
+    this.stolenWeapon, // NEW
     required this.onDismiss,
   });
 
@@ -46,7 +48,6 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
 
     _controller.forward();
 
-    // Create success particles (green/gold)
     for (int i = 0; i < 40; i++) {
       _particles.add(Particle());
     }
@@ -65,6 +66,7 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
   @override
   Widget build(BuildContext context) {
     final bool tookDamage = widget.actualDamage > 0;
+    final bool hasStolenWeapon = widget.stolenWeapon != null;
 
     return GestureDetector(
       onTap: widget.onDismiss,
@@ -72,7 +74,6 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
         color: Colors.transparent,
         child: Stack(
           children: [
-            // Dark backdrop
             Container(color: Colors.black.withOpacity(0.88)),
 
             Center(
@@ -102,25 +103,17 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                         const SizedBox(height: 16),
                         Text(
                           widget.operation,
-                          style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 12),
                         Text(
                           '+ \$${widget.money}',
-                          style: const TextStyle(
-                            fontSize: 42,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4CAF50),
-                          ),
+                          style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50)),
                         ),
                         const SizedBox(height: 20),
 
-                        // Main message (includes loot)
+                        // Main message
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -145,6 +138,46 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                               color: tookDamage ? Colors.orangeAccent : Colors.greenAccent,
                             ),
                             textAlign: TextAlign.center,
+                          ),
+                        ],
+
+                        // ==================== NEW: STOLEN WEAPON SECTION ====================
+                        if (hasStolenWeapon) ...[
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white24, thickness: 1),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Weapon Acquired',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.asset(
+                              'assets/${widget.stolenWeapon!['name']}.jpg',
+                              width: 120,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 120,
+                                height: 80,
+                                color: Colors.grey[800],
+                                child: const Icon(Icons.image_not_supported, color: Colors.white54),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.stolenWeapon!['name'] as String,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ],
                       ],

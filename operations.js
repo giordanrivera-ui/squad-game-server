@@ -711,7 +711,8 @@ async function handleExecuteOperation(db, socket, data, deps) {
     totalDefense: isCaught ? 0 : ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
     message,
     isCaught,
-    prisonEndTime: p.prisonEndTime || 0
+    prisonEndTime: p.prisonEndTime || 0,
+    stolenWeapon: weapon || null
   });
 
   socket.emit('update-stats', p);

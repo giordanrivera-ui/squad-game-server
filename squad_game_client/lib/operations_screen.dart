@@ -3,6 +3,7 @@ import 'socket_service.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'operation_result_overlay.dart';
+import 'package:flutter/services.dart';
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -107,6 +108,7 @@ class _OperationsScreenState extends State<OperationsScreen>
         message: data['message'] ?? 'Operation successful!',
         actualDamage: data['actualDamage'] ?? 0,
         totalDefense: data['totalDefense'] ?? 0,
+        stolenWeapon: data['stolenWeapon'],
         onDismiss: () {
           _operationResultOverlay?.remove();
           _operationResultOverlay = null;
@@ -115,6 +117,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     );
 
     Overlay.of(context).insert(_operationResultOverlay!);
+    HapticFeedback.mediumImpact();
 
   } else {
     // Keep Snackbar for failure/prison cases
