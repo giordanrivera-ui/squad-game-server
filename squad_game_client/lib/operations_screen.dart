@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'operation_result_overlay.dart';
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -88,39 +89,50 @@ class _OperationsScreenState extends State<OperationsScreen>
     });
   }
 
+  OverlayEntry? _operationResultOverlay;
+
   void _onOperationResult(dynamic data) {
-    if (data == null || !mounted) return;
+  if (data == null || !mounted) return;
 
-    final String message = data['message'] ?? 'Operation completed.';
-    final int rawDamage = data['rawDamage'] ?? 0;
-    final int actualDamage = data['actualDamage'] ?? 0;
-    final int totalDefense = data['totalDefense'] ?? 0;
+  final bool success = data['isCaught'] != true;
 
-    String finalMessage = message;
-    if (totalDefense > 0 && rawDamage > 0) {
-      finalMessage += '\nYour armor absorbed $totalDefense damage!';
-      if (actualDamage > 0) {
-        finalMessage += '\nYou only lost $actualDamage health.';
-      } else {
-        finalMessage += '\nYou took no damage!';
-      }
-    }
+  if (success) {
+    // Show beautiful overlay instead of Snackbar
+    _operationResultOverlay?.remove();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(finalMessage),
-        backgroundColor: Colors.green[700],
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
+    _operationResultOverlay = OverlayEntry(
+      builder: (context) => OperationResultOverlay(
+        operation: data['operation'] ?? 'Operation',
+        money: data['money'] ?? 0,
+        message: data['message'] ?? 'Operation successful!',
+        actualDamage: data['actualDamage'] ?? 0,
+        totalDefense: data['totalDefense'] ?? 0,
+        onDismiss: () {
+          _operationResultOverlay?.remove();
+          _operationResultOverlay = null;
+        },
       ),
     );
 
-    setState(() {
-      _selectedRegularOperation = null;
-      _selectedSpecialOperation = null;
-      _assignedWeapons.clear(); // reset for next op
-    });
+    Overlay.of(context).insert(_operationResultOverlay!);
+
+  } else {
+    // Keep Snackbar for failure/prison cases
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(data['message'] ?? 'Operation failed.'),
+        backgroundColor: Colors.red[700],
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
+
+  setState(() {
+    _selectedRegularOperation = null;
+    _selectedSpecialOperation = null;
+    _assignedWeapons.clear();
+  });
+}
 
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
@@ -170,6 +182,7 @@ class _OperationsScreenState extends State<OperationsScreen>
     _tabController.dispose();
     SocketService().socket?.off('operation-result', _onOperationResult);
     SocketService().socket?.off('special-op-initiated', _onSpecialOpInitiated);
+    _operationResultOverlay?.remove();
     super.dispose();
   }
 
