@@ -717,7 +717,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
     message,
     isCaught,
     prisonEndTime: p.prisonEndTime || 0,
-    stolenWeapon: weapon || null
+    stolenWeapon: stolenWeapon
   });
 
   socket.emit('update-stats', p);
