@@ -45,43 +45,40 @@ function getEpinephrineQuality(skill, intelligence) {
 
 async function handleExecuteOperation(db, socket, data, deps) {
   const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
+
   const email = socket.data.email;
   if (!email || typeof data.operation !== 'string') return;
 
   const docRef = db.collection('players').doc(email);
 
   try {
-    // ============================================
-    // STEP A: Fast initial cooldown check (outside transaction)
-    // ============================================
-    const initialSnap = await docRef.get();
-    if (!initialSnap.exists) {
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) {
       socket.emit('error', { message: 'Player not found' });
       return;
     }
 
-    let initialP = initialSnap.data();
+    let p = docSnap.data();
     const operation = data.operation;
 
-    // === Calculate level, cooldownTime, lastOpTime (same as your current code) ===
-    const skill = initialP.skill || 0;
+    const skill = p.skill || 0;
     let reductionMs = Math.floor(skill * 500);
-    if (initialP.enhancedStaminaEndTime && Date.now() < initialP.enhancedStaminaEndTime) {
+    if (p.enhancedStaminaEndTime && Date.now() < p.enhancedStaminaEndTime) {
       reductionMs += 3000;
     }
 
     let cooldownTime = 60000 - reductionMs;
-    let lastOpTime = initialP.lastLowLevelOp || 0;
+    let lastOpTime = p.lastLowLevelOp || 0;
     let level = "low";
     let isHighLevel = false;
 
     if (midLevelOps.includes(operation)) {
       cooldownTime = 72000 - reductionMs;
-      lastOpTime = initialP.lastMidLevelOp || 0;
+      lastOpTime = p.lastMidLevelOp || 0;
       level = "mid";
     } else if (highLevelOps.includes(operation)) {
       cooldownTime = 80000 - reductionMs;
-      lastOpTime = initialP.lastHighLevelOp || 0;
+      lastOpTime = p.lastHighLevelOp || 0;
       isHighLevel = true;
       level = "high";
     }
@@ -91,35 +88,15 @@ async function handleExecuteOperation(db, socket, data, deps) {
       return; // silent cooldown
     }
 
-    // ============================================
-    // STEP B: Run the FULL operation inside a transaction
-    // ============================================
-    const txResult = await db.runTransaction(async (transaction) => {
-      const freshSnap = await transaction.get(docRef);
-      if (!freshSnap.exists) throw new Error('Player not found');
+    // === NOW DO ALL THE RANDOM ROLLS AND DECIDE EVERYTHING ===
+    let money = 0;
+    let rawDamage = 0;
+    let expGain = 0;
+    let message = "";
+    let isCaught = false;
+    let stolenWeapon = null;
 
-      let p = freshSnap.data();           // ← We work with FRESH data from now on
-      const exp = p.experience || 0;
-
-      // Re-check cooldown inside transaction (this is the real protection)
-      const freshLast = level === "low" ? (p.lastLowLevelOp || 0)
-                       : level === "mid" ? (p.lastMidLevelOp || 0)
-                       : (p.lastHighLevelOp || 0);
-
-      if (Date.now() - freshLast < cooldownTime) {
-        throw new Error('On cooldown');
-      }
-
-      // ============================================
-      // ALL YOUR EXISTING OPERATION LOGIC GOES HERE
-      // (money, damage, expGain, prison, weapon stealing, epinephrine, bullets, bone, etc.)
-      // ============================================
-      let money = 0;
-      let rawDamage = 0;
-      let expGain = 0;
-      let message = "";
-      let isCaught = false;
-      let stolenWeapon = null;
+    const exp = p.experience || 0;
 
     if (operation === "Mug a passerby") {
     // ==================== STREET TACTICS COURSE BONUS (Basic + Advanced + Exceptional) ====================
@@ -288,29 +265,23 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
 
   const prisonChance = getPrisonChance(level, exp);
+
   isCaught = Math.random() < prisonChance;
 
-      let oldBalance = 0;
-      let diedThisOperation = false;
-      let oldDisplayName = null;
+    if (isCaught) {
+      p.prisonEndTime = Date.now() + 60000;
+      message = `You were caught! You have been sent to prison for 60 seconds.`;
+    } else {
+      // Armor calculation
+      const totalDefense = (p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0);
+      const actualDamage = Math.max(0, rawDamage - totalDefense);
+      
+      p.balance += money;
+      p.health = Math.max(0, p.health - actualDamage);
 
-      if (isCaught) {
-        p.prisonEndTime = Date.now() + 60000;
-        message = `You were caught! You have been sent to prison for 60 seconds.`;
-      } else {
-        // Armor calculation
-        const totalDefense = (p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0);
-        const actualDamage = Math.max(0, rawDamage - totalDefense);
+      p = await addExperienceAndGrantPoints(docRef, p, expGain);
 
-        oldBalance = p.balance || 0;
-        p.balance = oldBalance + money;
-
-        p.health = Math.max(0, p.health - actualDamage);
-
-        // Add experience (this function just mutates p)
-        p = await addExperienceAndGrantPoints(docRef, p, expGain);
-
-        // ==================== EXISTING WEAPON STEALING (unchanged) ====================
+      // ==================== EXISTING WEAPON STEALING (unchanged) ====================
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
       if (exp > 49) stealChance = 0.25;
@@ -368,7 +339,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       }
     }
 
-    if (operation === "Attack military barracks") {
+    else if (operation === "Attack military barracks") {
       let stealChance = 0.12;
       if (exp > 49) stealChance = 0.15;
       if (exp > 514) stealChance = 0.21;
@@ -609,76 +580,63 @@ async function handleExecuteOperation(db, socket, data, deps) {
         stolenWeapon = weapon;
       }
     }
-        if (level !== "low") {
-          message = tryStealBullets(p, level, message);
-        }
 
-        // === BROKEN BONE ===
-        const boneResult = handleBrokenBone(p, level, message);
-        message = boneResult.message;
-
-        // Update cooldown timers
-        if (level === "low") p.lastLowLevelOp = boneResult.normalCooldownStartTime;
-        else if (level === "mid") p.lastMidLevelOp = boneResult.normalCooldownStartTime;
-        else if (level === "high") p.lastHighLevelOp = boneResult.normalCooldownStartTime;
-
-        // ==================== DEATH CHECK - MOVED TO THE END ====================
-        // We check AFTER all rewards, loot, bullets, and debuffs have been applied.
-        // This makes the code flow logical and easy to read.
-        if (p.health <= 0) {
-          diedThisOperation = true;
-          oldDisplayName = p.displayName;
-
-          p.dead = true;
-          p.health = 0;
-          p.displayName = null;
-          p.displayNameLower = null;
-
-          console.log(`[SERVER] ${email} died from operation (old name: ${oldDisplayName || 'none'})`);
-        }
+      if (level !== "low") {
+        message = tryStealBullets(p, level, message);
       }
 
+      const boneResult = handleBrokenBone(p, level, message);
+      message = boneResult.message;
 
-
-      // Write the final player state
-      transaction.set(docRef, p);
-
-      // Return everything we need outside the transaction
-      return {
-        p,
-        money,
-        rawDamage,
-        message,
-        isCaught,
-        stolenWeapon,
-        prisonEndTime: p.prisonEndTime || 0,
-        oldBalance,
-        diedThisOperation,
-        oldDisplayName
-      };
-    });
-
-    // ============================================
-    // STEP C: Things that happen AFTER successful transaction
-    // ============================================
-    const { p, money, rawDamage, message, isCaught, stolenWeapon, prisonEndTime, oldBalance, diedThisOperation, oldDisplayName } = txResult;
-
-    if (isCaught) {
-      imprisonedPlayers.set(p.displayName, prisonEndTime);
+      if (level === "low") p.lastLowLevelOp = boneResult.normalCooldownStartTime;
+      else if (level === "mid") p.lastMidLevelOp = boneResult.normalCooldownStartTime;
+      else if (level === "high") p.lastHighLevelOp = boneResult.normalCooldownStartTime;
     }
 
-    // Broadcast prison list
+    // At this point, p contains the FINAL desired state.
+    // We have decided money, items, prison, bone, everything.
+
+    // =====================================================
+    // STEP 2: Now do a SMALL, FAST transaction just to save it safely
+    // =====================================================
+    await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(docRef);
+      if (!freshSnap.exists) throw new Error('Player not found');
+
+      const freshP = freshSnap.data();
+
+      // Re-check cooldown using the FRESH data (in case someone else acted)
+      const freshLast = level === "low" ? (freshP.lastLowLevelOp || 0)
+                       : level === "mid" ? (freshP.lastMidLevelOp || 0)
+                       : (freshP.lastHighLevelOp || 0);
+
+      if (Date.now() - freshLast < cooldownTime) {
+        throw new Error('On cooldown');
+      }
+
+      if (!isCaught && money > 0) {
+        freshP.balance = (freshP.balance || 0) + money;
+      }
+
+      // Apply the changes we already decided
+      transaction.set(docRef, p);
+    });
+
+    if (!isCaught && money > 0) {
+      await logTransaction(socket, money, operation, p, docRef);
+    }
+
+    // =====================================================
+    // STEP 3: Things that don't need to be atomic (after success)
+    // =====================================================
+
+    if (isCaught) {
+      imprisonedPlayers.set(p.displayName, p.prisonEndTime);
+    }
+
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({ displayName, prisonEndTime }));
     io.emit('prison-list-update', { list: prisonList, serverTime: Date.now() });
 
-    // Log transaction (only if money was actually gained)
-    if (!isCaught && money > 0) {
-      // Create a minimal object with the CORRECT (old) balance for logging
-      const playerForLog = { balance: oldBalance };
-      await logTransaction(socket, money, operation, playerForLog, docRef);
-    }
-
-    // Send result to client
     socket.emit('operation-result', {
       operation,
       money,
@@ -687,17 +645,26 @@ async function handleExecuteOperation(db, socket, data, deps) {
       totalDefense: isCaught ? 0 : ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
       message,
       isCaught,
-      prisonEndTime,
+      prisonEndTime: p.prisonEndTime || 0,
       stolenWeapon
     });
 
     socket.emit('update-stats', p);
 
-    // ==================== DEATH HANDLING (SIDE EFFECTS ONLY) ====================
-    if (diedThisOperation && oldDisplayName) {
-      removeFromOnlineList(oldDisplayName);
-      await markPlayerAsDead(db, p, email, oldDisplayName, io);
+    // Death handling (still needs the second write — this is a separate smaller issue)
+    if (p.health <= 0 && !isCaught) {
+      const oldName = p.displayName;
+      p.dead = true;
+      p.health = 0;
+      p.displayName = null;
+      p.displayNameLower = null;
+
+      if (oldName) removeFromOnlineList(oldName);
+      if (oldName) await markPlayerAsDead(db, p, email, oldName, io);
+
+      await docRef.set(p);
       socket.emit('player-died');
+      console.log(`[SERVER] ${email} died from operation (old name: ${oldName || 'none'})`);
     }
 
   } catch (error) {

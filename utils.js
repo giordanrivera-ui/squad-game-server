@@ -7,7 +7,8 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     return;
   }
 
-  const newBalance = (playerData.balance || 0) + amount;
+  const currentBalance = playerData.balance || 0;
+  const newBalance = currentBalance + amount;
 
   const txData = {
     amount: amount,
