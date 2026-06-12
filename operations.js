@@ -83,6 +83,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
   let expGain = 0;
   let message = "";
   let isCaught = false;
+  let stolenWeapon = null;
 
   const exp = p.experience || 0;
 
@@ -386,6 +387,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
+        stolenWeapon = weapon;
       }
     }
 
@@ -467,6 +469,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
+        stolenWeapon = weapon;
       }
     }
 
@@ -574,6 +577,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
+        stolenWeapon = weapon;
       }
     }
 
@@ -626,6 +630,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
         p.inventory.push(weapon);
         message += ` You also stole a ${weapon.name}!`;
+        stolenWeapon = weapon;
       }
     }
     
