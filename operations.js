@@ -3,12 +3,18 @@ const { logTransaction } = require('./utils');
 const { markPlayerAsDead } = require('./combat.js');
 const { weaponTemplates } = require('./weapons.js');
 const { getPrisonChance } = require('./operations_prison_chance');
-const { tryStealBullets } = require('./operations_bullets');
+const { calculateBulletSteal } = require('./operations_bullets');
 const { handleBrokenBone } = require('./operations_broken_bones');
 
 const lowLevelOps = ["Mug a passerby", "Loot a grocery store", "Rob a bank", "Loot weapons store"];
 const midLevelOps = ["Attack military barracks", "Storm a laboratory", "Attack central issue facility"];
 const highLevelOps = ["Strike an armory", "Raid a vehicle depot", "Assault an aircraft hangar", "Invade country"];
+
+const validOperations = new Set([
+  ...lowLevelOps,
+  ...midLevelOps,
+  ...highLevelOps
+]);
 
 function getEpinephrineQuality(skill, intelligence) {
   const s = skill || 0;
@@ -43,137 +49,72 @@ function getEpinephrineQuality(skill, intelligence) {
   return 5;
 }
 
-async function handleExecuteOperation(db, socket, data, deps) {
-  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
-  const email = socket.data.email;
-  if (!email || typeof data.operation !== 'string') return;
+function resolveOperation(p, operation, level, exp) {
+  let money = 0;
+  let rawDamage = 0;
+  let expGain = 0;
+  let message = "";
+  let stolenWeapon = null;
+  let epinephrine = null;
+  let bulletsStolen = 0;
+  let shouldDie = false;
+  let oldDisplayName = null;
+  let oldBalance = p.balance || 0;
+  let boneCooldownTime = Date.now();
+  let actualDamage = 0;
+  let totalDefense = 0;
 
-  const docRef = db.collection('players').doc(email);
 
-  try {
-    // ============================================
-    // STEP A: Fast initial cooldown check (outside transaction)
-    // ============================================
-    const initialSnap = await docRef.get();
-    if (!initialSnap.exists) {
-      socket.emit('error', { message: 'Player not found' });
-      return;
-    }
+  const now = Date.now();
 
-    let initialP = initialSnap.data();
-    const operation = data.operation;
+  // =====================================================
+  // OPERATION REWARD CALCULATION
+  // =====================================================
 
-    // === Calculate level, cooldownTime, lastOpTime (same as your current code) ===
-    const skill = initialP.skill || 0;
-    let reductionMs = Math.floor(skill * 500);
-    if (initialP.enhancedStaminaEndTime && Date.now() < initialP.enhancedStaminaEndTime) {
-      reductionMs += 3000;
-    }
-
-    let cooldownTime = 60000 - reductionMs;
-    let lastOpTime = initialP.lastLowLevelOp || 0;
-    let level = "low";
-    let isHighLevel = false;
-
-    if (midLevelOps.includes(operation)) {
-      cooldownTime = 72000 - reductionMs;
-      lastOpTime = initialP.lastMidLevelOp || 0;
-      level = "mid";
-    } else if (highLevelOps.includes(operation)) {
-      cooldownTime = 80000 - reductionMs;
-      lastOpTime = initialP.lastHighLevelOp || 0;
-      isHighLevel = true;
-      level = "high";
-    }
-    cooldownTime = Math.max(cooldownTime, 30000);
-
-    if (Date.now() - lastOpTime < cooldownTime) {
-      return; // silent cooldown
-    }
-
-    // ============================================
-    // STEP B: Run the FULL operation inside a transaction
-    // ============================================
-    const txResult = await db.runTransaction(async (transaction) => {
-      const freshSnap = await transaction.get(docRef);
-      if (!freshSnap.exists) throw new Error('Player not found');
-
-      let p = freshSnap.data();           // ← We work with FRESH data from now on
-      const exp = p.experience || 0;
-
-      // Re-check cooldown inside transaction (this is the real protection)
-      const freshLast = level === "low" ? (p.lastLowLevelOp || 0)
-                       : level === "mid" ? (p.lastMidLevelOp || 0)
-                       : (p.lastHighLevelOp || 0);
-
-      if (Date.now() - freshLast < cooldownTime) {
-        throw new Error('On cooldown');
-      }
-
-      // ============================================
-      // ALL YOUR EXISTING OPERATION LOGIC GOES HERE
-      // (money, damage, expGain, prison, weapon stealing, epinephrine, bullets, bone, etc.)
-      // ============================================
-      let money = 0;
-      let rawDamage = 0;
-      let expGain = 0;
-      let message = "";
-      let isCaught = false;
-      let stolenWeapon = null;
-
-    if (operation === "Mug a passerby") {
-    // ==================== STREET TACTICS COURSE BONUS (Basic + Advanced + Exceptional) ====================
-    const now = Date.now();
-
+  if (operation === "Mug a passerby") {
     const hasBasic = (p.completedCourses || []).some(c =>
       c.id === "street-tactics" && (c.completionTime ?? 0) <= now
     );
-
     const hasAdvanced = (p.completedCourses || []).some(c =>
       c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
     );
-
     const hasExceptional = (p.completedCourses || []).some(c =>
       c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
     if (hasExceptional) {
-      money = Math.floor(Math.random() * 101) + 36;   // $36 – $136
+      money = Math.floor(Math.random() * 101) + 36;
       expGain = 22;
     } else if (hasAdvanced) {
-      money = Math.floor(Math.random() * 97) + 28;   // $28 – $124
+      money = Math.floor(Math.random() * 97) + 28;
       expGain = 18;
     } else if (hasBasic) {
-      money = Math.floor(Math.random() * 93) + 20;   // $20 – $112
+      money = Math.floor(Math.random() * 93) + 20;
       expGain = 14;
     } else {
-      money = Math.floor(Math.random() * 91) + 10;   // $10 – $100
+      money = Math.floor(Math.random() * 91) + 10;
       expGain = 10;
     }
 
     rawDamage = Math.floor(Math.random() * 26) + 5;
     message = `You mugged a passerby and got $${money}!`;
-  }
 
-  else if (operation === "Loot a grocery store") {
-    // ==================== STREET TACTICS COURSE BONUS - Advanced + Exceptional ====================
-    const now = Date.now();
+  } else if (operation === "Loot a grocery store") {
     const hasAdvanced = (p.completedCourses || []).some(c =>
       c.id === "advanced-street-tactics" && (c.completionTime ?? 0) <= now
     );
-
     const hasExceptional = (p.completedCourses || []).some(c =>
       c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
     if (hasExceptional) {
-      money = Math.floor(Math.random() * 73) + 48;   // $48 – $120
+      money = Math.floor(Math.random() * 73) + 48;
       expGain = 22;
     } else if (hasAdvanced) {
-      money = Math.floor(Math.random() * 71) + 40;   // $40 – $110
+      money = Math.floor(Math.random() * 71) + 40;
       expGain = 19;
     } else {
-      money = Math.floor(Math.random() * 71) + 30;   // $30 – $100
+      money = Math.floor(Math.random() * 71) + 30;
       expGain = 15;
     }
 
@@ -183,64 +124,63 @@ async function handleExecuteOperation(db, socket, data, deps) {
   } else if (operation === "Rob a bank") {
     rawDamage = Math.floor(Math.random() * 41) + 15;
 
-    const now = Date.now();
     const hasExceptional = (p.completedCourses || []).some(c =>
       c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
     if (hasExceptional) {
       expGain = 29;
-      // Original money roll, then add $8 bonus
-      if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
-      else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
-      else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
-      else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
-      else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
-      else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
-      else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
-      else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
-      else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
-      else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
-      else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
-      else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
-      else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
-      else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
-      else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
-      else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
-      else                     money = Math.floor(Math.random() * 401) + 600;
 
-      money += 8;   // Exceptional Street Tactics bonus
+      if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
+      else if (exp <= 514)    money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1264)   money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2314)   money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3514)   money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 5014)   money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6864)   money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8864)   money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10214)  money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11464)  money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14214)  money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17414)  money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21364)  money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25864)  money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31514)  money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38214)  money = Math.floor(Math.random() * 281) + 500;
+      else                    money = Math.floor(Math.random() * 401) + 600;
+
+      money += 8;
     } else {
       expGain = 25;
-      // Original money calculation (unchanged)
+
       if (exp <= 49)          money = Math.floor(Math.random() * 61) + 30;
-      else if (exp <= 514)     money = Math.floor(Math.random() * 71) + 30;
-      else if (exp <= 1264)    money = Math.floor(Math.random() * 81) + 40;
-      else if (exp <= 2314)    money = Math.floor(Math.random() * 91) + 60;
-      else if (exp <= 3514)    money = Math.floor(Math.random() * 101) + 80;
-      else if (exp <= 5014)    money = Math.floor(Math.random() * 111) + 90;
-      else if (exp <= 6864)    money = Math.floor(Math.random() * 121) + 120;
-      else if (exp <= 8864)    money = Math.floor(Math.random() * 111) + 150;
-      else if (exp <= 10214)   money = Math.floor(Math.random() * 121) + 180;
-      else if (exp <= 11464)   money = Math.floor(Math.random() * 141) + 200;
-      else if (exp <= 14214)   money = Math.floor(Math.random() * 121) + 240;
-      else if (exp <= 17414)   money = Math.floor(Math.random() * 126) + 275;
-      else if (exp <= 21364)   money = Math.floor(Math.random() * 156) + 320;
-      else if (exp <= 25864)   money = Math.floor(Math.random() * 241) + 360;
-      else if (exp <= 31514)   money = Math.floor(Math.random() * 251) + 450;
-      else if (exp <= 38214)   money = Math.floor(Math.random() * 281) + 500;
-      else                     money = Math.floor(Math.random() * 401) + 600;
+      else if (exp <= 514)    money = Math.floor(Math.random() * 71) + 30;
+      else if (exp <= 1264)   money = Math.floor(Math.random() * 81) + 40;
+      else if (exp <= 2314)   money = Math.floor(Math.random() * 91) + 60;
+      else if (exp <= 3514)   money = Math.floor(Math.random() * 101) + 80;
+      else if (exp <= 5014)   money = Math.floor(Math.random() * 111) + 90;
+      else if (exp <= 6864)   money = Math.floor(Math.random() * 121) + 120;
+      else if (exp <= 8864)   money = Math.floor(Math.random() * 111) + 150;
+      else if (exp <= 10214)  money = Math.floor(Math.random() * 121) + 180;
+      else if (exp <= 11464)  money = Math.floor(Math.random() * 141) + 200;
+      else if (exp <= 14214)  money = Math.floor(Math.random() * 121) + 240;
+      else if (exp <= 17414)  money = Math.floor(Math.random() * 126) + 275;
+      else if (exp <= 21364)  money = Math.floor(Math.random() * 156) + 320;
+      else if (exp <= 25864)  money = Math.floor(Math.random() * 241) + 360;
+      else if (exp <= 31514)  money = Math.floor(Math.random() * 251) + 450;
+      else if (exp <= 38214)  money = Math.floor(Math.random() * 281) + 500;
+      else                    money = Math.floor(Math.random() * 401) + 600;
     }
 
     message = `You robbed the bank and escaped with $${money}!`;
+
   } else if (operation === "Loot weapons store") {
-    const now = Date.now();
     const hasExceptional = (p.completedCourses || []).some(c =>
       c.id === "exceptional-street-tactics" && (c.completionTime ?? 0) <= now
     );
 
     if (hasExceptional) {
-      money = Math.floor(Math.random() * 41) + 15;   // original $10–$50 + $5 bonus
+      money = Math.floor(Math.random() * 41) + 15;
       expGain = 13;
     } else {
       money = Math.floor(Math.random() * 41) + 10;
@@ -249,36 +189,43 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     rawDamage = Math.floor(Math.random() * 41) + 20;
     message = `You looted the weapons store and stole $${money}!`;
+
   } else if (operation === "Attack military barracks") {
     money = Math.floor(Math.random() * 131) + 50;
     rawDamage = Math.floor(Math.random() * 38) + 25;
     expGain = 35;
     message = `You attacked the military barracks and got $${money}!`;
-  } else if (operation === "Storm a laboratory") {      
+
+  } else if (operation === "Storm a laboratory") {
     money = Math.floor(Math.random() * (160 - 60 + 1)) + 60;
     rawDamage = Math.floor(Math.random() * (52 - 20 + 1)) + 20;
     expGain = 27;
     message = `You stormed a laboratory and got $${money}!`;
+
   } else if (operation === "Strike an armory") {
     money = Math.floor(Math.random() * 301) + 350;
     rawDamage = Math.floor(Math.random() * 31) + 35;
     expGain = 45;
     message = `You struck an armory and got $${money}!`;
+
   } else if (operation === "Attack central issue facility") {
     money = Math.floor(Math.random() * 121) + 80;
     rawDamage = Math.floor(Math.random() * 41) + 25;
     expGain = 32;
-    message = `You attacked the central issue facility and got $${money}!`; 
+    message = `You attacked the central issue facility and got $${money}!`;
+
   } else if (operation === "Raid a vehicle depot") {
     money = Math.floor(Math.random() * 351) + 500;
     rawDamage = Math.floor(Math.random() * 26) + 40;
     expGain = 52;
     message = `You raided a vehicle depot and got $${money}!`;
+
   } else if (operation === "Assault an aircraft hangar") {
     money = Math.floor(Math.random() * 401) + 700;
     rawDamage = Math.floor(Math.random() * 31) + 45;
     expGain = 58;
     message = `You assaulted an aircraft hangar and got $${money}!`;
+
   } else if (operation === "Invade country") {
     money = Math.floor(Math.random() * 501) + 900;
     rawDamage = Math.floor(Math.random() * 36) + 50;
@@ -286,31 +233,25 @@ async function handleExecuteOperation(db, socket, data, deps) {
     message = `You invaded a country and escaped with $${money}!`;
   }
 
-
+  // =====================================================
+  // PRISON CHANCE
+  // =====================================================
   const prisonChance = getPrisonChance(level, exp);
-  isCaught = Math.random() < prisonChance;
+  const isCaught = Math.random() < prisonChance;
 
-      let oldBalance = 0;
-      let diedThisOperation = false;
-      let oldDisplayName = null;
+  // Calculate defense and actual damage ONLY ONCE for the whole operation
+  totalDefense =
+    (p.headwear?.defense || 0) +
+    (p.armor?.defense || 0) +
+    (p.footwear?.defense || 0);
 
-      if (isCaught) {
-        p.prisonEndTime = Date.now() + 60000;
-        message = `You were caught! You have been sent to prison for 60 seconds.`;
-      } else {
-        // Armor calculation
-        const totalDefense = (p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0);
-        const actualDamage = Math.max(0, rawDamage - totalDefense);
+  if (isCaught) {
+    actualDamage = rawDamage;   // For caught players we still report the raw damage to client
+    message = `You were caught! You have been sent to prison for 60 seconds.`;
+  } else {
+    actualDamage = Math.max(0, rawDamage - totalDefense);
 
-        oldBalance = p.balance || 0;
-        p.balance = oldBalance + money;
-
-        p.health = Math.max(0, p.health - actualDamage);
-
-        // Add experience (this function just mutates p)
-        p = await addExperienceAndGrantPoints(docRef, p, expGain);
-
-        // ==================== EXISTING WEAPON STEALING (unchanged) ====================
+    // Loot Weapons Store
     if (operation === "Loot weapons store") {
       let stealChance = 0.22;
       if (exp > 49) stealChance = 0.25;
@@ -331,43 +272,26 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (exp > 38214) stealChance = 0.89;
 
       if (Math.random() < stealChance) {
-        let knifeThreshold = 30; // (30%)
-        let batThreshold = 55; // 30 + (25%)
-        let macheteThreshold = 75; // 55 + (20%)
-        let maulThreshold = 95; // 75 + (20%)
-        if (exp > 3514) { 
-          knifeThreshold = 20; 
-          batThreshold = 45; 
-          macheteThreshold = 70; 
-          maulThreshold = 93; 
-        }
-        if (exp > 10214) { 
-          knifeThreshold = 14; 
-          batThreshold = 32; 
-          macheteThreshold = 57; 
-          maulThreshold = 84; 
-        }
-        if (exp > 21364) { 
-          knifeThreshold = 8; // (8%)
-          batThreshold = 26; // 8 + (18%)
-          macheteThreshold = 50; // 26 + (24%) 
-          maulThreshold = 78; // 50 + (28%)
-        }
+        let knifeThreshold = 30, batThreshold = 55, macheteThreshold = 75, maulThreshold = 95;
+
+        if (exp > 3514) { knifeThreshold = 20; batThreshold = 45; macheteThreshold = 70; maulThreshold = 93; }
+        if (exp > 10214) { knifeThreshold = 14; batThreshold = 32; macheteThreshold = 57; maulThreshold = 84; }
+        if (exp > 21364) { knifeThreshold = 8; batThreshold = 26; macheteThreshold = 50; maulThreshold = 78; }
 
         const rand = Math.random() * 100;
-        let weapon;
-        if (rand < knifeThreshold) weapon = weaponTemplates.find(w => w.name === 'Small Knife');
-        else if (rand < batThreshold) weapon = weaponTemplates.find(w => w.name === 'Baseball Bat');
-        else if (rand < macheteThreshold) weapon = weaponTemplates.find(w => w.name === 'Machete');
-        else if (rand < maulThreshold) weapon = weaponTemplates.find(w => w.name === 'Splitting Maul');
-        else weapon = weaponTemplates.find(w => w.name === 'Ruger Mark IV');
+        if (rand < knifeThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Small Knife');
+        else if (rand < batThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Baseball Bat');
+        else if (rand < macheteThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Machete');
+        else if (rand < maulThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Splitting Maul');
+        else stolenWeapon = weaponTemplates.find(w => w.name === 'Ruger Mark IV');
 
-        p.inventory.push(weapon);
-        message += ` You also stole a ${weapon.name}!`;
-        stolenWeapon = weapon;
+        if (stolenWeapon) {
+          message += ` You also stole a ${stolenWeapon.name}!`;
+        }
       }
     }
 
+    // Attack Military Barracks
     if (operation === "Attack military barracks") {
       let stealChance = 0.12;
       if (exp > 49) stealChance = 0.15;
@@ -389,311 +313,339 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
       if (Math.random() < stealChance) {
         const isEichenwald = p.location === "Eichenwald";
-
         let glockThreshold, remingtonThreshold, waltherThreshold, mossbergThreshold, mp5Threshold, ump5Threshold;
 
         if (isEichenwald) {
-          // NEW Eichenwald-specific drop table
-          if (exp <= 3514) {
-            glockThreshold = 38;
-            remingtonThreshold = 60;   // 38 + (22%)
-            waltherThreshold = 75;     // 64 + (15%)
-            mossbergThreshold = 91;    // 75 + (16%)
-            mp5Threshold = 97;         // 91 + (6%)
-            ump5Threshold = 100;       // 97 + (3%)
-          } else if (exp <= 10214) {
-            glockThreshold = 25;
-            remingtonThreshold = 47;   // 25 + (22%)
-            waltherThreshold = 65;     // 47 + (18%)
-            mossbergThreshold = 85;    // 65 + (20%)
-            mp5Threshold = 95;         // 85 + (10%)
-            ump5Threshold = 100;       // 95 + (5%)
-          } else {
-            glockThreshold = 16;
-            remingtonThreshold = 28;   // 16 + 12
-            waltherThreshold = 50;     // 28 + 22
-            mossbergThreshold = 70;    // 50 + 20
-            mp5Threshold = 88;         // 70 + 18
-            ump5Threshold = 100;       // 88 + 12
-          }
+          if (exp <= 3514) { glockThreshold = 38; remingtonThreshold = 60; waltherThreshold = 75; mossbergThreshold = 91; mp5Threshold = 97; ump5Threshold = 100; }
+          else if (exp <= 10214) { glockThreshold = 25; remingtonThreshold = 47; waltherThreshold = 65; mossbergThreshold = 85; mp5Threshold = 95; ump5Threshold = 100; }
+          else { glockThreshold = 16; remingtonThreshold = 28; waltherThreshold = 50; mossbergThreshold = 70; mp5Threshold = 88; ump5Threshold = 100; }
         } else {
-          // Original non-Eichenwald drop table (unchanged)
-          glockThreshold = 42;
-          remingtonThreshold = 72;
-          mossbergThreshold = 91;
-          mp5Threshold = 97;
-          if (exp > 3514) {
-            glockThreshold = 33;
-            remingtonThreshold = 63;
-            mossbergThreshold = 85;
-            mp5Threshold = 95; }
-          if (exp > 10214) {
-            glockThreshold = 24;
-            remingtonThreshold = 48;
-            mossbergThreshold = 70;
-            mp5Threshold = 88; }
+          glockThreshold = 42; remingtonThreshold = 72; mossbergThreshold = 91; mp5Threshold = 97;
+          if (exp > 3514) { glockThreshold = 33; remingtonThreshold = 63; mossbergThreshold = 85; mp5Threshold = 95; }
+          if (exp > 10214) { glockThreshold = 24; remingtonThreshold = 48; mossbergThreshold = 70; mp5Threshold = 88; }
         }
 
         const rand = Math.random() * 100;
+        if (rand < glockThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Glock 45 Gen 5');
+        else if (rand < remingtonThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Remington R1 Enhanced');
+        else if (rand < waltherThreshold && isEichenwald) stolenWeapon = weaponTemplates.find(w => w.name === 'Walther PDP Pro');
+        else if (rand < mossbergThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'Mossberg 590 Shotgun');
+        else if (rand < mp5Threshold) stolenWeapon = weaponTemplates.find(w => w.name === 'MP5 SMG');
+        else stolenWeapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
 
-        let weapon;
-        if (rand < glockThreshold) weapon = weaponTemplates.find(w => w.name === 'Glock 45 Gen 5');
-        else if (rand < remingtonThreshold) weapon = weaponTemplates.find(w => w.name === 'Remington R1 Enhanced');
-        else if (rand < waltherThreshold && isEichenwald) weapon = weaponTemplates.find(w => w.name === 'Walther PDP Pro');
-        else if (rand < mossbergThreshold) weapon = weaponTemplates.find(w => w.name === 'Mossberg 590 Shotgun');
-        else if (rand < mp5Threshold) weapon = weaponTemplates.find(w => w.name === 'MP5 SMG');
-        else weapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
-
-        p.inventory.push(weapon);
-        message += ` You also stole a ${weapon.name}!`;
-        stolenWeapon = weapon;
+        if (stolenWeapon) {
+          message += ` You also stole a ${stolenWeapon.name}!`;
+        }
       }
     }
 
+    // Storm a Laboratory - Epinephrine
     if (operation === "Storm a laboratory") {
-
-      const stealRoll = Math.random() * 100;
-
-      if (stealRoll < 60) {   // 60% chance
+      if (Math.random() * 100 < 60) {
         const quality = getEpinephrineQuality(p.skill, p.intelligence || 0);
         const value = (quality >= 4) ? 30 : 20;
 
-        const epinephrine = {
+        epinephrine = {
           name: "Epinephrine solution",
           type: "consumable",
-          quality: quality,
-          value: value
+          quality,
+          value
         };
-
-        if (!p.inventory) p.inventory = [];
-        p.inventory.push(epinephrine);
-
-        // Append to the existing message instead of emitting separately
         message += ` You also stole an Epinephrine solution (Quality ${quality})!`;
       }
     }
-    
+
+    // Attack Central Issue Facility
     if (operation === "Attack central issue facility") {
-      let stealChance = 0.05; // Beggar
-      if (exp > 49) stealChance = 0.08; // Thug
-      if (exp > 514) stealChance = 0.11; // Recruit
-      if (exp > 1264) stealChance = 0.15; // Private
-      if (exp > 2314) stealChance = 0.18; // Private First Class
-      if (exp > 3514) stealChance = 0.20; // Corporal
-      if (exp > 5014) stealChance = 0.23; // Sergeant
-      if (exp > 6864) stealChance = 0.26; // Sergeant First Class
-      if (exp > 8864) stealChance = 0.30; // Warrant Officer
-      if (exp > 10214) stealChance = 0.34; //
-      if (exp > 11464) stealChance = 0.38; //
-      if (exp > 14214) stealChance = 0.42; // Major
-      if (exp > 17414) stealChance = 0.46; //
-      if (exp > 21364) stealChance = 0.49; // Colonel
-      if (exp > 25864) stealChance = 0.53; //
-      if (exp > 31514) stealChance = 0.57; //
-      if (exp > 38214) stealChance = 0.61; //
+      let stealChance = 0.05;
+      if (exp > 49) stealChance = 0.08;
+      if (exp > 514) stealChance = 0.11;
+      if (exp > 1264) stealChance = 0.15;
+      if (exp > 2314) stealChance = 0.18;
+      if (exp > 3514) stealChance = 0.20;
+      if (exp > 5014) stealChance = 0.23;
+      if (exp > 6864) stealChance = 0.26;
+      if (exp > 8864) stealChance = 0.30;
+      if (exp > 10214) stealChance = 0.34;
+      if (exp > 11464) stealChance = 0.38;
+      if (exp > 14214) stealChance = 0.42;
+      if (exp > 17414) stealChance = 0.46;
+      if (exp > 21364) stealChance = 0.49;
+      if (exp > 25864) stealChance = 0.53;
+      if (exp > 31514) stealChance = 0.57;
+      if (exp > 38214) stealChance = 0.61;
 
       if (Math.random() < stealChance) {
         const isVostokgrad = p.location === "Vostokgrad";
-
         let ump5Threshold, ak74Threshold, brenThreshold, carbineThreshold, scarThreshold, m16Threshold;
 
         if (isVostokgrad) {
-          // ====================== VOSTOKGRAD SPECIAL DROP TABLE ======================
-          if (exp <= 3514) {                    // Low EXP
-            ump5Threshold = 42;
-            ak74Threshold = 64;
-            brenThreshold = 76;
-            carbineThreshold = 92;
-            scarThreshold = 98;
-            m16Threshold = 100;
-          } else if (exp <= 10214) {            // Mid EXP
-            ump5Threshold = 32;
-            ak74Threshold = 55;
-            brenThreshold = 70;
-            carbineThreshold = 88;
-            scarThreshold = 96;
-            m16Threshold = 100;
-          } else {                              // High EXP
-            ump5Threshold = 25;
-            ak74Threshold = 45;
-            brenThreshold = 63;
-            carbineThreshold = 82;
-            scarThreshold = 94;
-            m16Threshold = 100;
-          }
+          if (exp <= 3514) { ump5Threshold = 42; ak74Threshold = 64; brenThreshold = 76; carbineThreshold = 92; scarThreshold = 98; m16Threshold = 100; }
+          else if (exp <= 10214) { ump5Threshold = 32; ak74Threshold = 55; brenThreshold = 70; carbineThreshold = 88; scarThreshold = 96; m16Threshold = 100; }
+          else { ump5Threshold = 25; ak74Threshold = 45; brenThreshold = 63; carbineThreshold = 82; scarThreshold = 94; m16Threshold = 100; }
         } else {
-          // Original non-Vostokgrad table (unchanged)
-          ump5Threshold = 46;
-          ak74Threshold = 75;
-          carbineThreshold = 92;
-          scarThreshold = 98;
-          if (exp > 3514) {
-            ump5Threshold = 38;
-            ak74Threshold = 68;
-            carbineThreshold = 88;
-            scarThreshold = 96;
-          }
-          if (exp > 10214) {
-            ump5Threshold = 31;
-            ak74Threshold = 62;
-            carbineThreshold = 82;
-            scarThreshold = 94;
-          }
+          ump5Threshold = 46; ak74Threshold = 75; carbineThreshold = 92; scarThreshold = 98;
+          if (exp > 3514) { ump5Threshold = 38; ak74Threshold = 68; carbineThreshold = 88; scarThreshold = 96; }
+          if (exp > 10214) { ump5Threshold = 31; ak74Threshold = 62; carbineThreshold = 82; scarThreshold = 94; }
         }
 
         const rand = Math.random() * 100;
+        if (rand < ump5Threshold) stolenWeapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
+        else if (rand < ak74Threshold) stolenWeapon = weaponTemplates.find(w => w.name === 'SLR104 AK-74');
+        else if (rand < brenThreshold && isVostokgrad) stolenWeapon = weaponTemplates.find(w => w.name === 'CZ Bren 2');
+        else if (rand < carbineThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
+        else if (rand < scarThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
+        else stolenWeapon = weaponTemplates.find(w => w.name === 'M16A4');
 
-        let weapon;
-        if (rand < ump5Threshold) weapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
-        else if (rand < ak74Threshold) weapon = weaponTemplates.find(w => w.name === 'SLR104 AK-74');
-        else if (rand < brenThreshold && isVostokgrad) weapon = weaponTemplates.find(w => w.name === 'CZ Bren 2');
-        else if (rand < carbineThreshold) weapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
-        else if (rand < scarThreshold) weapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
-        else weapon = weaponTemplates.find(w => w.name === 'M16A4');
-
-        p.inventory.push(weapon);
-        message += ` You also stole a ${weapon.name}!`;
-        stolenWeapon = weapon;
+        if (stolenWeapon) {
+          message += ` You also stole a ${stolenWeapon.name}!`;
+        }
       }
     }
 
+    // Strike an Armory
     if (operation === "Strike an armory") {
-      let stealChance = 0.04; // Beggar
-      if (exp > 49) stealChance = 0.06;     // Thug
-      if (exp > 514) stealChance = 0.09;    // Recruit
-      if (exp > 1264) stealChance = 0.12;   // Private
-      if (exp > 2314) stealChance = 0.15;   // Private First Class
-      if (exp > 3514) stealChance = 0.18;   // Corporal
-      if (exp > 5014) stealChance = 0.21;   // Sergeant
-      if (exp > 6864) stealChance = 0.23;   // Sergeant First Class
-      if (exp > 8864) stealChance = 0.26;   // Warrant Officer
-      if (exp > 10214) stealChance = 0.30;  // First Lieutenant
-      if (exp > 11464) stealChance = 0.34;  // Captain
-      if (exp > 14214) stealChance = 0.38;  // Major
-      if (exp > 17414) stealChance = 0.42;  // Lieutenant Colonel
-      if (exp > 21364) stealChance = 0.45;  // Colonel
-      if (exp > 25864) stealChance = 0.48;  // General
-      if (exp > 31514) stealChance = 0.52;  // General of the Army
-      if (exp > 38214) stealChance = 0.56;  // Supreme Commander
+      let stealChance = 0.04;
+      if (exp > 49) stealChance = 0.06;
+      if (exp > 514) stealChance = 0.09;
+      if (exp > 1264) stealChance = 0.12;
+      if (exp > 2314) stealChance = 0.15;
+      if (exp > 3514) stealChance = 0.18;
+      if (exp > 5014) stealChance = 0.21;
+      if (exp > 6864) stealChance = 0.23;
+      if (exp > 8864) stealChance = 0.26;
+      if (exp > 10214) stealChance = 0.30;
+      if (exp > 11464) stealChance = 0.34;
+      if (exp > 14214) stealChance = 0.38;
+      if (exp > 17414) stealChance = 0.42;
+      if (exp > 21364) stealChance = 0.45;
+      if (exp > 25864) stealChance = 0.48;
+      if (exp > 31514) stealChance = 0.52;
+      if (exp > 38214) stealChance = 0.56;
 
       if (Math.random() < stealChance) {
         let m4Threshold, scarThreshold, m16Threshold, m24Threshold;
-
-        if (exp <= 3514) {                    // Low EXP
-          m4Threshold   = 45;
-          scarThreshold = 75;   // 45 + 30%
-          m16Threshold  = 91;   // 75 + 16%
-          m24Threshold  = 100;  // 91 + 9%
-        } else if (exp <= 10214) {            // Mid EXP
-          m4Threshold   = 38;
-          scarThreshold = 68;   // 38 + 30%
-          m16Threshold  = 89;   // 68 + 21%
-          m24Threshold  = 100;  // 89 + 11%
-        } else {                              // High EXP
-          m4Threshold   = 34;
-          scarThreshold = 65;   // 34 + 31%
-          m16Threshold  = 86;   // 65 + 21%
-          m24Threshold  = 100;  // 86 + 14%
-        }
+        if (exp <= 3514) { m4Threshold = 45; scarThreshold = 75; m16Threshold = 91; m24Threshold = 100; }
+        else if (exp <= 10214) { m4Threshold = 38; scarThreshold = 68; m16Threshold = 89; m24Threshold = 100; }
+        else { m4Threshold = 34; scarThreshold = 65; m16Threshold = 86; m24Threshold = 100; }
 
         const rand = Math.random() * 100;
+        if (rand < m4Threshold) stolenWeapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
+        else if (rand < scarThreshold) stolenWeapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
+        else if (rand < m16Threshold) stolenWeapon = weaponTemplates.find(w => w.name === 'M16A4');
+        else stolenWeapon = weaponTemplates.find(w => w.name === 'M24 Sniper');
 
-        let weapon;
-        if (rand < m4Threshold) weapon = weaponTemplates.find(w => w.name === 'M4 Carbine');
-        else if (rand < scarThreshold) weapon = weaponTemplates.find(w => w.name === 'SCAR-16 Mk II');
-        else if (rand < m16Threshold) weapon = weaponTemplates.find(w => w.name === 'M16A4');
-        else weapon = weaponTemplates.find(w => w.name === 'M24 Sniper');
-
-        p.inventory.push(weapon);
-        message += ` You also stole a ${weapon.name}!`;
-        stolenWeapon = weapon;
+        if (stolenWeapon) {
+          message += ` You also stole a ${stolenWeapon.name}!`;
+        }
       }
     }
-        if (level !== "low") {
-          message = tryStealBullets(p, level, message);
+
+    // Bullet Stealing
+    const bulletResult = calculateBulletSteal(level, message);
+    message = bulletResult.message;
+    bulletsStolen = bulletResult.bulletsStolen;
+
+    // Broken Bone
+    const boneResult = handleBrokenBone(p, level, message);
+    message = boneResult.message;
+    boneCooldownTime = boneResult.normalCooldownStartTime;
+
+    // Death Check
+    if (p.health - actualDamage <= 0) {
+      shouldDie = true;
+      oldDisplayName = p.displayName;
+    }
+  }
+
+  // =====================================================
+  // RETURN OUTCOME
+  // =====================================================
+  return {
+    money,
+    rawDamage,
+    expGain,
+    message,
+    isCaught,
+    stolenWeapon,
+    epinephrine,
+    bulletsStolen,
+    shouldDie,
+    oldDisplayName,
+    oldBalance,
+    boneCooldownTime,
+    actualDamage,
+    totalDefense
+  };
+}
+
+async function handleExecuteOperation(db, socket, data, deps) {
+  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList } = deps;
+  const email = socket.data.email;
+
+  if (!email || typeof data.operation !== 'string') {
+    socket.emit('error', { message: 'Invalid request.' });
+    return;
+  }
+
+  if (!validOperations.has(data.operation)) {
+    console.warn(`[SERVER] Invalid operation attempted: ${data.operation} by ${email}`);
+    socket.emit('error', { message: 'Invalid operation.' });
+    return;
+  }
+
+  const docRef = db.collection('players').doc(email);
+
+  try {
+    // ============================================
+    // STEP A: Fast initial cooldown check (outside transaction)
+    // ============================================
+    const initialSnap = await docRef.get();
+    if (!initialSnap.exists) {
+      socket.emit('error', { message: 'Player not found' });
+      return;
+    }
+
+    let initialP = initialSnap.data();
+    const operation = data.operation;
+
+    // Calculate level and cooldown (same as before)
+    const skill = initialP.skill || 0;
+    let reductionMs = Math.floor(skill * 500);
+    if (initialP.enhancedStaminaEndTime && Date.now() < initialP.enhancedStaminaEndTime) {
+      reductionMs += 3000;
+    }
+
+    let cooldownTime = 60000 - reductionMs;
+    let lastOpTime = initialP.lastLowLevelOp || 0;
+    let level = "low";
+
+    if (midLevelOps.includes(operation)) {
+      cooldownTime = 72000 - reductionMs;
+      lastOpTime = initialP.lastMidLevelOp || 0;
+      level = "mid";
+    } else if (highLevelOps.includes(operation)) {
+      cooldownTime = 80000 - reductionMs;
+      lastOpTime = initialP.lastHighLevelOp || 0;
+      level = "high";
+    }
+    cooldownTime = Math.max(cooldownTime, 30000);
+
+    if (Date.now() - lastOpTime < cooldownTime) {
+      return; // Silent cooldown
+    }
+
+    // ============================================
+    // STEP B: Run everything inside a transaction
+    // ============================================
+    const txResult = await db.runTransaction(async (transaction) => {
+      const freshSnap = await transaction.get(docRef);
+      if (!freshSnap.exists) throw new Error('Player not found');
+
+      let p = freshSnap.data();
+      const exp = p.experience || 0;
+
+      // Re-check cooldown inside transaction (critical for safety)
+      const freshLast = level === "low" ? (p.lastLowLevelOp || 0)
+                       : level === "mid" ? (p.lastMidLevelOp || 0)
+                       : (p.lastHighLevelOp || 0);
+
+      if (Date.now() - freshLast < cooldownTime) {
+        throw new Error('On cooldown');
+      }
+
+      // ============================================
+      // CALL THE EXTRACTED FUNCTION (This is the key improvement)
+      // ============================================
+      const outcome = resolveOperation(p, operation, level, exp);
+
+      // Apply the outcome inside the transaction
+      if (outcome.isCaught) {
+        p.prisonEndTime = Date.now() + 60000;
+      } else {
+        p.balance = (p.balance || 0) + outcome.money;
+        p.health = Math.max(0, p.health - outcome.actualDamage);
+
+        // Add experience
+        p = await addExperienceAndGrantPoints(docRef, p, outcome.expGain);
+
+        // Apply loot
+        if (outcome.stolenWeapon) {
+          p.inventory.push(outcome.stolenWeapon);
+        }
+        if (outcome.epinephrine) {
+          p.inventory.push(outcome.epinephrine);
+        }
+        if (outcome.bulletsStolen > 0) {
+          p.bullets = (p.bullets || 0) + outcome.bulletsStolen;
         }
 
-        // === BROKEN BONE ===
-        const boneResult = handleBrokenBone(p, level, message);
-        message = boneResult.message;
+        // Set cooldown timers (using the time returned from resolveOperation)
+        const cooldownStartTime = outcome.boneCooldownTime || Date.now();
+        if (level === "low") p.lastLowLevelOp = cooldownStartTime;
+        else if (level === "mid") p.lastMidLevelOp = cooldownStartTime;
+        else if (level === "high") p.lastHighLevelOp = cooldownStartTime;
 
-        // Update cooldown timers
-        if (level === "low") p.lastLowLevelOp = boneResult.normalCooldownStartTime;
-        else if (level === "mid") p.lastMidLevelOp = boneResult.normalCooldownStartTime;
-        else if (level === "high") p.lastHighLevelOp = boneResult.normalCooldownStartTime;
-
-        // ==================== DEATH CHECK - MOVED TO THE END ====================
-        // We check AFTER all rewards, loot, bullets, and debuffs have been applied.
-        // This makes the code flow logical and easy to read.
-        if (p.health <= 0) {
-          diedThisOperation = true;
-          oldDisplayName = p.displayName;
-
+        // Handle death
+        if (outcome.shouldDie) {
           p.dead = true;
           p.health = 0;
           p.displayName = null;
           p.displayNameLower = null;
-
-          console.log(`[SERVER] ${email} died from operation (old name: ${oldDisplayName || 'none'})`);
         }
       }
 
-
-
-      // Write the final player state
+      // Write the final state
       transaction.set(docRef, p);
 
-      // Return everything we need outside the transaction
+      // Return everything needed outside the transaction
       return {
         p,
-        money,
-        rawDamage,
-        message,
-        isCaught,
-        stolenWeapon,
+        outcome,
         prisonEndTime: p.prisonEndTime || 0,
-        oldBalance,
-        diedThisOperation,
-        oldDisplayName
+        diedThisOperation: outcome.shouldDie,
+        oldDisplayName: outcome.oldDisplayName,
+        oldBalance: outcome.oldBalance
       };
     });
 
     // ============================================
     // STEP C: Things that happen AFTER successful transaction
     // ============================================
-    const { p, money, rawDamage, message, isCaught, stolenWeapon, prisonEndTime, oldBalance, diedThisOperation, oldDisplayName } = txResult;
+    const { p, outcome, prisonEndTime, diedThisOperation, oldDisplayName, oldBalance } = txResult;
 
-    if (isCaught) {
+    if (outcome.isCaught) {
       imprisonedPlayers.set(p.displayName, prisonEndTime);
     }
 
     // Broadcast prison list
-    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({ displayName, prisonEndTime }));
+    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
+      displayName,
+      prisonEndTime
+    }));
     io.emit('prison-list-update', { list: prisonList, serverTime: Date.now() });
 
-    // Log transaction (only if money was actually gained)
-    if (!isCaught && money > 0) {
-      // Create a minimal object with the CORRECT (old) balance for logging
+    // Log transaction only on successful money gain
+    if (!outcome.isCaught && outcome.money > 0) {
       const playerForLog = { balance: oldBalance };
-      await logTransaction(socket, money, operation, playerForLog, docRef);
+      await logTransaction(socket, outcome.money, operation, playerForLog, docRef);
     }
 
-    // Send result to client
     socket.emit('operation-result', {
       operation,
-      money,
-      rawDamage,
-      actualDamage: isCaught ? rawDamage : Math.max(0, rawDamage - ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0))),
-      totalDefense: isCaught ? 0 : ((p.headwear?.defense || 0) + (p.armor?.defense || 0) + (p.footwear?.defense || 0)),
-      message,
-      isCaught,
+      money: outcome.money,
+      rawDamage: outcome.rawDamage,
+      actualDamage: outcome.actualDamage,
+      totalDefense: outcome.isCaught ? 0 : outcome.totalDefense,
+      message: outcome.message,
+      isCaught: outcome.isCaught,
       prisonEndTime,
-      stolenWeapon
+      stolenWeapon: outcome.stolenWeapon
     });
 
     socket.emit('update-stats', p);
 
-    // ==================== DEATH HANDLING (SIDE EFFECTS ONLY) ====================
+    // Handle death side effects
     if (diedThisOperation && oldDisplayName) {
       removeFromOnlineList(oldDisplayName);
       await markPlayerAsDead(db, p, email, oldDisplayName, io);

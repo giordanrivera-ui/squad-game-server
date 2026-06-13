@@ -96,15 +96,36 @@ function removeFromOnlineList(displayName) {
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
-// Runs every second and removes anyone whose time is up.
-// This keeps the global list clean and enables future rescue mechanics.
-setInterval(() => {
+// Runs every second. Removes expired prisoners from the in-memory list
+// AND also clears prisonEndTime in their Firestore document so they are
+// truly free even if they reconnect later.
+setInterval(async () => {
   const now = Date.now();
   let changed = false;
+  const releasedPlayers = []; // Track who we released this tick
 
   for (const [displayName, prisonEndTime] of imprisonedPlayers.entries()) {
     if (prisonEndTime <= now) {
+      // === NEW: Also clear the prison time in Firestore ===
+      try {
+        const targetQuery = await db.collection('players')
+          .where('displayName', '==', displayName)
+          .limit(1)
+          .get();
+
+        if (!targetQuery.empty) {
+          await targetQuery.docs[0].ref.update({
+            prisonEndTime: 0
+            // We could also add lastLowLevelOp: 0 here if we want them
+            // to be able to do low-level ops immediately after release.
+          });
+        }
+      } catch (err) {
+        console.error(`[SERVER] Failed to clear prisonEndTime for ${displayName}:`, err);
+      }
+
       imprisonedPlayers.delete(displayName);
+      releasedPlayers.push(displayName);
       changed = true;
       console.log(`[SERVER] ${displayName} has been released from prison (auto-cleanup)`);
     }
