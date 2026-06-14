@@ -351,7 +351,6 @@ function resolveOperation(p, operation, level, exp) {
           quality,
           value
         };
-        message += ` You also stole an Epinephrine solution (Quality ${quality})!`;
       }
     }
 

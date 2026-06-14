@@ -19,7 +19,6 @@ function calculateBulletSteal(level, message) {
       }
 
       bulletsStolen = bulletsToSteal;
-      message += ` You also stole ${bulletsToSteal} bullet${bulletsToSteal > 1 ? 's' : ''}!`;
     }
   }
 

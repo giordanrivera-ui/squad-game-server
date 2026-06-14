@@ -176,73 +176,102 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                           ),
                         ],
 
-                        // ==================== NEW: EPINEPHRINE SECTION ====================
-                        if (hasEpinephrine) ...[
-                          const SizedBox(height: 24),
-                          const Divider(color: Colors.white24, thickness: 1),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Epinephrine Acquired',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.purpleAccent),
-                          ),
-                          const SizedBox(height: 12),
-                          Image.asset(
-                            'assets/epinephrine_${widget.epinephrine!['quality']}.png',
-                            width: 90,
-                            height: 90,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.science, size: 70, color: Colors.purpleAccent),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Quality ${widget.epinephrine!['quality']}',
-                            style: const TextStyle(fontSize: 16, color: Colors.white70),
-                          ),
-                        ],
+                        // ==================== OTHER LOOT SECTION (Combined Epinephrine + Bullets) ====================
+if (hasEpinephrine || hasBullets) ...[
+  const SizedBox(height: 24),
+  const Divider(color: Colors.white24, thickness: 1),
+  const SizedBox(height: 12),
+  const Text(
+    'Other Loot Acquired',
+    style: TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.bold,
+      color: Colors.amber,
+    ),
+  ),
+  const SizedBox(height: 16),
 
-                        // ==================== NEW: BULLETS SECTION WITH BADGE ====================
-                        if (hasBullets) ...[
-                          const SizedBox(height: 24),
-                          const Divider(color: Colors.white24, thickness: 1),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Bullets Acquired',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
-                          ),
-                          const SizedBox(height: 12),
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Image.asset(
-                                'assets/bullet.jpg', // ← Make sure this asset exists
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 70, color: Colors.orange),
-                              ),
-                              // Quantity Badge (similar style to hospital_manager_screen)
-                              Positioned(
-                                bottom: 4,
-                                right: 4,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.85),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    'x${widget.bulletsStolen}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+  // Images row
+  Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      // Epinephrine
+      if (hasEpinephrine) ...[
+        Column(
+          children: [
+            Image.asset(
+              'assets/epinephrine_${widget.epinephrine!['quality']}.png',
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.science, size: 70, color: Colors.purpleAccent),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Quality ${widget.epinephrine!['quality']}',
+              style: const TextStyle(fontSize: 14, color: Colors.white70),
+            ),
+          ],
+        ),
+        if (hasBullets) const SizedBox(width: 40),
+      ],
+
+      // Bullets with badge
+      if (hasBullets)
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Image.asset(
+              'assets/bullet.png',
+              width: 80,
+              height: 80,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 70, color: Colors.orange),
+            ),
+            Positioned(
+              bottom: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'x${widget.bulletsStolen}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+    ],
+  ),
+
+  const SizedBox(height: 16),
+
+  // Descriptive text under the images
+  if (hasEpinephrine)
+    Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        'You also stole an Epinephrine solution (Quality ${widget.epinephrine!['quality']})',
+        style: const TextStyle(fontSize: 15, color: Colors.white70),
+        textAlign: TextAlign.center,
+      ),
+    ),
+
+  if (hasBullets)
+    Text(
+      'You also stole ${widget.bulletsStolen} bullet${widget.bulletsStolen > 1 ? 's' : ''}',
+      style: const TextStyle(fontSize: 15, color: Colors.white70),
+      textAlign: TextAlign.center,
+    ),
+],
                       ],
                     ),
                   ),
