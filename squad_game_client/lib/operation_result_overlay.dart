@@ -149,7 +149,7 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
 
                         // ==================== STOLEN WEAPON ====================
                         if (hasStolenWeapon) ...[
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 20),
                           const Divider(color: Colors.white24, thickness: 1),
                           const SizedBox(height: 12),
                           const Text('Weapon Acquired', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
@@ -158,7 +158,7 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                             borderRadius: BorderRadius.circular(12),
                             child: Image.asset(
                               'assets/${widget.stolenWeapon!['name']}.jpg',
-                              width: 120,
+                              width: 170,
                               height: 80,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
@@ -178,7 +178,7 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
 
                         // ==================== OTHER LOOT SECTION (Combined Epinephrine + Bullets) ====================
 if (hasEpinephrine || hasBullets) ...[
-  const SizedBox(height: 24),
+  const SizedBox(height: 20),
   const Divider(color: Colors.white24, thickness: 1),
   const SizedBox(height: 12),
   const Text(
@@ -222,7 +222,7 @@ if (hasEpinephrine || hasBullets) ...[
           alignment: Alignment.center,
           children: [
             Image.asset(
-              'assets/bullet.png',
+              'assets/bullet.jpg',
               width: 80,
               height: 80,
               fit: BoxFit.contain,

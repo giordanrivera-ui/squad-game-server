@@ -3,7 +3,7 @@ function calculateBulletSteal(level, message) {
 
   if (level !== "low") {
     let bulletStealChance = 0;
-    if (level === "mid") bulletStealChance = 0.99;
+    if (level === "mid") bulletStealChance = 0.35;
     else if (level === "high") bulletStealChance = 0.40;
 
     if (bulletStealChance > 0 && Math.random() < bulletStealChance) {
