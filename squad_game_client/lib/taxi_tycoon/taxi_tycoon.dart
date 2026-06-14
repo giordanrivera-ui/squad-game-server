@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'garage_screen.dart';
 import 'hr_screen.dart';
-import 'socket_service.dart';
+import '../socket_service.dart';
 import 'assign_vehicle_screen.dart';
-import 'status_app_bar.dart';
-import 'constants.dart';
+import '../status_app_bar.dart';
+import '../constants.dart';
 import 'dart:async';
 
 class TaxiTycoonScreen extends StatefulWidget {

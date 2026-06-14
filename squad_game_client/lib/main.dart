@@ -29,10 +29,10 @@ import 'bonds_screen.dart';
 import 'businesses_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-// FIXED: Global plugin instance
+// Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-// NEW: Background helper - runs when app is sleeping and gets a note
+// Background helper - runs when app is sleeping and gets a note
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -44,7 +44,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // FIXED: Initialize Firebase only if not already done (no options for mobile)
+  // Initialize Firebase only if not already done (no options for mobile)
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();  // No options - uses google-services.json on Android
   }
@@ -58,12 +58,12 @@ void main() async {
     // providerApple: AppleDebugProvider(),  // If you have iOS, add this
   );
 
-  // FIXED: Initialize local notifications plugin
+  // Initialize local notifications plugin
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon'); // Use your drawable icon
   const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  // NEW: Set up the bell helper for sleeping app
+  // Set up the bell helper for sleeping app
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   // Hide status bar and navigation bar for immersive mode
@@ -258,7 +258,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Just refresh the UI when stats update
     });
 
-        // NEW: Trust the server's balanceAfter completely and update the notifier directly
+        // Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
         final amount = (data['amount'] as num?)?.toInt() ?? 0;
@@ -280,7 +280,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
-    // NEW: Start global per-second income checker (only if owned props)
+    // Start global per-second income checker (only if owned props)
     _globalIncomeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       final currentStats = _socketService.statsNotifier.value;  // NEW: Use the smart box
       if (currentStats['ownedProperties'] != null && (currentStats['ownedProperties'] as List).isNotEmpty) {
@@ -288,7 +288,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
-    // NEW: Listen for income claimed (show snackbar app-wide)
+    // Listen for income claimed (show snackbar app-wide)
     _socketService.incomeClaimedNotifier.addListener(() {
       final amount = _socketService.incomeClaimedNotifier.value;
       if (amount != null && amount > 0) {
@@ -313,7 +313,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     });
   }
 
-  // NEW: Set up the bell for notes
+  // Set up the bell for notes
   void _setupPushNotifications() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
@@ -321,19 +321,19 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       }
     });
 
-    // NEW: When tap pop-up from sleeping app, open messages screen
+    // When tap pop-up from sleeping app, open messages screen
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       setState(() => _currentScreen = 2); // Go to messages
     });
 
-    // NEW: If app started from pop-up
+    // If app started from pop-up
     FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
       if (message != null) {
         setState(() => _currentScreen = 2);
       }
     });
 
-    // NEW: Create notification channel
+    // Create notification channel
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'high_importance_channel', // Matches manifest meta-data
       'High Importance Notifications',
@@ -345,7 +345,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         ?.createNotificationChannel(channel);
   }
 
-  // NEW: Show pop-up note when app is open
+  // Show pop-up note when app is open
   Future<void> _showLocalNotification(RemoteMessage message) async {
     // FIXED: Dynamically set groupKey based on message type/sender
     String groupKey = 'default_group';
@@ -383,7 +383,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     _socketService.connect(user.email!, user.displayName ?? 'Anonymous');
 
-    // NEW: Get special key for push notes and save it
+    // Get special key for push notes and save it
     FirebaseMessaging.instance.requestPermission();
     FirebaseMessaging.instance.getToken().then((token) {
       if (token != null) {
@@ -704,7 +704,7 @@ Container(
                                 Padding(
                                   padding: const EdgeInsets.only(left: 4),
                                   child: Text(
-                                    staminaRemainingText!,
+                                    staminaRemainingText,
                                     style: const TextStyle(
                                       color: Colors.amber,
                                       fontSize: 13,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'properties_screen.dart';
-import 'taxi_tycoon.dart';
+import 'taxi_tycoon/taxi_tycoon.dart';
 
 class BusinessesScreen extends StatelessWidget {
   const BusinessesScreen({super.key});

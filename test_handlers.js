@@ -1,4 +1,3 @@
-// test_handlers.js
 const admin = require('firebase-admin');
 const { logTransaction, getRankTitle, addExperienceAndGrantPoints } = require('./utils');
 

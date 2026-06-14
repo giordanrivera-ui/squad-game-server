@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'socket_service.dart';
+import '../socket_service.dart';
 
 class AssignVehicleScreen extends StatelessWidget {
   final Map<String, dynamic> driver;
