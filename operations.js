@@ -341,7 +341,7 @@ function resolveOperation(p, operation, level, exp) {
 
     // Storm a Laboratory - Epinephrine
     if (operation === "Storm a laboratory") {
-      if (Math.random() * 100 < 60) {
+      if (Math.random() * 100 < 90) {
         const quality = getEpinephrineQuality(p.skill, p.intelligence || 0);
         const value = (quality >= 4) ? 30 : 20;
 
