@@ -85,6 +85,8 @@ class _OperationsScreenState extends State<OperationsScreen>
         actualDamage: data['actualDamage'] ?? 0,
         totalDefense: data['totalDefense'] ?? 0,
         stolenWeapon: data['stolenWeapon'],
+        epinephrine: data['epinephrine'],
+        bulletsStolen: data['bulletsStolen'] ?? 0,
         onDismiss: () {
           _operationResultOverlay?.remove();
           _operationResultOverlay = null;

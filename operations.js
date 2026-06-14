@@ -640,7 +640,9 @@ async function handleExecuteOperation(db, socket, data, deps) {
       message: outcome.message,
       isCaught: outcome.isCaught,
       prisonEndTime,
-      stolenWeapon: outcome.stolenWeapon
+      stolenWeapon: outcome.stolenWeapon,
+      epinephrine: outcome.epinephrine,
+      bulletsStolen: outcome.bulletsStolen
     });
 
     socket.emit('update-stats', p);

@@ -7,7 +7,9 @@ class OperationResultOverlay extends StatefulWidget {
   final String message;
   final int actualDamage;
   final int totalDefense;
-  final Map<String, dynamic>? stolenWeapon; // NEW
+  final Map<String, dynamic>? stolenWeapon;
+  final Map<String, dynamic>? epinephrine;   // NEW
+  final int bulletsStolen;                   // NEW
   final VoidCallback onDismiss;
 
   const OperationResultOverlay({
@@ -17,7 +19,9 @@ class OperationResultOverlay extends StatefulWidget {
     required this.message,
     required this.actualDamage,
     required this.totalDefense,
-    this.stolenWeapon, // NEW
+    this.stolenWeapon,
+    this.epinephrine,      // NEW
+    this.bulletsStolen = 0, // NEW
     required this.onDismiss,
   });
 
@@ -67,6 +71,8 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
   Widget build(BuildContext context) {
     final bool tookDamage = widget.actualDamage > 0;
     final bool hasStolenWeapon = widget.stolenWeapon != null;
+    final bool hasEpinephrine = widget.epinephrine != null;
+    final bool hasBullets = widget.bulletsStolen > 0;
 
     return GestureDetector(
       onTap: widget.onDismiss,
@@ -141,19 +147,12 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                           ),
                         ],
 
-                        // ==================== NEW: STOLEN WEAPON SECTION ====================
+                        // ==================== STOLEN WEAPON ====================
                         if (hasStolenWeapon) ...[
                           const SizedBox(height: 24),
                           const Divider(color: Colors.white24, thickness: 1),
                           const SizedBox(height: 12),
-                          const Text(
-                            'Weapon Acquired',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber,
-                            ),
-                          ),
+                          const Text('Weapon Acquired', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
                           const SizedBox(height: 12),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
@@ -173,11 +172,75 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                           const SizedBox(height: 8),
                           Text(
                             widget.stolenWeapon!['name'] as String,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+                          ),
+                        ],
+
+                        // ==================== NEW: EPINEPHRINE SECTION ====================
+                        if (hasEpinephrine) ...[
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white24, thickness: 1),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Epinephrine Acquired',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.purpleAccent),
+                          ),
+                          const SizedBox(height: 12),
+                          Image.asset(
+                            'assets/epinephrine_${widget.epinephrine!['quality']}.png',
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.science, size: 70, color: Colors.purpleAccent),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Quality ${widget.epinephrine!['quality']}',
+                            style: const TextStyle(fontSize: 16, color: Colors.white70),
+                          ),
+                        ],
+
+                        // ==================== NEW: BULLETS SECTION WITH BADGE ====================
+                        if (hasBullets) ...[
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white24, thickness: 1),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Bullets Acquired',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent),
+                          ),
+                          const SizedBox(height: 12),
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Image.asset(
+                                'assets/bullet.jpg', // ← Make sure this asset exists
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 70, color: Colors.orange),
+                              ),
+                              // Quantity Badge (similar style to hospital_manager_screen)
+                              Positioned(
+                                bottom: 4,
+                                right: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    'x${widget.bulletsStolen}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ],
@@ -187,7 +250,7 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
               ),
             ),
 
-            // Particles
+            // Particles...
             ..._particles.map((p) => AnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {

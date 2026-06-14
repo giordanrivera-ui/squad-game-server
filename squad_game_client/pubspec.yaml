@@ -159,6 +159,7 @@ flutter:
     - assets/epinephrine_3.png
     - assets/epinephrine_4.png
     - assets/epinephrine_5.png
+    - assets/bullet.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
