@@ -64,10 +64,10 @@ class _SpecialOpsTabState extends State<SpecialOpsTab> {
 
 
   void _onSpecialOpChanged(String? value) {
-    if (_isOperationInitiated) return;
+    if (_isOperationInitiated || _isInitiating) return;
+
     setState(() {
       _selectedSpecialOperation = value;
-      _isInitiating = false;
     });
   }
 
@@ -301,7 +301,7 @@ class _SpecialOpsTabState extends State<SpecialOpsTab> {
           children: [
             const SizedBox(height: 20),
 
-            if (!_isOperationInitiated)
+            if (!_isOperationInitiated && !_isInitiating)
               Container(
                 width: 300,
                 padding: const EdgeInsets.symmetric(horizontal: 16),

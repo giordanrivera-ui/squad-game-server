@@ -51,6 +51,14 @@ void main() async {
 
   await MobileAds.instance.initialize();
 
+  await MobileAds.instance.updateRequestConfiguration(
+    RequestConfiguration(
+      testDeviceIds: ['8DE8D97F76EDF7B3E4F54A8BE17AE570'],
+      // This helps prevent Firebase auto-integration issues
+      tagForChildDirectedTreatment: TagForChildDirectedTreatment.unspecified,
+    ),
+  );
+
     // NEW: Activate App Check with the updated syntax
   await FirebaseAppCheck.instance.activate(
     providerAndroid: const AndroidDebugProvider(),  // For testing/debug

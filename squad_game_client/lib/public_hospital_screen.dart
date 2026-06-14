@@ -19,7 +19,8 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
   @override
   void initState() {
     super.initState();
-    AdService.loadRewardedAd();
+  AdService.loadRewardedAd();
+
     // Refresh UI every second while healing is active
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
@@ -44,7 +45,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
         final bool hasBrokenBone = stats['hasBrokenBone'] == true;
 
         final bool isHealing = healingEndTime != null && healingEndTime > SocketService().currentServerTime;
-        final int remainingSeconds = isHealing 
+        final int remainingSeconds = isHealing
             ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 360)
             : 0;
 
@@ -92,66 +93,95 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // ==================== AD BUTTON (only show if NOT used yet) ====================
-                            if (stats['usedAdForHealing'] != true)
-                              SizedBox(
-                                width: double.infinity,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                                  child: ElevatedButton(
-                                    onPressed: () {
-                                      AdService.showRewardedAd(
-                                        context: context,
-                                        onAdWatched: () {
-                                          SocketService().socket?.emit('watch-ad-for-faster-healing');
-                                        },
-                                        onAdFailed: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Ad could not be shown. Please try again.')),
+                            // ==================== REACTIVE AD SECTION ====================
+                            ValueListenableBuilder<bool>(
+                              valueListenable: AdService.adReadyNotifier,
+                              builder: (context, isAdReady, child) {
+                                if (stats['usedAdForHealing'] == true) {
+                                  // Ad already used
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.green.withOpacity(0.4)),
+                                      ),
+                                      child: const Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.green, size: 22),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            '✅ Ad used — healing will finish faster!',
+                                            style: TextStyle(
+                                              color: Colors.green,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (isAdReady) {
+                                  // Ad is ready - show the button
+                                  return SizedBox(
+                                    width: double.infinity,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          AdService.showRewardedAd(
+                                            context: context,
+                                            onAdWatched: () {
+                                              SocketService().socket?.emit('watch-ad-for-faster-healing');
+                                            },
+                                            onAdFailed: () {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Ad could not be shown. Please try again.')),
+                                              );
+                                            },
                                           );
                                         },
-                                      );
-                                    },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.purple,
-                                      padding: const EdgeInsets.symmetric(vertical: 16),
-                                    ),
-                                    child: const Text(
-                                      '🎬 Watch Ad to Heal in 3 Minutes',
-                                      style: TextStyle(fontSize: 18),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              // Show this nice message instead of the button after they used the ad
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 24),
-                                child: Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.green.withOpacity(0.4)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.check_circle, color: Colors.green, size: 22),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        '✅ Ad used — healing will finish faster!',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.purple,
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                        ),
+                                        child: const Text(
+                                          '🎬 Watch Ad to Heal in 3 Minutes',
+                                          style: TextStyle(fontSize: 18),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                                    ),
+                                  );
+                                } else {
+                                  // Ad is still loading
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.grey.withOpacity(0.4)),
+                                      ),
+                                      child: const Center(
+                                        child: Text(
+                                          'Loading Ad...',
+                                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
 
                             const SizedBox(height: 12),
                             const Text('You are healing...', style: TextStyle(color: Colors.grey)),
