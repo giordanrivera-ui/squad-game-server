@@ -3,7 +3,7 @@ function getPrisonChance(level, exp) {
 
   if (level === "mid") {
     prisonChance = 0.47;
-    if (exp > 49) prisonChance = 0.45;
+    if (exp > 49) prisonChance = 0.44;
     if (exp > 514) prisonChance = 0.42;
     if (exp > 1264) prisonChance = 0.38;
     if (exp > 2314) prisonChance = 0.36;
