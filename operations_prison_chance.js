@@ -29,15 +29,15 @@ function getPrisonChance(level, exp) {
     if (exp > 3514) prisonChance = 0.38;
     if (exp > 5014) prisonChance = 0.33;
     if (exp > 6864) prisonChance = 0.30;
-    if (exp > 8864) prisonChance = 0.28;
+    if (exp > 8864) prisonChance = 0.27;
     if (exp > 10214) prisonChance = 0.25;
     if (exp > 11464) prisonChance = 0.23;
     if (exp > 14214) prisonChance = 0.21;
     if (exp > 17414) prisonChance = 0.20;
     if (exp > 21364) prisonChance = 0.18;
-    if (exp > 25864) prisonChance = 0.17;
-    if (exp > 31514) prisonChance = 0.16;
-    if (exp > 38214) prisonChance = 0.15;
+    if (exp > 25864) prisonChance = 0.16;
+    if (exp > 31514) prisonChance = 0.15;
+    if (exp > 38214) prisonChance = 0.14;
 
   } else {
     // low level (default)
