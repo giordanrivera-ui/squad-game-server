@@ -160,6 +160,7 @@ flutter:
     - assets/epinephrine_4.png
     - assets/epinephrine_5.png
     - assets/bullet.jpg
+    - assets/inventory.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
@@ -174,7 +175,7 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   # fonts:
-  #   - family: Schyler
+  #   - family: Schylerhttps://t.me/ksi_ise
   #     fonts:
   #       - asset: fonts/Schyler-Regular.ttf
   #       - asset: fonts/Schyler-Italic.ttf

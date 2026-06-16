@@ -85,6 +85,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squad Game',
+      debugShowCheckedModeBanner: false,
       home: AuthWrapper(),
     );
   }

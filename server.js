@@ -745,7 +745,7 @@ socket.on('respawn', async () => {
       if (rescuedSocket) {
         rescuedSocket.emit('update-stats', { prisonEndTime: 0 });
 
-        // NEW: Trigger beautiful full-screen celebration
+        // Trigger full-screen celebration
         rescuedSocket.emit('player-rescued', {
           rescuer: saverName,
           message: `You were rescued by ${saverName}!`

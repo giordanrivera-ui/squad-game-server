@@ -232,7 +232,7 @@ if (hasStolenWeapon) ...[
 
       // === SPACING LOGIC ===
     if (hasStolenWeapon && hasBullets)
-      const SizedBox(width: 5),
+      const SizedBox(width: 0),
 
     if (hasEpinephrine && hasBullets)
       const SizedBox(width: 32),
