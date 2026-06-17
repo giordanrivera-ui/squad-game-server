@@ -1004,76 +1004,28 @@ async function handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwner
 }
 
 function registerHospitalHandlers(socket, deps) {
-  const {
-    db,
-    hospitalOwnershipRef,
-    onlineSockets,
-    ENHANCED_STAMINA_RESEARCH,
-    ENHANCED_CONSTITUTION_RESEARCH
-  } = deps;
+  const {db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH } = deps;
 
   // ==================== HOSPITAL / HEALING HANDLERS ====================
-  socket.on('heal-broken-bone', async () => { 
-    await handleHealBrokenBone(db, socket); 
-  });
-
-  socket.on('start-healing', async () => { 
-    await handleStartHealing(db, socket); 
-  });
-
-  socket.on('watch-ad-for-faster-healing', async () => { 
-    await handleWatchAdForFasterHealing(db, socket); 
-  });
-
-  socket.on('claim-healing', async () => { 
-    await handleClaimHealing(db, socket); 
-  });
-
-  socket.on('claim-hospital', (data) => 
-    handleClaimHospital(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('release-hospital', (data) => 
-    handleReleaseHospital(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('update-hospital-service', (data) => 
-    handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db })
-  );
-
-  socket.on('start-private-healing', async (data) => { 
-    await handleStartPrivateHealing(db, socket, data, { onlineSockets }); 
-  });
-
-  socket.on('claim-private-healing', async () => { 
-    await handleClaimPrivateHealing(db, socket); 
-  });
-
-  socket.on('update-hospital-heal-cost', (data) => 
-    handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('update-hospital-healing-duration', (data) => 
-    handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('start-efficient-doctors-research', async (data) => { 
-    await handleStartEfficientDoctorsResearch(db, socket, data.hospitalDocId); 
-  });
-
-  socket.on('claim-efficient-doctors-research', async (data) => { 
-    await handleClaimEfficientDoctorsResearch(db, socket, data.hospitalDocId); 
-  });
-
-  socket.on('start-enhanced-stamina-research', async (data) => { 
-    await handleStartPerformanceResearch(
+  socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
+  socket.on('start-healing', async () => { await handleStartHealing(db, socket); });
+  socket.on('watch-ad-for-faster-healing', async () => { await handleWatchAdForFasterHealing(db, socket); });
+  socket.on('claim-healing', async () => { await handleClaimHealing(db, socket); });
+  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { hospitalOwnershipRef }));
+  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db }));
+  socket.on('start-private-healing', async (data) => { await handleStartPrivateHealing(db, socket, data, { onlineSockets });});
+  socket.on('claim-private-healing', async () => { await handleClaimPrivateHealing(db, socket); });
+  socket.on('update-hospital-heal-cost', (data) => handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-healing-duration', (data) => handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }));
+  socket.on('start-efficient-doctors-research', async (data) => { await handleStartEfficientDoctorsResearch(db, socket, data.hospitalDocId); });
+  socket.on('claim-efficient-doctors-research', async (data) => { await handleClaimEfficientDoctorsResearch(db, socket, data.hospitalDocId); });
+  socket.on('start-enhanced-stamina-research', async (data) => { await handleStartPerformanceResearch(
       db, socket, data.hospitalDocId, 
       ENHANCED_STAMINA_RESEARCH, 
       'hasEnhancedStamina', 
       'enhancedStaminaResearchEndTime', 
-      'Enhanced Stamina'
-    ); 
-  });
+      'Enhanced Stamina'); });
 
   socket.on('claim-enhanced-stamina-research', async (data) => { 
     await handleClaimPerformanceResearch(
@@ -1085,39 +1037,14 @@ function registerHospitalHandlers(socket, deps) {
   });
 
   socket.on('start-enhanced-constitution-research', async (data) => { 
-    await handleStartPerformanceResearch(
-      db, socket, data.hospitalDocId, 
-      ENHANCED_CONSTITUTION_RESEARCH, 
-      'hasEnhancedConstitution', 
-      'enhancedConstitutionResearchEndTime', 
-      'Enhanced Constitution'
-    ); 
-  });
-
-  socket.on('claim-enhanced-constitution-research', async (data) => { 
-    await handleClaimPerformanceResearch(
-      db, socket, data.hospitalDocId, 
-      'hasEnhancedConstitution', 
-      'enhancedConstitutionResearchEndTime', 
-      'Enhanced Constitution'
-    ); 
-  });
-
-  socket.on('update-hospital-stamina-cost', (data) => 
-    handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('update-hospital-constitution-cost', (data) => 
-    handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef })
-  );
-
-  socket.on('purchase-enhanced-stamina', async (data) => { 
-    await handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }); 
-  });
-
-  socket.on('set-selected-epinephrine-quality', (data) => 
-    handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef })
-  );
+    await handleStartPerformanceResearch( db, socket, data.hospitalDocId, 
+      ENHANCED_CONSTITUTION_RESEARCH, 'hasEnhancedConstitution', 
+      'enhancedConstitutionResearchEndTime', 'Enhanced Constitution'); });
+  socket.on('claim-enhanced-constitution-research', async (data) => { await handleClaimPerformanceResearch( db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution'); });
+  socket.on('update-hospital-stamina-cost', (data) => handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }));
+  socket.on('update-hospital-constitution-cost', (data) => handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }));
+  socket.on('purchase-enhanced-stamina', async (data) => { await handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }); });
+  socket.on('set-selected-epinephrine-quality', (data) => handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef }));
 }
 
 module.exports = {

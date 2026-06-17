@@ -19,7 +19,7 @@ const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
-const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
+const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
 const { 
   startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
   handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
@@ -553,14 +553,7 @@ socket.on('respawn', async () => {
   });
 
   // ==================== TAXI TYCOON HANDLERS (now external) ====================
-  socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
-  socket.on('remove-from-fleet', async (payload) => { await handleRemoveFromFleet(db, socket, payload); });
-  socket.on('scout-drivers', async (count) => { await handleScoutDrivers(db, socket, count); });
-  socket.on('clear-scouted-drivers', async () => { await handleClearScoutedDrivers(db, socket); });
-  socket.on('assign-driver-to-vehicle', async (data) => { await handleAssignDriverToVehicle(db, socket, data); });
-  socket.on('unassign-driver-from-vehicle', async (data) => { await handleUnassignDriverFromVehicle(db, socket, data); });
-  socket.on('hire-drivers', async (payload) => { await handleHireDrivers(db, socket, payload); });
-  socket.on('fire-drivers', async (payload) => { await handleFireDrivers(db, socket, payload); });
+  registerTaxiHandlers(socket, { db });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {

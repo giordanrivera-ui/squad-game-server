@@ -680,6 +680,17 @@ async function handleHireDrivers(db, socket, payload) {
   });
 }
 
+function registerTaxiHandlers(socket, { db }) {
+  socket.on('assign-to-fleet', async (vehicle) => { await handleAssignToFleet(db, socket, vehicle); });
+  socket.on('remove-from-fleet', async (payload) => { await handleRemoveFromFleet(db, socket, payload); });
+  socket.on('scout-drivers', async (count) => { await handleScoutDrivers(db, socket, count); });
+  socket.on('clear-scouted-drivers', async () => { await handleClearScoutedDrivers(db, socket); });
+  socket.on('assign-driver-to-vehicle', async (data) => { await handleAssignDriverToVehicle(db, socket, data); });
+  socket.on('unassign-driver-from-vehicle', async (data) => { await handleUnassignDriverFromVehicle(db, socket, data); });
+  socket.on('hire-drivers', async (payload) => { await handleHireDrivers(db, socket, payload); });
+  socket.on('fire-drivers', async (payload) => { await handleFireDrivers(db, socket, payload); });
+}
+
 module.exports = {
   startDriverSalaryChecker,
   startDriverProgressChecker,
@@ -691,5 +702,6 @@ module.exports = {
   handleAssignDriverToVehicle,
   handleUnassignDriverFromVehicle,
   handleHireDrivers,
-  handleFireDrivers
+  handleFireDrivers,
+  registerTaxiHandlers,
 };
