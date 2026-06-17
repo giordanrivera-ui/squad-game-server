@@ -7,27 +7,16 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'socket_service.dart';
 import 'constants.dart';
 import 'dart:async';
-import 'online_players_screen.dart';
-import 'airport_screen.dart';
-import 'messages_screen.dart';
-import 'auth_screen.dart';
-import 'status_app_bar.dart';
-import 'hospital_screen.dart'; 
-import 'operations_screen.dart';
-import 'profile_screen.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'store_screen.dart';
-import 'sidebar.dart';
-import 'prison_screen.dart';
 import 'rescue_celebration_overlay.dart';
 import 'rank_up_celebration_overlay.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'kill_player_screen.dart';
-import 'hall_of_fame_screen.dart';
-import 'bonds_screen.dart';
-import 'businesses_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'screens.dart';
+import 'dashboard_header.dart';
+import 'dashboard_bankcard.dart';
+import 'audio_service.dart';
 
 // Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -40,7 +29,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -48,6 +36,8 @@ void main() async {
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp();  // No options - uses google-services.json on Android
   }
+
+  AudioService().playBackgroundMusic();
 
   await MobileAds.instance.initialize();
 
@@ -59,7 +49,7 @@ void main() async {
     ),
   );
 
-    // NEW: Activate App Check with the updated syntax
+    // Activate App Check with the updated syntax
   await FirebaseAppCheck.instance.activate(
     providerAndroid: const AndroidDebugProvider(),  // For testing/debug
     // providerWeb: ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY'),  // If you have web support, add your key here
@@ -441,66 +431,72 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<Map<String, dynamic>>(
-      valueListenable: _socketService.statsNotifier,
-      builder: (context, stats, child) {
-        final bool isPlayerDead = (stats['dead'] == true) || (stats['health'] ?? 100) <= 0 || (_socketService.deathNotifier.value == true);
+Widget build(BuildContext context) {
+  return ValueListenableBuilder<Map<String, dynamic>>(
+    valueListenable: _socketService.statsNotifier,
+    builder: (context, stats, child) {
+      final bool isPlayerDead = (stats['dead'] == true) || (stats['health'] ?? 100) <= 0 || (_socketService.deathNotifier.value == true);
 
-        if (isPlayerDead) {
-          return Scaffold(
-            backgroundColor: Colors.black,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: () async {
-                      // FIX: Clear the old death state so the new life starts clean
-                      _socketService.deathNotifier.value = false;
-
-                      _socketService.respawn();
-                      await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
-                      await FirebaseAuth.instance.currentUser?.reload();
-                      await FirebaseAuth.instance.signOut();
-                      _socketService.disconnect();
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
-                    },
-                    child: const Text('Logout & Start New Life'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // ← Everything else (your normal Scaffold with drawer, body, etc.) stays exactly the same below this
+      if (isPlayerDead) {
         return Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('YOU ARE DEAD!', style: TextStyle(fontSize: 48, color: Colors.red, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 30),
+                ElevatedButton(
+                  onPressed: () async {
+                    _socketService.deathNotifier.value = false;
+                    _socketService.respawn();
+                    await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
+                    await FirebaseAuth.instance.currentUser?.reload();
+                    await FirebaseAuth.instance.signOut();
+                    _socketService.disconnect();
+                    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AuthScreen()));
+                  },
+                  child: const Text('Logout & Start New Life'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // ==================== MAIN APP WITH BACK NAVIGATION HANDLING ====================
+      return PopScope(
+        canPop: _currentScreen == 0,                    // Only allow closing app when on Dashboard
+        onPopInvoked: (didPop) {
+          if (!didPop && _currentScreen != 0) {
+            // User pressed back on any other screen → return to Dashboard
+            setState(() => _currentScreen = 0);
+          }
+        },
+        child: Scaffold(
           key: _scaffoldKey,
           appBar: _currentScreen == 0 
-          ? null  // REMOVE AppBar for dashboard
-          : StatusAppBar(
-              title: _currentScreen == 1 
-                  ? 'Players Online' 
-                  : _currentScreen == 2 
-                      ? 'Messages' 
-                      : _currentScreen == 3 
-                          ? '✈️ Airport' 
-                          : _currentScreen == 4 
-                              ? '🏥 Hospital'
-                              : _currentScreen == 5 
-                                  ? 'Operations'
-                                  : _currentScreen == 6 
-                                      ? 'Profile'
-                                      : _currentScreen == 7 
-                                          ? 'Store'
-                                          : 'Businesses',
-              statsNotifier: _socketService.statsNotifier,
-              time: time,
-              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-            ),
+              ? null 
+              : StatusAppBar(
+                  title: _currentScreen == 1 
+                      ? 'Players Online' 
+                      : _currentScreen == 2 
+                          ? 'Messages' 
+                          : _currentScreen == 3 
+                              ? '✈️ Airport' 
+                              : _currentScreen == 4 
+                                  ? '🏥 Hospital'
+                                  : _currentScreen == 5 
+                                      ? 'Operations'
+                                      : _currentScreen == 6 
+                                          ? 'Profile'
+                                          : _currentScreen == 7 
+                                              ? 'Store'
+                                              : 'Businesses',
+                  statsNotifier: _socketService.statsNotifier,
+                  time: time,
+                  onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
           drawer: Sidebar(
             currentScreen: _currentScreen,
             onScreenChanged: (screen) {
@@ -511,74 +507,74 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           ),
           
           body: _currentScreen == 0 
-          ? _buildDashboard() 
-          : _currentScreen == 1 
-              ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
-              : _currentScreen == 2 
-                  ? MessagesScreen()
-                  : _currentScreen == 3 
-                      ? AirportScreen(
-                          currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                          currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
-                          currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
-                          currentTime: time,
-                          prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
-                        )
-                      : _currentScreen == 4 
-                          ? HospitalScreen(
+              ? _buildDashboard() 
+              : _currentScreen == 1 
+                  ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
+                  : _currentScreen == 2 
+                      ? MessagesScreen()
+                      : _currentScreen == 3 
+                          ? AirportScreen(
+                              currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                              currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
+                              currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
+                              currentTime: time,
+                              prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
                             )
-                          : _currentScreen == 5 
-                              ? OperationsScreen(
-                                  currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                                  currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
-                                  currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
-                                  currentTime: time,
-                                  lastLowLevelOp: (_socketService.statsNotifier.value['lastLowLevelOp'] ?? 0).toInt(),
-                                  prisonEndTime: (_socketService.statsNotifier.value['prisonEndTime'] ?? 0).toInt(),
-                                  lastMidLevelOp: (_socketService.statsNotifier.value['lastMidLevelOp'] ?? 0.toInt()),
-                                  lastHighLevelOp: (_socketService.statsNotifier.value['lastHighLevelOp'] ?? 0).toInt(),
-                                  skill: _socketService.statsNotifier.value['skill'] ?? 0,
-                                  hasEnhancedStamina: _socketService.statsNotifier.value['enhancedStaminaEndTime'] != null &&
-                                      (_socketService.statsNotifier.value['enhancedStaminaEndTime'] as int) > SocketService().currentServerTime,
-                                )
-                              : _currentScreen == 6 
-                                  ? ProfileScreen(
-                                    stats: {
-                                      ..._socketService.statsNotifier.value,
-                                      'balance': (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
-                                      })
-                                  : _currentScreen == 7 
-                                      ? StoreScreen(
-                                        currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
-                                        currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
-                                        currentTime: time,
-                                        currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
-                                      )
-                                      
-                                        : _currentScreen == 9 
-                                            ? PrisonScreen(
-                                              currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
-                                              initialViewerPrisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
+                          : _currentScreen == 4 
+                              ? HospitalScreen()
+                              : _currentScreen == 5 
+                                  ? OperationsScreen(
+                                      currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                                      currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
+                                      currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
+                                      currentTime: time,
+                                      lastLowLevelOp: (_socketService.statsNotifier.value['lastLowLevelOp'] ?? 0).toInt(),
+                                      prisonEndTime: (_socketService.statsNotifier.value['prisonEndTime'] ?? 0).toInt(),
+                                      lastMidLevelOp: (_socketService.statsNotifier.value['lastMidLevelOp'] ?? 0.toInt()),
+                                      lastHighLevelOp: (_socketService.statsNotifier.value['lastHighLevelOp'] ?? 0).toInt(),
+                                      skill: _socketService.statsNotifier.value['skill'] ?? 0,
+                                      hasEnhancedStamina: _socketService.statsNotifier.value['enhancedStaminaEndTime'] != null &&
+                                          (_socketService.statsNotifier.value['enhancedStaminaEndTime'] as int) > SocketService().currentServerTime,
+                                    )
+                                  : _currentScreen == 6 
+                                      ? ProfileScreen(
+                                          stats: {
+                                            ..._socketService.statsNotifier.value,
+                                            'balance': (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
+                                          },
+                                        )
+                                      : _currentScreen == 7 
+                                          ? StoreScreen(
+                                              currentBalance: (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
+                                              currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
+                                              currentTime: time,
+                                              currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
                                             )
-                                            : _currentScreen == 10  // NEW: Kill a Player
-                                            ? const KillPlayerScreen()
-                                            : _currentScreen == 11  // NEW: Hall of Fame
-                                                ? const HallOfFameScreen()
-                                                : _currentScreen == 12 
-                                                ? const BusinessesScreen()
-                                                : const BusinessesScreen(),
+                                          : _currentScreen == 9 
+                                              ? PrisonScreen(
+                                                  currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
+                                                  initialViewerPrisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
+                                                )
+                                              : _currentScreen == 10 
+                                                  ? const KillPlayerScreen()
+                                                  : _currentScreen == 11 
+                                                      ? const HallOfFameScreen()
+                                                      : _currentScreen == 12 
+                                                          ? const BusinessesScreen()
+                                                          : const BusinessesScreen(),
 
           floatingActionButton: _currentScreen == 2
-          ? FloatingActionButton(
-              onPressed: () => _showNewMessageDialog(context),
-              child: const Icon(Icons.add_comment),
-              tooltip: 'New Message',
-            )
-          : null,
-        );
-      },
-    );
-  }
+              ? FloatingActionButton(
+                  onPressed: () => _showNewMessageDialog(context),
+                  child: const Icon(Icons.add_comment),
+                  tooltip: 'New Message',
+                )
+              : null,
+        ),
+      );
+    },
+  );
+}
 
 Widget _buildDashboard() {
   return ValueListenableBuilder<Map<String, dynamic>>(
@@ -599,216 +595,57 @@ Widget _buildDashboard() {
         }
       }
 
+      // ==================== NET WORTH CALCULATION (FIXED) ====================
+final int bankBalance = (stats['balance'] as num?)?.toInt() ?? 0;
+
+// 1. Inventory value at 60% (lowest sell rate)
+final List<dynamic> inventory = stats['inventory'] as List<dynamic>? ?? [];
+int inventoryValue = 0;
+for (var item in inventory) {
+  if (item is Map) {
+    inventoryValue += (item['value'] as num?)?.toInt() ?? 0;
+  }
+}
+final int inventoryAt60Percent = (inventoryValue * 0.6).floor();
+
+// 2. Value of owned properties (FIXED)
+int propertiesValue = 0;
+final List<dynamic> ownedPropertyNames = stats['ownedProperties'] as List<dynamic>? ?? [];
+
+// Get the full list of property definitions (from socket_service)
+final List<Map<String, dynamic>> allProperties = SocketService().properties;
+
+for (var name in ownedPropertyNames) {
+  if (name is String) {
+    // Find the property definition by name
+    final prop = allProperties.firstWhere(
+      (p) => p['name'] == name,
+      orElse: () => {},
+    );
+    
+    if (prop.isNotEmpty) {
+      // Use 'cost' as the property value (this is the purchase price)
+      propertiesValue += (prop['cost'] as num?)?.toInt() ?? 0;
+    }
+  }
+}
+
+// Final Net Worth
+final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
+
       return Column(
         children: [
-          // Top section (unchanged until health)
-// ==================== TOP SECTION WITH BACKGROUND IMAGE + OVERLAY ====================
-Container(
-  width: double.infinity,
-  padding: const EdgeInsets.all(16),
-  decoration: const BoxDecoration(
-    image: DecorationImage(
-      image: AssetImage('assets/top-section-bg.jpg'),
-      fit: BoxFit.cover,
-    ),
-  ),
-  child: Stack(
-    children: [
-      // Semi-transparent black overlay (makes text easy to read)
-      Container(
-        color: Colors.black.withOpacity(0.58),   // ← Feel free to tweak 0.58 if you want darker/lighter
-      ),
-
-      // All your original content stays exactly the same
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Menu button
-              Builder(
-                builder: (context) => Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                    ),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: _socketService.hasUnreadMessages,
-                      builder: (context, hasUnread, child) {
-                        if (!hasUnread) return const SizedBox.shrink();
-                        return Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  time,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-              ),
-            ],
+          DashboardHeader(
+            time: time,
+            stats: stats,
+            hasEnhancedStamina: hasEnhancedStamina,
+            staminaRemainingText: staminaRemainingText,
+            onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          const SizedBox(height: 2),
-          Text('Location: ${stats['location'] ?? "Unknown"}', style: const TextStyle(fontSize: 16, color: Colors.white70)),
-          const SizedBox(height: 8),
-          // Health bar
-          LinearProgressIndicator(value: (stats['health'] ?? 100) / 100.0, color: Colors.green,
+          DashboardBankCard(
+            balance: (stats['balance'] as num?)?.toInt() ?? 0,
+            netWorth: netWorth,
           ),
-          SizedBox(
-            height: 6,
-          ),
-          Row(
-            children: [
-              Text(
-                'Health: ${stats['health'] ?? 100}/100',
-                style: const TextStyle(fontSize: 16, color: Colors.white),
-              ),
-              if (stats['hasBrokenBone'] == true || hasEnhancedStamina)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (stats['hasBrokenBone'] == true)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Tooltip(
-                            message: "You have a broken bone. All level operations will have a longer cooldown.",
-                            waitDuration: Duration(milliseconds: 400),
-                            child: Text('🦴', style: TextStyle(fontSize: 16),
-                            ),
-                          )
-                        ),
-                      if (hasEnhancedStamina)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Tooltip(
-                                message: 'Enhanced Stamina active\nOperation cooldowns reduced by 3 seconds',
-                                waitDuration: const Duration(milliseconds: 400),
-                                child: const Icon(
-                                  Icons.bolt,
-                                  color: Colors.amber,
-                                  size: 22,
-                                ),
-                              ),
-                              if (staminaRemainingText != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 4),
-                                  child: Text(
-                                    staminaRemainingText,
-                                    style: const TextStyle(
-                                      color: Colors.amber,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.adjust, size: 20, color: Colors.orange),
-              const SizedBox(width: 4),
-              Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-              const SizedBox(width: 6),
-              const Icon(Icons.whatshot, size: 20, color: Colors.red),
-              const SizedBox(width: 4),
-              Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
-            ],
-          ),
-        ],
-      ),
-    ],
-  ),
-),
-        // Black rectangle ONLY for bank balance + BONDS button
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 140),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Stack(
-              children: [
-                // Bank balance text (centered)
-                Center(
-                  child: Text(
-                    'Bank: \$${NumberFormat('#,###').format((stats['balance'] as num?)?.toInt() ?? 0)}',
-                    style: const TextStyle(fontSize: 22, color: Colors.green, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                // BONDS button (semi-transparent square, bottom-right)
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PersonalBondsScreen()),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.pie_chart, color: Colors.amber, size: 16),
-                          SizedBox(width: 8),
-                          Text(
-                            'BONDS',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         // Transaction History (now collapsible with arrow button)
         Padding(
           padding: const EdgeInsets.all(16),
@@ -1133,6 +970,7 @@ Container(
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
+      AudioService().resume();
       SocketService().claimIncome();  // Claim when app resumes
       if (!_socketService.isConnected.value) {
         final user = FirebaseAuth.instance.currentUser;
@@ -1141,7 +979,8 @@ Container(
         }
       }
     } else if (state == AppLifecycleState.paused) {
-      _socketService.socket?.disconnect();  // NEW: Force disconnect on background
+      AudioService().pause();
+      _socketService.socket?.disconnect();  // Force disconnect on background
     }
   }
 }

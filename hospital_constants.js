@@ -33,9 +33,22 @@ const ALLOWED_HOSPITAL_SERVICE_FIELDS = [
   'offerEnhancedConstitution'
 ];
 
+const hospitalCounts = {
+  "Riverstone": 1,
+  "Thornbury": 1,
+  "Vostokgrad": 1,
+  "Eichenwald": 1,
+  "Montclair": 1,
+  "Valleora": 1,
+  "Lónghǎi": 2,
+  "Sakuragawa": 2,
+  "Cawayan Heights": 1
+};
+
 module.exports = {
   EFFICIENT_DOCTORS_RESEARCH,
   ENHANCED_STAMINA_RESEARCH,
   ENHANCED_CONSTITUTION_RESEARCH,
-  ALLOWED_HOSPITAL_SERVICE_FIELDS
+  ALLOWED_HOSPITAL_SERVICE_FIELDS,
+  hospitalCounts,
 };

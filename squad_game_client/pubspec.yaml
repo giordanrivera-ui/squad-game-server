@@ -45,6 +45,7 @@ dependencies:
   firebase_app_check: ^0.4.1+4
   intl: ^0.18.1
   google_mobile_ads: ^8.0.0
+  just_audio: ^0.9.36
 
 dev_dependencies:
   flutter_test:
@@ -161,6 +162,7 @@ flutter:
     - assets/epinephrine_5.png
     - assets/bullet.jpg
     - assets/inventory.png
+    - assets/lofi.mp3
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -21,13 +21,9 @@ const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startTaxiJobChecker, handleAssignToFleet, handleRemoveFromFleet, handleScoutDrivers, handleClearScoutedDrivers, handleAssignDriverToVehicle, handleUnassignDriverFromVehicle, handleHireDrivers, startDriverProgressChecker, handleFireDrivers  } = require('./taxi_tycoon.js');
 const { 
-  handleStartHealing, handleClaimHealing, handleHealBrokenBone, handleClaimHospital, handleReleaseHospital, handleUpdateHospitalService, startHospitalMaintenanceChecker, handleStartPrivateHealing, handleClaimPrivateHealing, handleUpdateHospitalHealCost, handleWatchAdForFasterHealing, handleUpdateHospitalHealingDuration, 
-  handleStartEfficientDoctorsResearch, handleClaimEfficientDoctorsResearch, 
-  startHospitalResearchChecker, catchUpEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimPerformanceResearch,
-  ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
-  catchUpPerformanceResearches, calculateMaintenanceFee,
-  handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost,
-  handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality } = require('./hospital.js');
+  startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
+  handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
+const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
@@ -189,18 +185,6 @@ setInterval(async () => {
     console.error('Error in hit cleanup: ', error);
   }
 }, 2000); // Check every 2 seconds
-
-const hospitalCounts = {
-  "Riverstone": 1,
-  "Thornbury": 1,
-  "Vostokgrad": 1,
-  "Eichenwald": 1,
-  "Montclair": 1,
-  "Valleora": 1,
-  "Lónghǎi": 2,
-  "Sakuragawa": 2,
-  "Cawayan Heights": 1
-};
 
 const hospitalOwnershipRef = db.collection('hospitals');
 
@@ -645,12 +629,10 @@ socket.on('respawn', async () => {
   });
 
   // ==================== INITIATE SPECIAL OPERATION (now modular) ====================
-  socket.on('initiate-special-op', async (data) => {
-    await handleInitiateSpecialOp(db, socket, data, logTransaction);
-  });
+  socket.on('initiate-special-op', async (data) => { await handleInitiateSpecialOp(db, socket, data, logTransaction); });
 
   socket.on('cancel-special-op', async () => {
-    await handleCancelSpecialOp(db, socket, { onlineSockets });  // ← NEW: pass onlineSockets
+    await handleCancelSpecialOp(db, socket, { onlineSockets });  // pass onlineSockets
   });
 
   socket.on('leave-special-op', () => handleLeaveSpecialOp(db, socket, { onlineSockets }));
@@ -788,32 +770,10 @@ socket.on('respawn', async () => {
     io.emit('message', `${name}: ${msg}`);
   });
 
-  socket.on('travel', async (destination) => {
-    await handleTravel(db, socket, destination);
-  });
+  socket.on('travel', async (destination) => { await handleTravel(db, socket, destination); });
 
   // ==================== HOSPITAL / HEALING HANDLERS ====================
-  socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket) });
-  socket.on('start-healing', async () => { await handleStartHealing(db, socket) });
-  socket.on('watch-ad-for-faster-healing', async () => { await handleWatchAdForFasterHealing(db, socket)});
-  socket.on('claim-healing', async () => { await handleClaimHealing(db, socket) });
-  socket.on('claim-hospital', (data) => handleClaimHospital(socket, data, { hospitalOwnershipRef }));
-  socket.on('release-hospital', (data) => handleReleaseHospital(socket, data, { hospitalOwnershipRef }));
-  socket.on('update-hospital-service', (data) => handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db }));
-  socket.on('start-private-healing', async (data) => { await handleStartPrivateHealing(db, socket, data, { onlineSockets })});
-  socket.on('claim-private-healing', async () => { await handleClaimPrivateHealing(db, socket)});
-  socket.on('update-hospital-heal-cost', (data) => handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef }));
-  socket.on('update-hospital-healing-duration', (data) => handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }));
-  socket.on('start-efficient-doctors-research', async (data) => { await handleStartEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
-  socket.on('claim-efficient-doctors-research', async (data) => { await handleClaimEfficientDoctorsResearch(db, socket, data.hospitalDocId)});
-  socket.on('start-enhanced-stamina-research', async (data) => { await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_STAMINA_RESEARCH, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina')});
-  socket.on('claim-enhanced-stamina-research', async (data) => { await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedStamina', 'enhancedStaminaResearchEndTime', 'Enhanced Stamina')});
-  socket.on('start-enhanced-constitution-research', async (data) => { await handleStartPerformanceResearch(db, socket, data.hospitalDocId, ENHANCED_CONSTITUTION_RESEARCH, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution')});
-  socket.on('claim-enhanced-constitution-research', async (data) => { await handleClaimPerformanceResearch(db, socket, data.hospitalDocId, 'hasEnhancedConstitution', 'enhancedConstitutionResearchEndTime', 'Enhanced Constitution')});
-  socket.on('update-hospital-stamina-cost', (data) => handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnershipRef }));
-  socket.on('update-hospital-constitution-cost', (data) => handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwnershipRef }));
-  socket.on('purchase-enhanced-stamina', async (data) => { await handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets })});
-  socket.on('set-selected-epinephrine-quality', (data) => handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwnershipRef }));
+  registerHospitalHandlers(socket, { db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH });
 
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;

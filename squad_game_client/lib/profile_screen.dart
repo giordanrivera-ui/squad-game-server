@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'socket_service.dart';
@@ -88,39 +87,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _uploadPhoto() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  final picker = ImagePicker();
+  final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-    if (pickedFile != null) {
-      final file = File(pickedFile.path);
-      final storageRef = FirebaseStorage.instance.ref().child('profile_pics/${user.uid}.jpg');
+  if (pickedFile != null) {
+    final file = File(pickedFile.path);
+    final fileSizeInBytes = await file.length();
+    final fileSizeInMB = fileSizeInBytes / (1024 * 1024);
 
-      try {
-        final uploadTask = storageRef.putFile(file);
-        final snapshot = await uploadTask.whenComplete(() {});
+    // ==================== 2MB SIZE CHECK ====================
+    if (fileSizeInMB > 2) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red),
+              SizedBox(width: 8),
+              Text('File Too Large'),
+            ],
+          ),
+          content: const Text(
+            'The selected image is larger than 2MB.\n\n'
+            'Please choose a smaller photo (maximum 2MB).',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return; // Stop upload
+    }
+    // ========================================================
 
-        await Future.delayed(const Duration(seconds: 2));
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('profile_pics/${user.uid}/profile.jpg');
 
-        final downloadUrl = await snapshot.ref.getDownloadURL();
+    try {
+      final uploadTask = storageRef.putFile(file);
+      final snapshot = await uploadTask.whenComplete(() {});
 
-        await user.updatePhotoURL(downloadUrl);
-        await user.reload();
+      final downloadUrl = await snapshot.ref.getDownloadURL();
 
-        await FirebaseFirestore.instance.collection('players').doc(user.email).update({'photoURL': downloadUrl});
+      // Update Firebase Auth
+      await user.updatePhotoURL(downloadUrl);
+      await user.reload();
 
-        SocketService().updatePhotoURL(downloadUrl);
+      // Tell server to update Firestore
+      SocketService().updatePhotoURL(downloadUrl);
 
-        setState(() => _photoURL = downloadUrl);
+      setState(() => _photoURL = downloadUrl);
 
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated!')));
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error uploading photo: $e')));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading photo: $e')),
+      );
     }
   }
+}
 
   void _showInventoryMenu(String type) {
     final inventory = widget.stats['inventory'] ?? [];

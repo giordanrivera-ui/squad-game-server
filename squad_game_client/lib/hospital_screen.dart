@@ -3,7 +3,7 @@ import 'public_hospital_screen.dart';
 import 'private_hospital_heal_screen.dart';
 import 'hospital_manager/hospital_manager_screen.dart';
 import 'socket_service.dart';
-import 'owned_hospitals_screen.dart';
+import 'hospital_manager/owned_hospitals_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HospitalScreen extends StatelessWidget {
@@ -16,7 +16,7 @@ class HospitalScreen extends StatelessWidget {
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: SocketService().hospitalOwnershipNotifier,
       builder: (context, ownership, child) {
-        // Check if player owns any hospital (for the Manage button)
+        // Check if player owns any hospital (for the Manage button in AppBar)
         final ownsHospital = ownership.values.any((h) {
           final data = h as Map<String, dynamic>;
           return data['ownerEmail'] == currentUserEmail;
@@ -39,7 +39,7 @@ class HospitalScreen extends StatelessWidget {
                 ),
               IconButton(
                 icon: const Icon(Icons.refresh),
-                onPressed: () => SocketService().socket?.emit('request-hospital-ownership'), // Optional refresh
+                onPressed: () => SocketService().socket?.emit('request-hospital-ownership'),
               ),
             ],
           ),
@@ -55,21 +55,18 @@ class HospitalScreen extends StatelessWidget {
                   final hospitalIndex = index + 1;
                   final isPublic = hospitalIndex == 1;
 
-                  final key = '${currentLocation}-hospital-${hospitalIndex}';
+                  final key = '$currentLocation-hospital-$hospitalIndex';
                   final hospitalData = ownership[key] as Map<String, dynamic>? ?? {};
 
                   final ownerEmail = hospitalData['ownerEmail'] as String?;
                   final ownerName = hospitalData['ownerDisplayName'] as String?;
                   final isOwnedByMe = ownerEmail == currentUserEmail;
 
-                  // Active services for display
+                  // Active services
                   final List<String> activeServices = [];
                   if (hospitalData['offerInjuryHealing'] == true) activeServices.add('Injury Healing');
                   if (hospitalData['offerOrthopedicServices'] == true) activeServices.add('Orthopedic');
-                  final bool offersEnhancedStamina = hospitalData['offerEnhancedStamina'] == true;
-                  final bool offersEnhancedConstitution = hospitalData['offerEnhancedConstitution'] == true;
-
-                  if (offersEnhancedStamina || offersEnhancedConstitution) {
+                  if (hospitalData['offerEnhancedStamina'] == true || hospitalData['offerEnhancedConstitution'] == true) {
                     activeServices.add('Performance');
                   }
                   if (hospitalData['offerDiseaseTherapy'] == true) activeServices.add('Disease Therapy');
@@ -78,110 +75,229 @@ class HospitalScreen extends StatelessWidget {
                     elevation: 6,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     margin: const EdgeInsets.only(bottom: 16),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () async {
-                        if (isPublic) {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const PublicHospitalScreen()));
-                        } else if (ownerName == null) {
-                          // Claim
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Claim Private Hospital'),
-                              content: Text('Claim this private hospital in $currentLocation?'),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Claim')),
-                              ],
-                            ),
-                          );
-                          if (confirm == true) {
-                            SocketService().socket?.emit('claim-hospital', {
-                              'location': currentLocation,
-                              'index': hospitalIndex,
-                            });
-                          }
-                        } else if (isOwnedByMe) {
-                          // Owner → Open Manager
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => HospitalManagerScreen(hospital: {...hospitalData, 'docId': key}),
-                            ),
-                          );
-                        } else if (hospitalData['offerInjuryHealing'] == true) {
-                          // Other player → Open Healing Screen
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PrivateHospitalHealScreen(hospital: {...hospitalData, 'docId': key}),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("This hospital currently has no services enabled.")),
-                          );
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isPublic ? Icons.local_hospital : Icons.business,
-                              size: 60,
-                              color: isPublic ? Colors.green : Colors.purple,
-                            ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isPublic 
-                                        ? '$currentLocation Public Hospital'
-                                        : 'Private Hospital #$hospitalIndex',
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    child: isOwnedByMe && !isPublic
+                        // ==================== OWNER VIEW: SPLIT CARD ====================
+                        ? IntrinsicHeight(
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      // === BIG INFO SECTION (unchanged) ===
+      Expanded(
+        flex: 5,
+        child: InkWell(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            bottomLeft: Radius.circular(20),
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PrivateHospitalHealScreen(
+                  hospital: {...hospitalData, 'docId': key},
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Icon(Icons.business, size: 60, color: Colors.purple),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Private Hospital #$hospitalIndex',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text('Owned by You', style: const TextStyle(fontSize: 16, color: Colors.green)),
+                      const SizedBox(height: 10),
+                      if (activeServices.isNotEmpty)
+                        Wrap(
+                          spacing: 6,
+                          children: activeServices.map((service) => Chip(
+                            label: Text(service, style: const TextStyle(fontSize: 12)),
+                            backgroundColor: Colors.purple[100],
+                          )).toList(),
+                        )
+                      else
+                        const Text('No services enabled', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      // === MANAGE SECTION WITH GRADIENT (Looks Recessed) ===
+InkWell(
+  borderRadius: const BorderRadius.only(
+    topRight: Radius.circular(20),
+    bottomRight: Radius.circular(20),
+  ),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HospitalManagerScreen(
+          hospital: {...hospitalData, 'docId': key},
+        ),
+      ),
+    );
+  },
+  child: Container(
+    width: 78,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          const Color.fromARGB(255, 67, 18, 128),      // Darker on the left (makes it feel recessed)
+          const Color.fromARGB(255, 104, 26, 138),      // Slightly lighter toward the right
+        ],
+      ),
+      borderRadius: const BorderRadius.only(
+        topRight: Radius.circular(20),
+        bottomRight: Radius.circular(20),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.3),
+          blurRadius: 4,
+          offset: const Offset(-2, 0), // Shadow on the left side
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.settings,
+          color: Colors.white,
+          size: 22,
+        ),
+        const SizedBox(height: 8),
+        RotatedBox(
+          quarterTurns: 1,
+          child: const Text(
+            'MANAGE',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              letterSpacing: 1.6,
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
+    ],
+  ),
+)
+
+                        // ==================== NON-OWNER VIEW: NORMAL CARD ====================
+                        : InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () async {
+                              if (isPublic) {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => const PublicHospitalScreen()));
+                              } else if (ownerName == null) {
+                                // Claim hospital
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Claim Private Hospital'),
+                                    content: Text('Claim this private hospital in $currentLocation?'),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                      TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Claim')),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-
-                                  if (isPublic)
-                                    const Text('Standard healing • Orthopedic Surgeon', style: TextStyle(fontSize: 16, color: Colors.grey))
-                                  else if (ownerName != null)
-                                    Text('Owned by $ownerName', style: const TextStyle(fontSize: 16, color: Colors.green))
-                                  else
-                                    const Text('Unclaimed • Tap to claim', style: TextStyle(fontSize: 16, color: Colors.orange)),
-
-                                  const SizedBox(height: 10),
-
-                                  // Services Display
-                                  if (!isPublic && ownerName != null) ...[
-                                    const Text('Services Offered:', style: TextStyle(fontSize: 15, color: Colors.grey)),
-                                    const SizedBox(height: 6),
-                                    if (activeServices.isEmpty)
-                                      const Text('No services enabled yet', style: TextStyle(fontSize: 15, color: Colors.grey, fontStyle: FontStyle.italic))
-                                    else
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 6,
-                                        children: activeServices.map((service) => Chip(
-                                          label: Text(service, style: const TextStyle(fontSize: 13)),
-                                          backgroundColor: Colors.purple[100],
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                                        )).toList(),
+                                );
+                                if (confirm == true) {
+                                  SocketService().socket?.emit('claim-hospital', {
+                                    'location': currentLocation,
+                                    'index': hospitalIndex,
+                                  });
+                                }
+                              } else {
+                                // Other player's hospital
+                                if (hospitalData['offerInjuryHealing'] == true) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => PrivateHospitalHealScreen(
+                                        hospital: {...hospitalData, 'docId': key},
                                       ),
-                                  ],
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("This hospital currently has no services enabled.")),
+                                  );
+                                }
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isPublic ? Icons.local_hospital : Icons.business,
+                                    size: 60,
+                                    color: isPublic ? Colors.green : Colors.purple,
+                                  ),
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          isPublic
+                                              ? '$currentLocation Public Hospital'
+                                              : 'Private Hospital #$hospitalIndex',
+                                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        if (isPublic)
+                                          const Text('Standard healing • Orthopedic Surgeon', style: TextStyle(fontSize: 15, color: Colors.grey))
+                                        else if (ownerName != null)
+                                          Text('Owned by $ownerName', style: const TextStyle(fontSize: 16, color: Colors.green))
+                                        else
+                                          const Text('Unclaimed • Tap to claim', style: TextStyle(fontSize: 16, color: Colors.orange)),
+                                        const SizedBox(height: 10),
+                                        if (!isPublic && ownerName != null) ...[
+                                          const Text('Services Offered:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                                          const SizedBox(height: 6),
+                                          if (activeServices.isEmpty)
+                                            const Text('No services enabled yet', style: TextStyle(fontSize: 14, color: Colors.grey, fontStyle: FontStyle.italic))
+                                          else
+                                            Wrap(
+                                              spacing: 6,
+                                              children: activeServices.map((service) => Chip(
+                                                label: Text(service, style: const TextStyle(fontSize: 12)),
+                                                backgroundColor: Colors.purple[100],
+                                              )).toList(),
+                                            ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (!isPublic && ownerName == null)
+                                    const Icon(Icons.arrow_forward_ios, color: Colors.orange),
                                 ],
                               ),
                             ),
-
-                            if (!isPublic && ownerName == null)
-                              const Icon(Icons.arrow_forward_ios, color: Colors.orange),
-                          ],
-                        ),
-                      ),
-                    ),
+                          ),
                   );
                 }),
               );
