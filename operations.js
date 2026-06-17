@@ -408,33 +408,53 @@ async function handleExecuteOperation(db, socket, data, deps) {
       imprisonedPlayers.set(p.displayName, prisonEndTime);
     }
 
-    // ==================== NEW: Crime Alert Feature ====================
-    if (!outcome.isCaught) {
-      const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
-      
-      if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
-        // Get list of other online players
-        const otherPlayers = Array.from(onlinePlayers).filter(name => name !== p.displayName);
-        
-        if (otherPlayers.length > 0) {
-          // Pick a random other online player
-          const randomIndex = Math.floor(Math.random() * otherPlayers.length);
-          const targetName = otherPlayers[randomIndex];
-          const targetSocket = onlineSockets.get(targetName);
+    // ==================== NEW: Crime Alert with 10s Cooldown (Lazy Cleanup) ====================
+if (!outcome.isCaught) {
+  const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
+  
+  if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
+    const now = Date.now();
 
-          if (targetSocket) {
-            const crimeText = operation === "Mug a passerby" 
-              ? `${p.displayName} mugged a passerby` 
-              : `${p.displayName} looted a grocery store`;
+    // Build list of eligible players + clean expired cooldowns on the fly
+    const eligiblePlayers = [];
 
-            targetSocket.emit('crime-alert', {
-              message: crimeText,
-              perpetrator: p.displayName
-            });
-          }
+    for (const name of onlinePlayers || []) {
+      if (name === p.displayName) continue; // Don't alert the perpetrator
+
+      const cooldownEnd = crimeAlertCooldowns.get(name);
+
+      if (!cooldownEnd || cooldownEnd <= now) {
+        // Player is eligible (and clean up expired entry if it exists)
+        if (cooldownEnd) {
+          crimeAlertCooldowns.delete(name); // Lazy cleanup
         }
+        eligiblePlayers.push(name);
       }
     }
+
+    if (eligiblePlayers.length > 0) {
+      // Pick a random eligible player
+      const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+      const targetName = eligiblePlayers[randomIndex];
+      const targetSocket = onlineSockets.get(targetName);
+
+      if (targetSocket) {
+        const crimeText = operation === "Mug a passerby" 
+          ? `${p.displayName} mugged a passerby` 
+          : `${p.displayName} looted a grocery store`;
+
+        targetSocket.emit('crime-alert', {
+          message: crimeText,
+          perpetrator: p.displayName
+        });
+
+        // Apply 10-second cooldown
+        crimeAlertCooldowns.set(targetName, now + 10000);
+      }
+    }
+  }
+}
+// ==================== END NEW FEATURE ====================
 
     // Broadcast prison list
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({

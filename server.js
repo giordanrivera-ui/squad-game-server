@@ -90,6 +90,7 @@ function removeFromOnlineList(displayName) {
 
 // ==================== GLOBAL PRISON LIST ====================
 const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
+const crimeAlertCooldowns = new Map(); // Key: displayName, Value: cooldownEndTime
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
 // Runs every second. Removes expired prisoners from the in-memory list
