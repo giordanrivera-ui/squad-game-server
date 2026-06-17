@@ -225,7 +225,7 @@ function startTaxiJobChecker(db, { onlineSockets }) {
           }
         }
 
-        // CRITICAL FIX: Any status change (including job start) now triggers live update
+        // Any status change (including job start) now triggers live update
         if (changed) {
           batch.update(doc.ref, { 
             taxiFleet: p.taxiFleet,
