@@ -74,6 +74,11 @@ function applySuccessLoot(p, operation, exp, currentMessage) {
             else stolenWeapon = weaponTemplates.find(w => w.name === 'Ruger Mark IV');
 
             if (stolenWeapon) {
+                // ==================== FIX: Add value for Net Worth calculation ====================
+                stolenWeapon = {
+                    ...stolenWeapon,
+                    value: stolenWeapon.cost || 0
+                };
                 message += ` You also stole a ${stolenWeapon.name}!`;
             }
         }
@@ -121,7 +126,12 @@ function applySuccessLoot(p, operation, exp, currentMessage) {
             else stolenWeapon = weaponTemplates.find(w => w.name === 'H&K UMP5');
 
             if (stolenWeapon) {
-            message += ` You also stole a ${stolenWeapon.name}!`;
+                // ==================== FIX: Add value for Net Worth calculation ====================
+                stolenWeapon = {
+                    ...stolenWeapon,
+                    value: stolenWeapon.cost || 0
+                };
+                message += ` You also stole a ${stolenWeapon.name}!`;
             }
         }
     }
@@ -182,6 +192,11 @@ function applySuccessLoot(p, operation, exp, currentMessage) {
         else stolenWeapon = weaponTemplates.find(w => w.name === 'M16A4');
 
         if (stolenWeapon) {
+          // ==================== FIX: Add value for Net Worth calculation ====================
+          stolenWeapon = {
+              ...stolenWeapon,
+              value: stolenWeapon.cost || 0
+          };
           message += ` You also stole a ${stolenWeapon.name}!`;
         }
       }
@@ -219,6 +234,11 @@ function applySuccessLoot(p, operation, exp, currentMessage) {
         else stolenWeapon = weaponTemplates.find(w => w.name === 'M24 Sniper');
 
         if (stolenWeapon) {
+          // ==================== FIX: Add value for Net Worth calculation ====================
+          stolenWeapon = {
+              ...stolenWeapon,
+              value: stolenWeapon.cost || 0
+          };
           message += ` You also stole a ${stolenWeapon.name}!`;
         }
       }

@@ -61,7 +61,15 @@ async function handlePurchaseWeapons(db, socket, data) {
   await logTransaction(socket, -data.totalCost, 'Weapons Purchased', p, docRef);
 
   p.balance -= data.totalCost;
-  p.inventory = p.inventory.concat(data.items);   // items already have type: 'weapon'
+
+  // ==================== Add value field for Net Worth calculation ====================
+  const weaponsWithValue = data.items.map(item => ({
+    ...item,
+    value: item.cost || 0,
+    type: 'weapon'
+  }));
+
+  p.inventory = p.inventory.concat(weaponsWithValue);
 
   await docRef.set(p);
   socket.emit('update-stats', p);

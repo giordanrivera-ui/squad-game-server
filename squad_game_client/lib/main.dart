@@ -595,36 +595,38 @@ Widget _buildDashboard() {
         }
       }
 
-      // ==================== NET WORTH CALCULATION (FIXED) ====================
+      // ==================== NET WORTH CALCULATION (IMPROVED) ====================
 final int bankBalance = (stats['balance'] as num?)?.toInt() ?? 0;
 
-// 1. Inventory value at 60% (lowest sell rate)
+// 1. Inventory value at 60%
 final List<dynamic> inventory = stats['inventory'] as List<dynamic>? ?? [];
 int inventoryValue = 0;
+
 for (var item in inventory) {
   if (item is Map) {
-    inventoryValue += (item['value'] as num?)?.toInt() ?? 0;
+    // Use 'value' if available, otherwise fall back to 'cost'
+    final itemValue = (item['value'] as num?)?.toInt() 
+        ?? (item['cost'] as num?)?.toInt() 
+        ?? 0;
+    
+    inventoryValue += itemValue;
   }
 }
+
 final int inventoryAt60Percent = (inventoryValue * 0.6).floor();
 
-// 2. Value of owned properties (FIXED)
+// 2. Value of owned properties
 int propertiesValue = 0;
 final List<dynamic> ownedPropertyNames = stats['ownedProperties'] as List<dynamic>? ?? [];
-
-// Get the full list of property definitions (from socket_service)
 final List<Map<String, dynamic>> allProperties = SocketService().properties;
 
 for (var name in ownedPropertyNames) {
   if (name is String) {
-    // Find the property definition by name
     final prop = allProperties.firstWhere(
       (p) => p['name'] == name,
       orElse: () => {},
     );
-    
     if (prop.isNotEmpty) {
-      // Use 'cost' as the property value (this is the purchase price)
       propertiesValue += (prop['cost'] as num?)?.toInt() ?? 0;
     }
   }
