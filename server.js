@@ -251,6 +251,7 @@ io.on('connection', (socket) => {
       if (playerData.skill === undefined) playerData.skill = 0;
       if (playerData.marksmanship === undefined) playerData.marksmanship = 0;
       if (playerData.stealth === undefined) playerData.stealth = 0;
+      if (playerData.strength === undefined) playerData.strength = 0;
       if (playerData.defense === undefined) playerData.defense = 0;
       if (playerData.bullets === undefined) playerData.bullets = 0;
       if (playerData.photoURL === undefined) playerData.photoURL = '';
@@ -318,6 +319,7 @@ io.on('connection', (socket) => {
         skill: 0,
         marksmanship: 0,
         stealth: 0,
+        strength: 0,
         defense: 0,
         kills: 0,
         photoURL: '',
@@ -473,6 +475,7 @@ socket.on('respawn', async () => {
       experience: 0,
       intelligence: 0,
       skill: 0,
+      strength: 0,
       marksmanship: 0,
       stealth: 0,
       defense: 0,
@@ -1013,6 +1016,60 @@ socket.on('respawn', async () => {
     await docRef.set(p);
     socket.emit('update-stats', p);
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
+  });
+
+  // ==================== FITNESS CENTER TRAINING ====================
+  socket.on('perform-training', async (data) => {
+    const email = socket.data.email;
+    if (!email || !data.type) return;
+
+    const docRef = db.collection('players').doc(email);
+    const doc = await docRef.get();
+    if (!doc.exists) return;
+
+    let p = doc.data();
+    let statIncreased = '';
+    let amount = 0;
+
+    switch (data.type) {
+      case 'calisthenics':
+        p.strength = (p.strength || 0) + 1;
+        statIncreased = 'Strength';
+        amount = 1;
+        break;
+
+      case 'olympic_weightlifting':
+        p.strength = (p.strength || 0) + 2;
+        statIncreased = 'Strength';
+        amount = 2;
+        break;
+
+      case 'parkour':
+        p.stealth = (p.stealth || 0) + 1;
+        statIncreased = 'Stealth';
+        amount = 1;
+        break;
+
+      case 'gymnastics':
+        p.stealth = (p.stealth || 0) + 2;
+        statIncreased = 'Stealth';
+        amount = 2;
+        break;
+
+      default:
+        return;
+    }
+
+    await docRef.set(p);
+    socket.emit('update-stats', p);
+
+    // Optional: Send confirmation
+    socket.emit('training-result', {
+      success: true,
+      message: `+${amount} ${statIncreased}!`,
+      stat: statIncreased.toLowerCase(),
+      amount
+    });
   });
 
   // Handler for claiming income (now per-property)

@@ -208,6 +208,19 @@ class Sidebar extends StatelessWidget {
           SizedBox(
             height: 48,
             child: ListTile(
+              leading: const Icon(Icons.fitness_center),
+              title: const Text('Fitness Center'),
+              selected: currentScreen == 13, // Use a new index (e.g. 13)
+              onTap: () {
+                onScreenChanged(13); // New index for Fitness Center
+                Navigator.pop(context);
+              },
+            ),
+          ),
+
+          SizedBox(
+            height: 48,
+            child: ListTile(
               leading: const Icon(Icons.store),
               title: const Text('Store'),
               selected: currentScreen == 7,

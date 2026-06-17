@@ -1,4 +1,3 @@
-// In profile_screen.dart (updated full file with toggles)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -486,6 +485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
+                  Text('Strength: ${widget.stats['strength'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Stealth: ${widget.stats['stealth'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Defense: ${widget.stats['defense'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   Text('Overall Power: ${widget.stats['overallPower'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),

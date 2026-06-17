@@ -14,3 +14,6 @@ export 'profile_screen.dart';
 export 'sidebar.dart';
 export 'status_app_bar.dart';
 export 'store_screen.dart';
+export 'fitness_center_screen.dart';
+export 'dashboard_header.dart';
+export 'dashboard_bankcard.dart';

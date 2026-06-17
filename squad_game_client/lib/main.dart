@@ -14,8 +14,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'screens.dart';
-import 'dashboard_header.dart';
-import 'dashboard_bankcard.dart';
 import 'crime_alert_overlay.dart';
 import 'deliver_justice_overlay.dart';
 import 'audio_service.dart';
@@ -566,7 +564,9 @@ Widget build(BuildContext context) {
                                                       ? const HallOfFameScreen()
                                                       : _currentScreen == 12 
                                                           ? const BusinessesScreen()
-                                                          : const BusinessesScreen(),
+                                                          : _currentScreen == 13
+                                                            ? const FitnessCenterScreen()
+                                                            : const BusinessesScreen(),
 
           floatingActionButton: _currentScreen == 2
               ? FloatingActionButton(
