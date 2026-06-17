@@ -618,6 +618,7 @@ socket.on('respawn', async () => {
       addExperienceAndGrantPoints,
       onlinePlayers, 
       onlineSockets,
+      crimeAlertCooldowns,
       removeFromOnlineList
     });
   });

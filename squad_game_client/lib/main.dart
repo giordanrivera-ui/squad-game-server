@@ -17,6 +17,7 @@ import 'screens.dart';
 import 'dashboard_header.dart';
 import 'dashboard_bankcard.dart';
 import 'crime_alert_overlay.dart';
+import 'deliver_justice_overlay.dart';
 import 'audio_service.dart';
 
 // Global plugin instance
@@ -240,6 +241,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   OverlayEntry? _rescueOverlay;
   OverlayEntry? _rankUpOverlay;
   OverlayEntry? _crimeAlertOverlay;
+  OverlayEntry? _deliverJusticeOverlay;
 
   @override
   void initState() {
@@ -939,15 +941,38 @@ final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
     _crimeAlertOverlay = OverlayEntry(
       builder: (context) => CrimeAlertOverlay(
         message: data['message'] ?? '',
-        onDismiss: () {
+        onIgnore: () {
           _crimeAlertOverlay?.remove();
           _crimeAlertOverlay = null;
-          _socketService.crimeAlertNotifier.value = null; // Reset
+          _socketService.crimeAlertNotifier.value = null;
+        },
+        onDeliverJustice: () {
+          _crimeAlertOverlay?.remove();
+          _crimeAlertOverlay = null;
+          _socketService.crimeAlertNotifier.value = null;
+
+          // Show Deliver Justice overlay
+          _showDeliverJusticeOverlay();
         },
       ),
     );
 
     Overlay.of(context).insert(_crimeAlertOverlay!);
+  }
+
+  void _showDeliverJusticeOverlay() {
+    _deliverJusticeOverlay?.remove();
+
+    _deliverJusticeOverlay = OverlayEntry(
+      builder: (context) => DeliverJusticeOverlay(
+        onDismiss: () {
+          _deliverJusticeOverlay?.remove();
+          _deliverJusticeOverlay = null;
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_deliverJusticeOverlay!);
   }
 
   // Check if any property is due and claim (using server sync)
@@ -983,6 +1008,7 @@ final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
     _crimeAlertOverlay?.remove();
+    _deliverJusticeOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();
     _globalIncomeTimer?.cancel();  // Cancel global timer
