@@ -262,7 +262,7 @@ function resolveOperation(p, operation, level, exp) {
 }
 
 async function handleExecuteOperation(db, socket, data, deps) {
-  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList, onlinePlayers, onlineSockets } = deps;
+  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList, onlinePlayers, onlineSockets, crimeAlertCooldowns } = deps;
   const email = socket.data.email;
 
   if (!email || typeof data.operation !== 'string') {
