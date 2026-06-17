@@ -19,15 +19,15 @@ class SocketService {
   final ValueNotifier<List<Map<String, dynamic>>> inboxNotifier = ValueNotifier([]);
   // Track unread messages
   final ValueNotifier<bool> hasUnreadMessages = ValueNotifier(false);
-
   // Global live prison list (used by PrisonScreen)
   final ValueNotifier<List<Map<String, dynamic>>> imprisonedPlayersNotifier = ValueNotifier([]);
 
   // Rescue celebration trigger (for the nice animation)
   final ValueNotifier<Map<String, String>?> rescueNotifier = ValueNotifier(null);
-
   // Rank-up celebration trigger
   final ValueNotifier<Map<String, String>?> rankUpNotifier = ValueNotifier(null);
+  // Crime alert notifier
+  final ValueNotifier<Map<String, dynamic>?> crimeAlertNotifier = ValueNotifier(null);
 
   // Notifier for income claimed (for optional snackbar/UI feedback)
   final ValueNotifier<int?> incomeClaimedNotifier = ValueNotifier(null);
@@ -298,7 +298,16 @@ class SocketService {
         }
       });
 
-      // NEW: Rescue celebration animation trigger
+      socket?.on('crime-alert', (data) {
+        if (data is Map<String, dynamic>) {
+          crimeAlertNotifier.value = {
+            'message': data['message'] ?? '',
+            'perpetrator': data['perpetrator'] ?? '',
+          };
+        }
+      });
+
+      // Rescue celebration animation trigger
       socket?.on('player-rescued', (data) {
         if (data is Map<String, dynamic>) {
           rescueNotifier.value = {

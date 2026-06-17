@@ -16,6 +16,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'screens.dart';
 import 'dashboard_header.dart';
 import 'dashboard_bankcard.dart';
+import 'crime_alert_overlay.dart';
 import 'audio_service.dart';
 
 // Global plugin instance
@@ -238,6 +239,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   OverlayEntry? _rescueOverlay;
   OverlayEntry? _rankUpOverlay;
+  OverlayEntry? _crimeAlertOverlay;
 
   @override
   void initState() {
@@ -250,9 +252,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     _setupPushNotifications();
     SocketService().startGlobalCourseCompletionWatcher();
     SocketService().startGlobalHealingClaimer();
-
+    _socketService.crimeAlertNotifier.addListener(_showCrimeAlert);
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
+
         _socketService.statsNotifier.addListener(() {
       setState(() {});  // Just refresh the UI when stats update
     });
@@ -927,6 +930,26 @@ final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
     Overlay.of(context).insert(_rankUpOverlay!);
   }
 
+  void _showCrimeAlert() {
+    final data = _socketService.crimeAlertNotifier.value;
+    if (data == null) return;
+
+    _crimeAlertOverlay?.remove();
+
+    _crimeAlertOverlay = OverlayEntry(
+      builder: (context) => CrimeAlertOverlay(
+        message: data['message'] ?? '',
+        onDismiss: () {
+          _crimeAlertOverlay?.remove();
+          _crimeAlertOverlay = null;
+          _socketService.crimeAlertNotifier.value = null; // Reset
+        },
+      ),
+    );
+
+    Overlay.of(context).insert(_crimeAlertOverlay!);
+  }
+
   // Check if any property is due and claim (using server sync)
   void _checkForDueIncome() {
     final currentStats = _socketService.statsNotifier.value;  // NEW: Use the smart box
@@ -956,8 +979,10 @@ final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
     SocketService().stopGlobalHealingClaimer();
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
+    _socketService.crimeAlertNotifier.removeListener(_showCrimeAlert);
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
+    _crimeAlertOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();
     _globalIncomeTimer?.cancel();  // Cancel global timer
