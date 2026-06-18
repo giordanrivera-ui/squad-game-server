@@ -27,18 +27,14 @@ class _PrisonScreenState extends State<PrisonScreen> {
     super.initState();
     _viewerPrisonEndTime = widget.initialViewerPrisonEndTime;
 
-    SocketService().requestPrisonList();   // force fresh data on open
+    SocketService().requestPrisonList();
 
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
 
-    // Live updates
     SocketService().imprisonedPlayersNotifier.addListener(_updateUI);
-
-    // Listen for own prison status changes
     SocketService().socket?.on('update-stats', _handleViewerStats);
-    // Listen for rescue result
     SocketService().socket?.on('rescue-result', _handleRescueResult);
   }
 
@@ -77,7 +73,7 @@ class _PrisonScreenState extends State<PrisonScreen> {
 
   String _getTimeLeft(int prisonEndTime) {
     final remaining = prisonEndTime - SocketService().currentServerTime;
-    if (remaining <= 0) return "0s"; // Should never happen because server removes them
+    if (remaining <= 0) return "0s";
 
     final seconds = (remaining / 1000).ceil();
     final minutes = seconds ~/ 60;
@@ -94,56 +90,79 @@ class _PrisonScreenState extends State<PrisonScreen> {
     final imprisonedPlayers = SocketService().imprisonedPlayersNotifier.value;
 
     return Scaffold(
-      backgroundColor: Colors.grey[900],
       appBar: AppBar(
         title: const Text('Prison'),
         backgroundColor: Colors.red[900],
         centerTitle: true,
       ),
-      body: imprisonedPlayers.isEmpty
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.gavel, size: 80, color: Colors.grey),
-                  SizedBox(height: 20),
-                  Text('The prison is currently empty.',
-                       style: TextStyle(fontSize: 20, color: Colors.grey)),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: imprisonedPlayers.length,
-              itemBuilder: (context, index) {
-                final player = imprisonedPlayers[index];
-                final name = player['displayName'] ?? 'Unknown';
-                final endTime = player['prisonEndTime'] ?? 0;
-
-                final bool isSelf = name == widget.currentDisplayName;
-                final bool canSave = !_isViewerInPrison && !isSelf;
-
-                return Card(
-                  color: Colors.grey[850],
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: const Icon(Icons.person_off, color: Colors.redAccent, size: 40),
-                    title: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                    subtitle: Text(
-                      _getTimeLeft(endTime),
-                      style: const TextStyle(fontSize: 16, color: Colors.orangeAccent),
-                    ),
-                    trailing: canSave
-                        ? TextButton(
-                            onPressed: () => _attemptRescue(name),
-                            style: TextButton.styleFrom(foregroundColor: Colors.green),
-                            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
-                          )
-                        : null,
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/background.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Container(
+          // Dark overlay for readability
+          color: Colors.black.withOpacity(0.2),
+          child: imprisonedPlayers.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.gavel, size: 80, color: Colors.grey),
+                      SizedBox(height: 20),
+                      Text(
+                        'The prison is currently empty.',
+                        style: TextStyle(fontSize: 20, color: Colors.grey),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: imprisonedPlayers.length,
+                  itemBuilder: (context, index) {
+                    final player = imprisonedPlayers[index];
+                    final name = player['displayName'] ?? 'Unknown';
+                    final endTime = player['prisonEndTime'] ?? 0;
+
+                    final bool isSelf = name == widget.currentDisplayName;
+                    final bool canSave = !_isViewerInPrison && !isSelf;
+
+                    return Card(
+                      color: Colors.grey[850],
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: const Icon(Icons.person_off, color: Colors.redAccent, size: 40),
+                        title: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _getTimeLeft(endTime),
+                          style: const TextStyle(fontSize: 16, color: Colors.orangeAccent),
+                        ),
+                        trailing: canSave
+                            ? TextButton(
+                                onPressed: () => _attemptRescue(name),
+                                style: TextButton.styleFrom(foregroundColor: Colors.green),
+                                child: const Text(
+                                  'Save',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              )
+                            : null,
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
     );
   }
 }

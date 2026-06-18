@@ -8,6 +8,7 @@ class DashboardHeader extends StatelessWidget {
   final bool hasEnhancedStamina;
   final String? staminaRemainingText;
   final VoidCallback onMenuPressed;
+  final VoidCallback? onDeveloperOptionsPressed;
 
   const DashboardHeader({
     super.key,
@@ -16,6 +17,7 @@ class DashboardHeader extends StatelessWidget {
     required this.hasEnhancedStamina,
     this.staminaRemainingText,
     required this.onMenuPressed,
+    this.onDeveloperOptionsPressed,
   });
 
   @override
@@ -23,11 +25,19 @@ class DashboardHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        image: DecorationImage(
+      decoration: BoxDecoration(
+        image: const DecorationImage(
           image: AssetImage('assets/top-section-bg.jpg'),
           fit: BoxFit.cover,
         ),
+        boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.55),
+          blurRadius: 14,
+          offset: const Offset(0, 8), // Creates the "elevated" look
+          spreadRadius: 1,
+        ),
+      ],
       ),
       child: Stack(
         children: [
@@ -39,7 +49,7 @@ class DashboardHeader extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Row: Menu + Time + Inventory
+              // Top Row: Menu + Time + Inventory + Developer Options
               Row(
                 children: [
                   // Menu Button with Unread Indicator
@@ -117,6 +127,18 @@ class DashboardHeader extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // ==================== DEVELOPER OPTIONS ICON ====================
+                  if (onDeveloperOptionsPressed != null)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.bug_report,
+                        color: Colors.amber,
+                        size: 28,
+                      ),
+                      tooltip: 'Developer Options',
+                      onPressed: onDeveloperOptionsPressed,
+                    ),
                 ],
               ),
 

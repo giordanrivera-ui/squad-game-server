@@ -125,6 +125,7 @@ flutter:
     - assets/Corporal-banner.jpg
     - assets/Sergeant-banner.jpg
     - assets/Warrant Officer-banner.jpg
+    - assets/General-banner.jpg
     - assets/Micropod.jpg
     - assets/Cottage.jpg
     - assets/Bungalow.jpg
@@ -163,6 +164,9 @@ flutter:
     - assets/bullet.jpg
     - assets/inventory.png
     - assets/lofi.mp3
+    - assets/background.jpg
+    - assets/strength.png
+    - assets/stealth.png
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -495,7 +495,11 @@ Widget build(BuildContext context) {
                                           ? 'Profile'
                                           : _currentScreen == 7 
                                               ? 'Store'
-                                              : 'Businesses',
+                                              : _currentScreen == 12 
+        ? 'Businesses'
+        : _currentScreen == 13
+            ? 'Fitness Center'
+            : 'Businesses',
                   statsNotifier: _socketService.statsNotifier,
                   time: time,
                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
@@ -582,258 +586,206 @@ Widget build(BuildContext context) {
 }
 
 Widget _buildDashboard() {
-  return ValueListenableBuilder<Map<String, dynamic>>(
-    valueListenable: _socketService.statsNotifier,
-    builder: (context, stats, child) {
-      final int? staminaEndTime = stats['enhancedStaminaEndTime'] as int?;
-      final bool hasEnhancedStamina = 
-          staminaEndTime != null && staminaEndTime > SocketService().currentServerTime;
-      
-      String? staminaRemainingText;
-      if (hasEnhancedStamina && staminaEndTime != null) {
-        final remainingMs = staminaEndTime - SocketService().currentServerTime;
-        if (remainingMs > 0) {
-          final remainingSeconds = (remainingMs / 1000).ceil();
-          final minutes = remainingSeconds ~/ 60;
-          final seconds = remainingSeconds % 60;
-          staminaRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
-        }
-      }
+  return Container(
+    decoration: const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/background.jpg'),
+        fit: BoxFit.cover,
+      ),
+    ),
+    child: Container(
+      // Dark overlay for better readability
+      color: Colors.black.withOpacity(0.27),
+      child: ValueListenableBuilder<Map<String, dynamic>>(
+        valueListenable: _socketService.statsNotifier,
+        builder: (context, stats, child) {
+          final int? staminaEndTime = stats['enhancedStaminaEndTime'] as int?;
+          final bool hasEnhancedStamina = 
+              staminaEndTime != null && staminaEndTime > SocketService().currentServerTime;
+          
+          String? staminaRemainingText;
+          if (hasEnhancedStamina && staminaEndTime != null) {
+            final remainingMs = staminaEndTime - SocketService().currentServerTime;
+            if (remainingMs > 0) {
+              final remainingSeconds = (remainingMs / 1000).ceil();
+              final minutes = remainingSeconds ~/ 60;
+              final seconds = remainingSeconds % 60;
+              staminaRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
+            }
+          }
 
-      // ==================== NET WORTH CALCULATION (IMPROVED) ====================
-final int bankBalance = (stats['balance'] as num?)?.toInt() ?? 0;
+          // ==================== NET WORTH CALCULATION ====================
+          final int bankBalance = (stats['balance'] as num?)?.toInt() ?? 0;
 
-// 1. Inventory value at 60%
-final List<dynamic> inventory = stats['inventory'] as List<dynamic>? ?? [];
-int inventoryValue = 0;
+          final List<dynamic> inventory = stats['inventory'] as List<dynamic>? ?? [];
+          int inventoryValue = 0;
 
-for (var item in inventory) {
-  if (item is Map) {
-    // Use 'value' if available, otherwise fall back to 'cost'
-    final itemValue = (item['value'] as num?)?.toInt() 
-        ?? (item['cost'] as num?)?.toInt() 
-        ?? 0;
-    
-    inventoryValue += itemValue;
-  }
-}
+          for (var item in inventory) {
+            if (item is Map) {
+              final itemValue = (item['value'] as num?)?.toInt() 
+                  ?? (item['cost'] as num?)?.toInt() 
+                  ?? 0;
+              inventoryValue += itemValue;
+            }
+          }
 
-final int inventoryAt60Percent = (inventoryValue * 0.6).floor();
+          final int inventoryAt60Percent = (inventoryValue * 0.6).floor();
 
-// 2. Value of owned properties
-int propertiesValue = 0;
-final List<dynamic> ownedPropertyNames = stats['ownedProperties'] as List<dynamic>? ?? [];
-final List<Map<String, dynamic>> allProperties = SocketService().properties;
+          int propertiesValue = 0;
+          final List<dynamic> ownedPropertyNames = stats['ownedProperties'] as List<dynamic>? ?? [];
+          final List<Map<String, dynamic>> allProperties = SocketService().properties;
 
-for (var name in ownedPropertyNames) {
-  if (name is String) {
-    final prop = allProperties.firstWhere(
-      (p) => p['name'] == name,
-      orElse: () => {},
-    );
-    if (prop.isNotEmpty) {
-      propertiesValue += (prop['cost'] as num?)?.toInt() ?? 0;
-    }
-  }
-}
+          for (var name in ownedPropertyNames) {
+            if (name is String) {
+              final prop = allProperties.firstWhere(
+                (p) => p['name'] == name,
+                orElse: () => {},
+              );
+              if (prop.isNotEmpty) {
+                propertiesValue += (prop['cost'] as num?)?.toInt() ?? 0;
+              }
+            }
+          }
 
-// Final Net Worth
-final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
+          final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
 
-      return Column(
-        children: [
-          DashboardHeader(
-            time: time,
-            stats: stats,
-            hasEnhancedStamina: hasEnhancedStamina,
-            staminaRemainingText: staminaRemainingText,
-            onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          ),
-          DashboardBankCard(
-            balance: (stats['balance'] as num?)?.toInt() ?? 0,
-            netWorth: netWorth,
-          ),
-        // Transaction History (now collapsible with arrow button)
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.grey[800],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header row with minimize button
-                Row(
-                  children: [
-                    const Text(
-                      'Transaction History',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    const Spacer(),
-                    // Arrow button (top-right corner)
-                    IconButton(
-                      icon: Icon(
-                        _isTxHistoryMinimized ? Icons.expand_more : Icons.expand_less,
-                        color: Colors.white70,
-                        size: 24,
+          return Column(
+            children: [
+              DashboardHeader(
+                time: time,
+                stats: stats,
+                hasEnhancedStamina: hasEnhancedStamina,
+                staminaRemainingText: staminaRemainingText,
+                onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                onDeveloperOptionsPressed: _showDeveloperOptions,
+              ),
+              DashboardBankCard(
+                balance: (stats['balance'] as num?)?.toInt() ?? 0,
+                netWorth: netWorth,
+              ),
+              // Transaction History
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Transaction History',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: Icon(
+                              _isTxHistoryMinimized ? Icons.expand_more : Icons.expand_less,
+                              color: Colors.white70,
+                              size: 24,
+                            ),
+                            onPressed: () {
+                              setState(() => _isTxHistoryMinimized = !_isTxHistoryMinimized);
+                            },
+                            tooltip: _isTxHistoryMinimized ? 'Expand' : 'Minimize',
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 4),
+
+                      if (!_isTxHistoryMinimized)
+                        SizedBox(
+                          height: 220,
+                          child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                            valueListenable: _socketService.transactionHistoryNotifier,
+                            builder: (context, history, child) {
+                              if (history.isEmpty) {
+                                return const Center(
+                                  child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
+                                );
+                              }
+                              return ListView.builder(
+                                itemCount: history.length,
+                                itemBuilder: (context, index) {
+                                  final tx = history[index];
+                                  final amount = tx['amount'] as int;
+                                  final isPositive = amount > 0;
+                                  final balanceAfter = tx['balanceAfter'] ?? 0;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          isPositive ? '+$amount' : '$amount',
+                                          style: TextStyle(
+                                            color: isPositive ? Colors.green : Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            tx['description'] as String,
+                                            style: const TextStyle(color: Colors.white70),
+                                          ),
+                                        ),
+                                        Text(
+                                          '→ \$${NumberFormat("#,###").format(balanceAfter)}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Chat Messages
+              Expanded(
+                child: ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
+                ),
+              ),
+
+              // Message Input
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller, 
+                        decoration: const InputDecoration(hintText: 'Type message...')
+                      ),
+                    ),
+                    ElevatedButton(
                       onPressed: () {
-                        setState(() => _isTxHistoryMinimized = !_isTxHistoryMinimized);
+                        _socketService.sendMessage(_controller.text);
+                        _controller.clear();
                       },
-                      tooltip: _isTxHistoryMinimized ? 'Expand' : 'Minimize',
+                      child: const Text('Send'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-
-                // Collapsible content
-                if (!_isTxHistoryMinimized)
-                  SizedBox(
-                    height: 220,
-                    child: ValueListenableBuilder<List<Map<String, dynamic>>>(
-                      valueListenable: _socketService.transactionHistoryNotifier,
-                      builder: (context, history, child) {
-                        if (history.isEmpty) {
-                          return const Center(
-                            child: Text('No transactions yet', style: TextStyle(color: Colors.grey)),
-                          );
-                        }
-                        return ListView.builder(
-                          itemCount: history.length,
-                          itemBuilder: (context, index) {
-                            final tx = history[index];
-                            final amount = tx['amount'] as int;
-                            final isPositive = amount > 0;
-                            final balanceAfter = tx['balanceAfter'] ?? 0;
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    isPositive ? '+$amount' : '$amount',
-                                    style: TextStyle(
-                                      color: isPositive ? Colors.green : Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      tx['description'] as String,
-                                      style: const TextStyle(color: Colors.white70),
-                                    ),
-                                  ),
-                                  Text(
-                                    '→ \$${NumberFormat("#,###").format(balanceAfter)}',
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: messages.length,
-            itemBuilder: (_, i) => ListTile(title: Text(messages[i])),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[850],
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestExp();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +70 Experience')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
-                  child: const Text('EXP +70'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestMoney(200);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +\$200')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('MONEY +\$200'),
-                ),
-              ),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestMoney(500000);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +\$500,000')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('MONEY +\$500K'),
-                ),
               ),
             ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          color: Colors.grey[850],
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    SocketService().addTestBullets(10000);  // NEW: Add test bullets button
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test: +10,000 Bullets')),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  child: const Text('BULLETS +10K'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(child: TextField(controller: _controller, decoration: const InputDecoration(hintText: 'Type message...'))),
-              ElevatedButton(
-                onPressed: () {
-                  _socketService.sendMessage(_controller.text);
-                  _controller.clear();
-                },
-                child: const Text('Send'),
-              ),
-            ],
-          ),
-        ),
-        ],
-      );
-
-    },
+          );
+        },
+      ),
+    ),
   );
 }
 
@@ -973,6 +925,84 @@ final int netWorth = bankBalance + inventoryAt60Percent + propertiesValue;
     );
 
     Overlay.of(context).insert(_deliverJusticeOverlay!);
+  }
+
+  void _showDeveloperOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Developer Options',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+
+              // Test Buttons
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestExp();
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +70 Experience')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                child: const Text('EXP +70'),
+              ),
+              const SizedBox(height: 10),
+
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney(200);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$200')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$200'),
+              ),
+              const SizedBox(height: 10),
+
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestMoney(500000);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +\$500,000')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('MONEY +\$500K'),
+              ),
+              const SizedBox(height: 10),
+
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().addTestBullets(10000);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: +10,000 Bullets')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: const Text('BULLETS +10K'),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // Check if any property is due and claim (using server sync)
