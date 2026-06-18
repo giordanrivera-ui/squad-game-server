@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'socket_service.dart';
 
-
 class Sidebar extends StatelessWidget {
   final int currentScreen;
   final Function(int) onScreenChanged;
@@ -23,59 +22,83 @@ class Sidebar extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
+          // ==================== DRAWER HEADER ====================
+          Container(
+            height: 180,
             decoration: BoxDecoration(
               image: DecorationImage(
                 image: AssetImage(_getRankBannerPath(stats['experience'] ?? 0)),
                 fit: BoxFit.cover,
               ),
             ),
-            child: Row(
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    onScreenChanged(6); // Profile
-                    Navigator.pop(context);
-                  },
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundImage: NetworkImage(
-                      FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
-                    ),
-                  ),
+                // Semi-transparent overlay
+                Container(
+                  color: Colors.black.withOpacity(0.3),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      FirebaseAuth.instance.currentUser?.displayName ?? "Player",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+
+                // Content
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 28,     // ← Moved slightly to the right
+                    top: 45,      // ← Moved down
+                    right: 16,
+                    bottom: 16,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          onScreenChanged(6); // Profile
+                          Navigator.pop(context);
+                        },
+                        child: CircleAvatar(
+                          radius: 40,
+                          backgroundImage: NetworkImage(
+                            FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
+                          ),
+                        ),
                       ),
-                    ),
-                    Text(
-                      _getRankTitle(stats['experience'] ?? 0),
-                      style: const TextStyle(
-                        color: Colors.orangeAccent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              FirebaseAuth.instance.currentUser?.displayName ?? "Player",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              _getRankTitle(stats['experience'] ?? 0),
+                              style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              stats['location'] ?? "Unknown",
+                              style: const TextStyle(color: Colors.white70, fontSize: 16),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(
-                      stats['location'] ?? "Unknown",
-                      style: const TextStyle(color: Colors.white70, fontSize: 16),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
 
-          // NEW: Reordered tiles as specified
+          // ==================== NAVIGATION ITEMS ====================
           SizedBox(
             height: 48,
             child: ListTile(
@@ -163,7 +186,7 @@ class Sidebar extends StatelessWidget {
             ),
           ),
 
-          const Divider(thickness: 1),  // NEW: Thin divider after "Kill a Player"
+          const Divider(thickness: 1),
 
           SizedBox(
             height: 48,
@@ -210,9 +233,9 @@ class Sidebar extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.fitness_center),
               title: const Text('Fitness Center'),
-              selected: currentScreen == 13, // Use a new index (e.g. 13)
+              selected: currentScreen == 13,
               onTap: () {
-                onScreenChanged(13); // New index for Fitness Center
+                onScreenChanged(13);
                 Navigator.pop(context);
               },
             ),
@@ -230,18 +253,20 @@ class Sidebar extends StatelessWidget {
               },
             ),
           ),
+
           SizedBox(
             height: 48,
             child: ListTile(
               leading: const Icon(Icons.business_center),
               title: const Text('Businesses'),
-              selected: currentScreen == 8,
+              selected: currentScreen == 12,
               onTap: () {
                 onScreenChanged(12);
                 Navigator.pop(context);
               },
             ),
           ),
+
           SizedBox(
             height: 48,
             child: ListTile(
@@ -298,6 +323,8 @@ class Sidebar extends StatelessWidget {
         return 'assets/Sergeant-banner.jpg';
       case 'sergeant-first-class':
         return 'assets/Sergeant First Class-banner.jpg';
+      case 'general':
+        return 'assets/General-banner.jpg';
       default:
         return 'assets/Thug-banner.jpg';
     }

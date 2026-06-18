@@ -452,7 +452,7 @@ socket.on('respawn', async () => {
       });
     }
 
-    // === NEW: COMPLETELY WIPE TRANSACTION HISTORY ===
+    // ===  COMPLETELY WIPE TRANSACTION HISTORY ===
     const txSnapshot = await docRef.collection('transactions').get();
     if (!txSnapshot.empty) {
       const batch = db.batch();
@@ -660,33 +660,42 @@ socket.on('respawn', async () => {
 
   // ==================== RESCUE / SAVE PLAYER ====================
   socket.on('attempt-rescue', async (targetDisplayName) => {
-    const saverName = socket.data.displayName;
-    const saverEmail = socket.data.email;
-    if (!saverName || !saverEmail || saverName === targetDisplayName) return;
+  const saverName = socket.data.displayName;
+  const saverEmail = socket.data.email;
+  if (!saverName || !saverEmail || saverName === targetDisplayName) return;
 
-    // Get saver data
-    const saverDocRef = db.collection('players').doc(saverEmail);
-    const saverDoc = await saverDocRef.get();
-    if (!saverDoc.exists) return;
-    let saver = saverDoc.data();
+  // Get saver data
+  const saverDocRef = db.collection('players').doc(saverEmail);
+  const saverDoc = await saverDocRef.get();
+  if (!saverDoc.exists) return;
 
-    // Cannot rescue while in prison
-    if (Date.now() < (saver.prisonEndTime || 0)) {
-      socket.emit('rescue-result', { success: false, message: 'You are in prison and cannot rescue others.' });
-      return;
-    }
+  let saver = saverDoc.data();
+  const saverStealth = saver.stealth || 0;                    // ← Get Stealth
 
-    // Target must actually be imprisoned
-    if (!imprisonedPlayers.has(targetDisplayName)) {
-      socket.emit('rescue-result', { success: false, message: 'That player is not in prison.' });
-      return;
-    }
+  // Cannot rescue while in prison
+  if (Date.now() < (saver.prisonEndTime || 0)) {
+    socket.emit('rescue-result', { success: false, message: 'You are in prison and cannot rescue others.' });
+    return;
+  }
 
-    const isSuccess = Math.random() < 0.75;   // 50% chance (change later if needed)
+  // Target must actually be imprisoned
+  if (!imprisonedPlayers.has(targetDisplayName)) {
+    socket.emit('rescue-result', { success: false, message: 'That player is not in prison.' });
+    return;
+  }
 
-    if (isSuccess) {
-      // SUCCESS: Free the target
-      imprisonedPlayers.delete(targetDisplayName);
+  // ==================== DYNAMIC RESCUE CHANCE ====================
+  let rescueChance = 0.75; // Base chance
+
+  if (saverStealth >= 10) {
+    rescueChance = 0.80; // +5% from Stealth
+  }
+
+  const isSuccess = Math.random() < rescueChance;
+
+  if (isSuccess) {
+    // SUCCESS: Free the target
+    imprisonedPlayers.delete(targetDisplayName);
 
       // Reset target's prisonEndTime in Firestore
       const targetQuery = await db.collection('players')
@@ -739,8 +748,8 @@ socket.on('respawn', async () => {
           message: 'You have been rescued from prison!'
         });
       }
-    } else {
-      // FAILURE: Imprison the saver
+  } else {
+    // FAILURE: Imprison the saver
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;
       imprisonedPlayers.set(saverName, prisonEnd);
@@ -762,8 +771,8 @@ socket.on('respawn', async () => {
         success: false,
         message: `Rescue failed! You have been sent to prison for 60 seconds.`
       });
-    }
-  });
+  }
+});
 
   // ==================== OTHER HANDLERS ====================
   socket.on('message', (msg) => {
@@ -1021,7 +1030,7 @@ socket.on('respawn', async () => {
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });
 
-  // ==================== FITNESS CENTER TRAINING (with Physical Toll) ====================
+// ==================== FITNESS CENTER TRAINING ====================
 socket.on('perform-training', async (data) => {
   const email = socket.data.email;
   if (!email || !data.type) return;
@@ -1031,25 +1040,38 @@ socket.on('perform-training', async (data) => {
   if (!doc.exists) return;
 
   let p = doc.data();
-
-  // Calculate cost based on current physicalToll
   const currentToll = p.physicalToll || 0;
-  const cost = Math.round(10 * Math.pow(1.2, currentToll));
 
-  // Check if player can afford it
-  if ((p.balance || 0) < cost) {
+  // Determine toll increase
+  let tollIncrease = 1;
+  if (data.type === 'olympic_weightlifting' || data.type === 'gymnastics') {
+    tollIncrease = 2;
+  }
+
+  // Calculate total cost (compounding at 1.17)
+  let totalCost = 0;
+  let tempToll = currentToll;
+
+  for (let i = 0; i < tollIncrease; i++) {
+    const cost = Math.round(10 * Math.pow(1.175, tempToll));
+    totalCost += cost;
+    tempToll += 1;
+  }
+
+  // Check balance
+  if ((p.balance || 0) < totalCost) {
     socket.emit('training-result', {
       success: false,
-      message: `Not enough money. This training costs $${cost}.`
+      message: `Not enough money. This training costs $${totalCost}.`
     });
     return;
   }
 
   // Deduct cost
-  p.balance = (p.balance || 0) - cost;
+  p.balance = (p.balance || 0) - totalCost;
 
   // Increase physical toll
-  p.physicalToll = currentToll + 1;
+  p.physicalToll = currentToll + tollIncrease;
 
   // Apply stat increase
   let statIncreased = '';
@@ -1084,15 +1106,22 @@ socket.on('perform-training', async (data) => {
       return;
   }
 
+  // ==================== NEW: Strength 10 → Max Health 105 ====================
+  if ((p.strength || 0) >= 10) {
+    p.maxHealth = 105;
+  } else {
+    p.maxHealth = 100; // Reset if they somehow drop below 10
+  }
+
   await docRef.set(p);
   socket.emit('update-stats', p);
 
   socket.emit('training-result', {
     success: true,
-    message: `+${amount} ${statIncreased}! (Cost: $${cost})`,
+    message: `+${amount} ${statIncreased}! (Cost: $${totalCost})`,
     stat: statIncreased.toLowerCase(),
     amount,
-    cost
+    cost: totalCost
   });
 });
 
