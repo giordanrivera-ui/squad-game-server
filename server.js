@@ -28,6 +28,7 @@ const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
 const { registerFitnessHandlers, updateMaxHealth } = require('./fitness.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
 const { registerRespawnHandler } = require('./respawn.js');
+const { registerSellHandlers } = require('./sell.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -440,6 +441,7 @@ io.on('connection', (socket) => {
   registerTaxiHandlers(socket, { db });
   registerHospitalHandlers(socket, { db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH });
   registerFitnessHandlers(socket, { db, logTransaction });
+  registerSellHandlers(socket, { db, logTransaction });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
@@ -792,73 +794,6 @@ io.on('connection', (socket) => {
     }
 
     await docRef.set(p);
-    socket.emit('update-stats', p);
-  });
-
-  socket.on('sell-items', async (data) => {
-    const email = socket.data.email;
-    if (!email || !Array.isArray(data.items) || typeof data.totalSellValue !== 'number' || ![60,80,100].includes(data.rate)) return;
-
-    const docRef = db.collection('players').doc(email);
-    const doc = await docRef.get();
-    if (!doc.exists) return;
-
-    let p = doc.data();
-
-    // NEW: Check if banned
-    if (Date.now() < (p.sellBanEndTime || 0)) {
-      socket.emit('sell-result', { success: false, message: 'You are banned from selling. Try later.' });
-      return;
-    }
-
-    // Validate total sell value at rate
-    let calculatedValue = 0;
-    const rateFactor = data.rate / 100;
-    for (const item of data.items) {
-      if (typeof item.cost === 'number') {
-        calculatedValue += Math.floor(item.cost * rateFactor);
-      }
-    }
-    if (calculatedValue !== data.totalSellValue) return; // Cheat?
-
-    // NEW: Random success based on rate
-    let successChance = 1.0;  // 60%
-    let banMs = 0;
-    if (data.rate === 80) {
-      successChance = 0.45;
-      banMs = 3 * 60 * 60 * 1000;  // 3h
-    } else if (data.rate === 100) {
-      successChance = 0.12;
-      banMs = 8 * 60 * 60 * 1000;  // 8h
-    }
-
-    const isSuccess = Math.random() < successChance;
-
-    if (!isSuccess && banMs > 0) {
-      p.sellBanEndTime = Date.now() + banMs;
-      await docRef.set(p);
-      socket.emit('sell-result', { success: false, message: `Sale failed! Banned from selling for ${banMs / (60*60*1000)} hours.` });
-      socket.emit('update-stats', p);  // Send ban time
-      return;
-    }
-
-    // Success: Remove items, add money
-    for (const soldItem of data.items) {
-      const index = p.inventory.findIndex(i => 
-        i.name === soldItem.name && 
-        i.type === soldItem.type && 
-        i.power === soldItem.power
-      );
-      if (index !== -1) {
-        p.inventory.splice(index, 1);
-      }
-    }
-
-    await logTransaction(socket, data.totalSellValue, 'Items Sold', p, docRef);   // p = playerData, docRef = the Firestore reference
-    p.balance += data.totalSellValue;
-
-    await docRef.set(p);
-    socket.emit('sell-result', { success: true, message: 'Items sold!' });
     socket.emit('update-stats', p);
   });
 
