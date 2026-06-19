@@ -1044,7 +1044,6 @@ socket.on('respawn', async () => {
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });
 
-// ==================== FITNESS CENTER TRAINING ====================
 socket.on('perform-training', async (data) => {
   const email = socket.data.email;
   if (!email || !data.type) return;
@@ -1056,7 +1055,6 @@ socket.on('perform-training', async (data) => {
   let p = doc.data();
   const currentToll = p.physicalToll || 0;
 
-  // Determine toll increase
   let tollIncrease = 1;
   if (data.type === 'olympic_weightlifting' || data.type === 'gymnastics') {
     tollIncrease = 2;
@@ -1067,12 +1065,11 @@ socket.on('perform-training', async (data) => {
   let tempToll = currentToll;
 
   for (let i = 0; i < tollIncrease; i++) {
-    const cost = Math.round(10 * Math.pow(1.175, tempToll));
+    const cost = Math.round(10 * Math.pow(1.17, tempToll));
     totalCost += cost;
     tempToll += 1;
   }
 
-  // Check balance
   if ((p.balance || 0) < totalCost) {
     socket.emit('training-result', {
       success: false,
@@ -1081,10 +1078,7 @@ socket.on('perform-training', async (data) => {
     return;
   }
 
-  // Deduct cost
-  p.balance = (p.balance || 0) - totalCost;
-
-  // ==================== LOG TRANSACTION ====================
+  // ==================== LOG TRANSACTION (handles balance update) ====================
   await logTransaction(
     socket,
     -totalCost,
@@ -1093,10 +1087,13 @@ socket.on('perform-training', async (data) => {
     docRef
   );
 
+  // Update local balance to stay in sync
+  p.balance = (p.balance || 0) - totalCost;
+
   // Increase physical toll
   p.physicalToll = currentToll + tollIncrease;
 
-  // Apply stat increase
+  // Apply stat increase + maxHealth
   let statIncreased = '';
   let amount = 0;
 
@@ -1106,30 +1103,25 @@ socket.on('perform-training', async (data) => {
       statIncreased = 'Strength';
       amount = 1;
       break;
-
     case 'olympic_weightlifting':
       p.strength = (p.strength || 0) + 2;
       statIncreased = 'Strength';
       amount = 2;
       break;
-
     case 'parkour':
       p.stealth = (p.stealth || 0) + 1;
       statIncreased = 'Stealth';
       amount = 1;
       break;
-
     case 'gymnastics':
       p.stealth = (p.stealth || 0) + 2;
       statIncreased = 'Stealth';
       amount = 2;
       break;
-
     default:
       return;
   }
 
-  // Update maxHealth
   p = updateMaxHealth(p);
 
   await docRef.set(p);

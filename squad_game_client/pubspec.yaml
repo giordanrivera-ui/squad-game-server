@@ -171,6 +171,7 @@ flutter:
     - assets/Gymnastics.jpg
     - assets/Olympic Weightlifting.jpg
     - assets/Parkour Training.jpg
+    - assets/hospital-background.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see
