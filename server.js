@@ -79,6 +79,16 @@ function recalculateOverallPower(p) {
   return p;
 }
 
+// ==================== MAX HEALTH HELPER ====================
+function updateMaxHealth(player) {
+  if ((player.strength || 0) >= 10) {
+    player.maxHealth = 105;
+  } else {
+    player.maxHealth = 100;
+  }
+  return player;
+}
+
 // ==================== ONLINE LIST HELPER (NEW) ====================
 function removeFromOnlineList(displayName) {
   if (!displayName) return;
@@ -246,6 +256,7 @@ io.on('connection', (socket) => {
 
     if (doc.exists) {
       playerData = doc.data();
+
       if (playerData.experience === undefined) playerData.experience = 0;
       if (playerData.intelligence === undefined) playerData.intelligence = 0;
       if (playerData.skill === undefined) playerData.skill = 0;
@@ -286,6 +297,7 @@ io.on('connection', (socket) => {
       if (playerData.activeSpecialOperation === undefined) playerData.activeSpecialOperation = null;
       if (playerData.activeSpecialOperationParty === undefined) playerData.activeSpecialOperationParty = null;
       if (playerData.usedAdForHealing === undefined) playerData.usedAdForHealing = false;
+      playerData = updateMaxHealth(playerData);
 
       if (playerData.weapon) {
         playerData = recalculateOverallPower(playerData);
@@ -308,6 +320,7 @@ io.on('connection', (socket) => {
       playerData = {
         balance: 0,
         health: 100,
+        maxHealth: 100,
         bullets: 0,
         lastRob: 0,
         displayName: displayName,
@@ -469,6 +482,7 @@ socket.on('respawn', async () => {
       ...p,
       balance: 0,
       health: 100,
+      maxHealth: 100,
       bullets: 0,
       lastRob: 0,
       displayName: null,
@@ -1106,12 +1120,8 @@ socket.on('perform-training', async (data) => {
       return;
   }
 
-  // ==================== NEW: Strength 10 → Max Health 105 ====================
-  if ((p.strength || 0) >= 10) {
-    p.maxHealth = 105;
-  } else {
-    p.maxHealth = 100; // Reset if they somehow drop below 10
-  }
+  // ==================== Strength 10 → Max Health 105 ====================
+  p = updateMaxHealth(p);
 
   await docRef.set(p);
   socket.emit('update-stats', p);
