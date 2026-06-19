@@ -20,13 +20,13 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
-const { 
-  startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
+const { startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
   handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
 const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
+const { registerFitnessHandlers, updateMaxHealth } = require('./fitness.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
 
 // Firebase Admin
@@ -79,33 +79,7 @@ function recalculateOverallPower(p) {
   return p;
 }
 
-// ==================== MAX HEALTH HELPER ====================
-function updateMaxHealth(player) {
-  if ((player.strength || 0) >= 10) {
-    player.maxHealth = 105;
-  } else {
-    player.maxHealth = 100;
-  }
-  return player;
-}
-
-// ==================== FITNESS TRAINING DESCRIPTION HELPER ====================
-function getTrainingDescription(type) {
-  switch (type) {
-    case 'calisthenics':
-      return 'Calisthenics Training';
-    case 'olympic_weightlifting':
-      return 'Olympic Weightlifting Session';
-    case 'parkour':
-      return 'Parkour Training';
-    case 'gymnastics':
-      return 'Gymnastics Training';
-    default:
-      return 'Fitness Training';
-  }
-}
-
-// ==================== ONLINE LIST HELPER (NEW) ====================
+// ==================== ONLINE LIST HELPER ====================
 function removeFromOnlineList(displayName) {
   if (!displayName) return;
   onlinePlayers.delete(displayName);
@@ -589,8 +563,10 @@ socket.on('respawn', async () => {
     await syncPartyTeamSynergy(db, email, { onlineSockets });
   });
 
-  // ==================== TAXI TYCOON HANDLERS (now external) ====================
+  // ==================== TAXI TYCOON, HOSPITAL & FITNESS ====================
   registerTaxiHandlers(socket, { db });
+  registerHospitalHandlers(socket, { db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH });
+  registerFitnessHandlers(socket, { db, logTransaction });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
@@ -812,9 +788,6 @@ socket.on('respawn', async () => {
 
   socket.on('travel', async (destination) => { await handleTravel(db, socket, destination); });
 
-  // ==================== HOSPITAL / HEALING HANDLERS ====================
-  registerHospitalHandlers(socket, { db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH });
-
   socket.on('update-profile', async (data) => {
     const email = socket.data.email;
     if (!email || typeof data.photoURL !== 'string') return;
@@ -846,7 +819,7 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  socket.on('purchase-armor', async (data) => { // NEW: Purchase armor
+  socket.on('purchase-armor', async (data) => { // Purchase armor
     const email = socket.data.email;
     if (!email || !Array.isArray(data.items) || typeof data.totalCost !== 'number') return;
 
@@ -1059,99 +1032,6 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
     console.log(`[SERVER] Allocated ${attribute} for ${email}`);
   });
-
-socket.on('perform-training', async (data) => {
-  const email = socket.data.email;
-  if (!email || !data.type) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
-
-  let p = doc.data();
-  const currentToll = p.physicalToll || 0;
-
-  let tollIncrease = 1;
-  if (data.type === 'olympic_weightlifting' || data.type === 'gymnastics') {
-    tollIncrease = 2;
-  }
-
-  // Calculate total cost
-  let totalCost = 0;
-  let tempToll = currentToll;
-
-  for (let i = 0; i < tollIncrease; i++) {
-    const cost = Math.round(10 * Math.pow(1.17, tempToll));
-    totalCost += cost;
-    tempToll += 1;
-  }
-
-  if ((p.balance || 0) < totalCost) {
-    socket.emit('training-result', {
-      success: false,
-      message: `Not enough money. This training costs $${totalCost}.`
-    });
-    return;
-  }
-
-  const description = getTrainingDescription(data.type);
-
-  await logTransaction(
-    socket,
-    -totalCost,
-    description,
-    p,
-    docRef
-  );
-
-  // Update local balance to stay in sync
-  p.balance = (p.balance || 0) - totalCost;
-
-  // Increase physical toll
-  p.physicalToll = currentToll + tollIncrease;
-
-  // Apply stat increase + maxHealth
-  let statIncreased = '';
-  let amount = 0;
-
-  switch (data.type) {
-    case 'calisthenics':
-      p.strength = (p.strength || 0) + 1;
-      statIncreased = 'Strength';
-      amount = 1;
-      break;
-    case 'olympic_weightlifting':
-      p.strength = (p.strength || 0) + 2;
-      statIncreased = 'Strength';
-      amount = 2;
-      break;
-    case 'parkour':
-      p.stealth = (p.stealth || 0) + 1;
-      statIncreased = 'Stealth';
-      amount = 1;
-      break;
-    case 'gymnastics':
-      p.stealth = (p.stealth || 0) + 2;
-      statIncreased = 'Stealth';
-      amount = 2;
-      break;
-    default:
-      return;
-  }
-
-  p = updateMaxHealth(p);
-
-  await docRef.set(p);
-  socket.emit('update-stats', p);
-
-  socket.emit('training-result', {
-    success: true,
-    message: `+${amount} ${statIncreased}! (Cost: $${totalCost})`,
-    stat: statIncreased.toLowerCase(),
-    amount,
-    cost: totalCost
-  });
-});
 
   // Handler for claiming income (now per-property)
   socket.on('claim-income', async () => {
