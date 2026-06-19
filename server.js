@@ -89,6 +89,22 @@ function updateMaxHealth(player) {
   return player;
 }
 
+// ==================== FITNESS TRAINING DESCRIPTION HELPER ====================
+function getTrainingDescription(type) {
+  switch (type) {
+    case 'calisthenics':
+      return 'Calisthenics Training';
+    case 'olympic_weightlifting':
+      return 'Olympic Weightlifting Session';
+    case 'parkour':
+      return 'Parkour Training';
+    case 'gymnastics':
+      return 'Gymnastics Training';
+    default:
+      return 'Fitness Training';
+  }
+}
+
 // ==================== ONLINE LIST HELPER (NEW) ====================
 function removeFromOnlineList(displayName) {
   if (!displayName) return;
@@ -1078,11 +1094,12 @@ socket.on('perform-training', async (data) => {
     return;
   }
 
-  // ==================== LOG TRANSACTION (handles balance update) ====================
+  const description = getTrainingDescription(data.type);
+
   await logTransaction(
     socket,
     -totalCost,
-    `Fitness Training (${data.type})`,
+    description,
     p,
     docRef
   );
