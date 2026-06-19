@@ -20,14 +20,14 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
-const { startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH,
-  handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
+const { startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
 const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
 const { registerFitnessHandlers, updateMaxHealth } = require('./fitness.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
+const { registerRespawnHandler } = require('./respawn.js');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -215,7 +215,7 @@ const timeFormatter = new Intl.DateTimeFormat('en-GB', {
 setInterval(() => {
   io.emit('time', {
     formatted: timeFormatter.format(new Date()),
-    serverTime: Date.now()           // ← ADD THIS
+    serverTime: Date.now()
   });
 }, 30000);
 
@@ -415,125 +415,7 @@ io.on('connection', (socket) => {
     socket.emit('time', timeFormatter.format(new Date()));
   });
 
-// ==================== RESPAWN HANDLER ====================
-socket.on('respawn', async () => {
-  const email = socket.data.email;
-  if (!email) return;
-
-  const docRef = db.collection('players').doc(email);
-  const doc = await docRef.get();
-  if (!doc.exists) return;
-
-  let p = doc.data();
-
-  if (p.dead) {
-    const oldName = p.displayName;
-    if (oldName) {
-      // Save dead profile snapshot BEFORE reset
-      const deadProfile = {
-        displayName: oldName,
-        displayNameLower: oldName.toLowerCase(),
-        experience: p.experience || 0,
-        balance: p.balance || 0,
-        headwear: p.headwear || null,
-        armor: p.armor || null,
-        footwear: p.footwear || null,
-        weapon: p.weapon || null,
-        overallPower: p.overallPower || 0,
-        deathTime: admin.firestore.FieldValue.serverTimestamp(),
-        originalEmail: email
-      };
-      await db.collection('deadProfiles').doc(oldName.toLowerCase()).set(deadProfile);
-      console.log(`[SERVER] Saved dead profile for ${oldName}`);
-
-      // Add old name to usedNames
-      await db.collection('usedNames').doc(oldName.toLowerCase()).set({
-        name: oldName,
-        taken: true,
-        originalEmail: email,
-        takenAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-
-    // ===  COMPLETELY WIPE TRANSACTION HISTORY ===
-    const txSnapshot = await docRef.collection('transactions').get();
-    if (!txSnapshot.empty) {
-      const batch = db.batch();
-      txSnapshot.docs.forEach((txDoc) => {
-        batch.delete(txDoc.ref);
-      });
-      await batch.commit();
-      console.log(`[SERVER] Respawned ${email} - wiped ${txSnapshot.size} old transactions (new life = clean slate)`);
-    }
-
-    // Reset stats to defaults
-    const randomLocation = normalLocations[Math.floor(Math.random() * normalLocations.length)];
-    p = {
-      ...p,
-      balance: 0,
-      health: 100,
-      maxHealth: 100,
-      bullets: 0,
-      lastRob: 0,
-      displayName: null,
-      displayNameLower: null,
-      location: randomLocation,
-      experience: 0,
-      intelligence: 0,
-      skill: 0,
-      strength: 0,
-      physicalToll: 0,
-      marksmanship: 0,
-      stealth: 0,
-      defense: 0,
-      kills: 0,
-      photoURL: '',
-      inventory: [],
-      headwear: null,
-      armor: null,
-      footwear: null,
-      overallPower: 0,
-      weapon: null,
-      lastLowLevelOp: 0,
-      lastMidLevelOp: 0,
-      lastHighLevelOp: 0,
-      sellBanEndTime: 0,
-      prisonEndTime: 0,
-      ownedBonds: [],
-      ownedProperties: [],
-      lastIncomeClaim: Date.now(),
-      propertyClaims: [],
-      showArmor: true,
-      showWeapon: true,
-      hasBrokenBone: false,
-      bonePenaltyEndTimeLow: 0,
-      bonePenaltyEndTimeMid: 0,
-      bonePenaltyEndTimeHigh: 0,
-      dead: false,
-      usedAdForHealing: false,
-      ownedUpgrades: {},
-      unallocatedAttributePoints: 0,
-      taxiFleet: [],
-      scoutedDrivers: [],
-      hiredDrivers: [],
-      hasActiveTaxiJobs: false,
-      activeSpecialOperation: null,
-      activeSpecialOperationParty: null,
-      completedCourses: [],
-    };
-
-    p.rank = getRankTitle(0);
-
-    // Prevent respawn with invalid name (though client already forces null)
-    if (p.displayName && (p.displayName.length > 22 || ['.', '/', '\\'].includes(p.displayName[0]))) {
-      p.displayName = null;
-    }
-
-    await docRef.set(p);
-    socket.emit('update-stats', p);
-    console.log(`[SERVER] Respawned ${email} - old name ${oldName} marked used`);
-  }
-});
+  registerRespawnHandler(socket, { db, normalLocations, getRankTitle });
 
   // ==================== TEST BUTTONS ====================
   socket.on('add-test-exp', async (amount) => { await handleAddTestExp(db, socket, amount) });
@@ -541,17 +423,8 @@ socket.on('respawn', async () => {
   socket.on('add-test-bullets', async (amount) => { await handleAddTestBullets(db, socket, amount) });
 
   // ==================== COURSES ====================
-  socket.on('request-courses', () => {
-    handleRequestCourses(db, socket);
-  });
-
-  socket.on('purchase-course', async (courseId) => {
-    await handlePurchaseCourse(db, socket, courseId, { 
-      onlineSockets, 
-      syncPartyTeamSynergy 
-    });
-  });
-
+  socket.on('request-courses', () => {handleRequestCourses(db, socket);});
+  socket.on('purchase-course', async (courseId) => {await handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncPartyTeamSynergy });});
   socket.on('course-completed', async (courseId) => {
     const email = socket.data.email;
     if (!email) return;
@@ -989,9 +862,7 @@ socket.on('respawn', async () => {
     socket.emit('update-stats', p);
   });
 
-  socket.on('buy-property', async (propertyName) => {
-    await handleBuyProperty(db, socket, propertyName);  // Call the function from properties.js
-  });
+  socket.on('buy-property', async (propertyName) => {await handleBuyProperty(db, socket, propertyName);});
 
   socket.on('buy-upgrade', async (data) => {
     const { propertyName, upgradeName } = data;
@@ -1034,22 +905,12 @@ socket.on('respawn', async () => {
   });
 
   // Handler for claiming income (now per-property)
-  socket.on('claim-income', async () => {
-    await handleClaimIncome(db, socket);  // Call the function from properties.js
-  });
+  socket.on('claim-income', async () => {await handleClaimIncome(db, socket);});
 
   // ==================== BOND MARKET HANDLERS (with 2-minute cooldown) ====================
-  socket.on('request-bond-market', async () => {
-    await handleRequestBondMarket(db, socket);
-  });
-
-  socket.on('refresh-bond-market', async () => {
-    await handleRefreshBondMarket(db, socket);
-  });
-
-  socket.on('buy-bond', async (bondData) => {
-    await handleBuyBond(db, socket, bondData);
-  });
+  socket.on('request-bond-market', async () => {await handleRequestBondMarket(db, socket);});
+  socket.on('refresh-bond-market', async () => {await handleRefreshBondMarket(db, socket);});
+  socket.on('buy-bond', async (bondData) => {await handleBuyBond(db, socket, bondData);});
 
 // ==================== PRIVATE MESSAGES (supports text + structured invites) ====================
 socket.on('private-message', async (data) => {
