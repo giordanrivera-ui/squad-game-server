@@ -1062,7 +1062,7 @@ socket.on('perform-training', async (data) => {
     tollIncrease = 2;
   }
 
-  // Calculate total cost (compounding at 1.17)
+  // Calculate total cost
   let totalCost = 0;
   let tempToll = currentToll;
 
@@ -1083,6 +1083,15 @@ socket.on('perform-training', async (data) => {
 
   // Deduct cost
   p.balance = (p.balance || 0) - totalCost;
+
+  // ==================== LOG TRANSACTION ====================
+  await logTransaction(
+    socket,
+    -totalCost,
+    `Fitness Training (${data.type})`,
+    p,
+    docRef
+  );
 
   // Increase physical toll
   p.physicalToll = currentToll + tollIncrease;
@@ -1120,7 +1129,7 @@ socket.on('perform-training', async (data) => {
       return;
   }
 
-  // ==================== Strength 10 → Max Health 105 ====================
+  // Update maxHealth
   p = updateMaxHealth(p);
 
   await docRef.set(p);
