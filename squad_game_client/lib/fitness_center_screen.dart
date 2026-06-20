@@ -56,10 +56,16 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
                           ),
 
                           const SizedBox(height: 12),
-                          Image.asset('assets/strength.png', width: 110, height: 110),
+
+                          // ==================== DYNAMIC STRENGTH IMAGE ====================
+                          Image.asset(
+                            _getStrengthImage(currentStrength), // ← Dynamic image
+                            width: 110,
+                            height: 110,
+                          ),
                           const SizedBox(height: 8),
 
-                          // ==================== STRENGTH LEVEL (Dynamic) ====================
+                          // Strength Level (Dynamic)
                           Text(
                             'Strength Level: $currentStrength',
                             style: const TextStyle(
@@ -88,7 +94,7 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
                       ),
                     ),
 
-                    // ==================== VERTICAL DIVIDER ====================
+                    // Vertical Divider
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 30),
                       child: VerticalDivider(
@@ -126,7 +132,6 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
                           Image.asset('assets/stealth.png', width: 110, height: 110),
                           const SizedBox(height: 8),
 
-                          // ==================== STEALTH LEVEL (Dynamic) ====================
                           Text(
                             'Stealth Level: $currentStealth',
                             style: const TextStyle(
@@ -137,7 +142,6 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Parkour Training Button
                           _buildTrainingButton(
                             context,
                             label: 'Parkour Training',
@@ -145,7 +149,6 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Gymnastics Button
                           _buildTrainingButton(
                             context,
                             label: 'Gymnastics',
@@ -162,6 +165,17 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
         ),
       ),
     );
+  }
+
+  // ==================== NEW: Dynamic Strength Image Function ====================
+  String _getStrengthImage(int strength) {
+    if (strength >= 48) return 'assets/strength_48.png';
+    if (strength >= 37) return 'assets/strength_37.png';
+    if (strength >= 29) return 'assets/strength_29.png';
+    if (strength >= 21) return 'assets/strength_21.png';
+    if (strength >= 13) return 'assets/strength_13.png';
+    if (strength >= 6) return 'assets/strength_6.png';
+    return 'assets/strength_0.png'; // 0–5
   }
 
   Widget _buildTrainingButton(

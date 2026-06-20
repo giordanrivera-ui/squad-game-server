@@ -165,7 +165,13 @@ flutter:
     - assets/inventory.png
     - assets/lofi.mp3
     - assets/background.jpg
-    - assets/strength.png
+    - assets/strength_0.png
+    - assets/strength_6.png
+    - assets/strength_13.png
+    - assets/strength_21.png
+    - assets/strength_29.png
+    - assets/strength_37.png
+    - assets/strength_48.png
     - assets/stealth.png
     - assets/Calisthenics.jpg
     - assets/Gymnastics.jpg

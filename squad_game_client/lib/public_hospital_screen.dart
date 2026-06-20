@@ -40,7 +40,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
         final String location = stats['location'] ?? 'Unknown';
         final int balance = (stats['balance'] ?? 0).toInt();
         final int health = stats['health'] ?? 100;
-        final int maxHealth = stats['maxHealth'] ?? 100;
+        final int maxHealth = stats['maxHealth'] ?? 100;           // NEW
         final int? healingEndTime = stats['healingEndTime'] as int?;
         final bool hasBrokenBone = stats['hasBrokenBone'] == true;
 
@@ -49,7 +49,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
             ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 360)
             : 0;
 
-        final bool canStartHealing = !isHealing && health < maxHealth && balance >= 50;
+        final bool canStartHealing = !isHealing && health < maxHealth && balance >= 50; // UPDATED
         final bool canHealBone = hasBrokenBone && balance >= boneHealCost && location == "Lónghǎi";
 
         return Scaffold(
@@ -201,7 +201,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                           ),
                         )
-                      else if (health >= maxHealth)
+                      else if (health >= maxHealth) // UPDATED
                         const Text(
                           'You are already at full health!',
                           style: TextStyle(color: Colors.green, fontSize: 18),
