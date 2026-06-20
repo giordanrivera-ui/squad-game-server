@@ -42,8 +42,8 @@ class Sidebar extends StatelessWidget {
                 // Content
                 Padding(
                   padding: const EdgeInsets.only(
-                    left: 28,     // ← Moved slightly to the right
-                    top: 45,      // ← Moved down
+                    left: 28,
+                    top: 45,
                     right: 16,
                     bottom: 16,
                   ),

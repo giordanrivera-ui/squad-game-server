@@ -453,6 +453,17 @@ Widget build(BuildContext context) {
                   onPressed: () async {
                     _socketService.deathNotifier.value = false;
                     _socketService.respawn();
+
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      try {
+                        await user.updatePhotoURL(null);   // Clear photo from Firebase Auth
+                        await user.reload();
+                      } catch (e) {
+                        print('Error clearing photoURL: $e');
+                      }
+                    }
+
                     await FirebaseAuth.instance.currentUser?.updateDisplayName(null);
                     await FirebaseAuth.instance.currentUser?.reload();
                     await FirebaseAuth.instance.signOut();

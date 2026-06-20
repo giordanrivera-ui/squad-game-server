@@ -29,25 +29,37 @@ class DashboardHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         image: const DecorationImage(
           image: AssetImage('assets/top-section-bg.jpg'),
           fit: BoxFit.cover,
         ),
-        boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.55),
-          blurRadius: 14,
-          offset: const Offset(0, 8), // Creates the "elevated" look
-          spreadRadius: 1,
+        // ==================== ROUNDED BOTTOM CORNERS ====================
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
         ),
-      ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.68),
+            blurRadius: 14,
+            offset: const Offset(0, 12),
+            spreadRadius: 1,
+          ),
+        ],
       ),
       child: Stack(
         children: [
-          // Semi-transparent black overlay
+          // ==================== SEMI-TRANSPARENT OVERLAY (with rounded corners) ====================
           Container(
-            color: Colors.black.withOpacity(0.58),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.55),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
           ),
 
           Column(
@@ -161,14 +173,14 @@ class DashboardHeader extends StatelessWidget {
                 color: Colors.green,
                 backgroundColor: Colors.grey[700],
               ),
-              
+
               const SizedBox(height: 6),
 
               // Health Text + Status Indicators
               Row(
                 children: [
                   Text(
-                    'Health: ${stats['health'] ?? 100}/100',
+                    'Health: $currentHealth/$maxHealth',
                     style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
                   if (stats['hasBrokenBone'] == true || hasEnhancedStamina)

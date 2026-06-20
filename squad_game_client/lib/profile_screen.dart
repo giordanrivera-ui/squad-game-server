@@ -23,14 +23,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _photoURL = FirebaseAuth.instance.currentUser?.photoURL;
+    
+    // Prefer server-provided photoURL if available, otherwise fall back to Firebase Auth
+    _photoURL = widget.stats['photoURL'] ?? FirebaseAuth.instance.currentUser?.photoURL;
+    
     _showArmor = widget.stats['showArmor'] ?? true;
     _showWeapon = widget.stats['showWeapon'] ?? true;
 
-    // Listen for updates to refresh toggles if changed elsewhere
+    // Listen for updates
     SocketService().socket?.on('update-stats', (data) {
       if (data is Map<String, dynamic> && mounted) {
         setState(() {
+          _photoURL = data['photoURL'] ?? _photoURL;
           _showArmor = data['showArmor'] ?? _showArmor;
           _showWeapon = data['showWeapon'] ?? _showWeapon;
         });
