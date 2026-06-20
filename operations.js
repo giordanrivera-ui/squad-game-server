@@ -361,6 +361,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       } else {
         p.balance = (p.balance || 0) + outcome.money;
         p.health = Math.max(0, p.health - outcome.actualDamage);
+        p.health = Math.min(p.health, p.maxHealth || 100);
 
         p = await addExperienceAndGrantPoints(docRef, p, outcome.expGain);
 

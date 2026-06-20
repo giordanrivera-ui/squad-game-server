@@ -22,6 +22,10 @@ class DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final int currentHealth = stats['health'] ?? 100;
+    final int maxHealth = stats['maxHealth'] ?? 100;
+    final double healthPercent = (currentHealth / maxHealth).clamp(0.0, 1.0);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -152,11 +156,12 @@ class DashboardHeader extends StatelessWidget {
 
               const SizedBox(height: 8),
 
-              // Health Bar
               LinearProgressIndicator(
-                value: (stats['health'] ?? 100) / 100.0,
+                value: healthPercent,
                 color: Colors.green,
+                backgroundColor: Colors.grey[700],
               ),
+              
               const SizedBox(height: 6),
 
               // Health Text + Status Indicators

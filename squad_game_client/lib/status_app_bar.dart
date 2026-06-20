@@ -18,11 +18,14 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    
     return ValueListenableBuilder<Map<String, dynamic>>(
       valueListenable: statsNotifier,
       builder: (context, currentStats, child) {
         final balance = currentStats['balance'] ?? 0;
         final health = currentStats['health'] ?? 100;
+        final int currentHealth = currentStats['health'] ?? 100;
+        final int maxHealth = currentStats['maxHealth'] ?? 100;
 
         return AppBar(
           leading: Builder(
@@ -66,9 +69,9 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
                   const SizedBox(width: 16),
 
                   // ==================== PULSING HEART ====================
-                  _HealthIcon(health: health),
+                  _HealthIcon(health: health, maxHealth: currentStats['maxHealth'] ?? 100,),
                   const SizedBox(width: 4),
-                  Text('$health', style: const TextStyle(fontSize: 15)),
+                  Text('$currentHealth / $maxHealth', style: const TextStyle(fontSize: 15)),
 
                   const SizedBox(width: 16),
 
@@ -94,8 +97,9 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
 // ==================== PULSING HEART WIDGET ====================
 class _HealthIcon extends StatefulWidget {
   final int health;
+  final int maxHealth;
 
-  const _HealthIcon({required this.health});
+  const _HealthIcon({required this.health, this.maxHealth = 100,});
 
   @override
   State<_HealthIcon> createState() => _HealthIconState();
@@ -105,7 +109,10 @@ class _HealthIconState extends State<_HealthIcon> with SingleTickerProviderState
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
-  bool get _isLowHealth => widget.health < 30;
+  bool get _isLowHealth {
+    final max = widget.maxHealth > 0 ? widget.maxHealth : 100;
+    return widget.health < (max * 0.3);   // Pulse when below 30%
+  }
 
   @override
   void initState() {

@@ -14,11 +14,21 @@ function getTrainingDescription(type) {
 }
 
 function updateMaxHealth(player) {
-  if ((player.strength || 0) >= 10) {
+  const strength = player.strength || 0;
+  const previousMax = player.maxHealth || 100;
+
+  if (strength >= 10) {
     player.maxHealth = 105;
   } else {
     player.maxHealth = 100;
   }
+
+  // Top up current health when max health increases
+  if (player.maxHealth > previousMax) {
+    const healthGain = player.maxHealth - previousMax;
+    player.health = Math.min(player.maxHealth, (player.health || 0) + healthGain);
+  }
+
   return player;
 }
 

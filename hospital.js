@@ -42,7 +42,8 @@ async function handleStartHealing(db, socket) {
 
   let p = doc.data();
 
-  if (p.dead === true || (p.health ?? 100) <= 0) {
+  const maxHp = p.maxHealth || 100;
+  if (p.dead === true || (p.health ?? maxHp) <= 0) {
     socket.emit('heal-result', { success: false, message: 'You are dead and cannot heal.' });
     return;
   }
@@ -90,7 +91,7 @@ async function handleClaimHealing(db, socket) {
   }
 
   // Healing time is up → apply full heal
-  p.health = 100;
+  p.health = p.maxHealth || 100;
   p.healingEndTime = 0;
 
   await docRef.set(p);
@@ -112,7 +113,8 @@ async function handleHealBrokenBone(db, socket) {
 
   let p = doc.data();
 
-  if (p.dead === true || (p.health ?? 100) <= 0) {
+  const maxHp = p.maxHealth || 100;
+  if (p.dead === true || (p.health ?? maxHp) <= 0) {
     socket.emit('heal-broken-bone-result', { 
       success: false, 
       message: 'You are dead and cannot heal.' 
@@ -641,7 +643,7 @@ async function handleClaimPrivateHealing(db, socket) {
   let p = doc.data();
   if (!p.healingEndTime || p.healingEndTime > Date.now()) return;
 
-  p.health = 100;
+  p.health = p.maxHealth || 100;
   p.healingEndTime = 0;
 
   await docRef.set(p);

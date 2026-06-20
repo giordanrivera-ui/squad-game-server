@@ -69,7 +69,6 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final bool tookDamage = widget.actualDamage > 0;
     final bool hasStolenWeapon = widget.stolenWeapon != null;
     final bool hasEpinephrine = widget.epinephrine != null;
     final bool hasBullets = widget.bulletsStolen > 0;
@@ -133,19 +132,30 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                           ),
                         ),
 
-                        if (widget.totalDefense > 0) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            tookDamage
-                                ? 'Your armor absorbed ${widget.totalDefense} damage!\nYou lost ${widget.actualDamage} health.'
-                                : 'Your armor absorbed all damage!',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: tookDamage ? Colors.orangeAccent : Colors.greenAccent,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                        if (widget.actualDamage > 0) ...[
+  const SizedBox(height: 16),
+  Text(
+    widget.totalDefense > 0
+        ? 'Your armor absorbed ${widget.totalDefense} damage!\nYou lost ${widget.actualDamage} health.'
+        : 'You lost ${widget.actualDamage} health.',
+    style: const TextStyle(
+      fontSize: 15,
+      color: Colors.orangeAccent,
+      height: 1.3,
+    ),
+    textAlign: TextAlign.center,
+  ),
+] else if (widget.totalDefense > 0) ...[
+  const SizedBox(height: 16),
+  Text(
+    'Your armor absorbed all damage!',
+    style: const TextStyle(
+      fontSize: 15,
+      color: Colors.greenAccent,
+    ),
+    textAlign: TextAlign.center,
+  ),
+],
 
                         // ==================== ADAPTIVE LOOT SECTION ====================
 if (hasStolenWeapon || hasEpinephrine || hasBullets) ...[
