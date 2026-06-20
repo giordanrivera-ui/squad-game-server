@@ -3,12 +3,14 @@ import 'dart:async';
 
 class CrimeAlertOverlay extends StatefulWidget {
   final String message;
+  final String perpetrator;                    // NEW
   final VoidCallback onIgnore;
-  final VoidCallback onDeliverJustice;
+  final Function(String perpetrator) onDeliverJustice;  // Changed to pass name
 
   const CrimeAlertOverlay({
     super.key,
     required this.message,
+    required this.perpetrator,                 // NEW
     required this.onIgnore,
     required this.onDeliverJustice,
   });
@@ -23,11 +25,8 @@ class _CrimeAlertOverlayState extends State<CrimeAlertOverlay> {
   @override
   void initState() {
     super.initState();
-    // Keep the 6-second auto-dismiss as a fallback
     _timer = Timer(const Duration(seconds: 6), () {
-      if (mounted) {
-        widget.onIgnore();
-      }
+      if (mounted) widget.onIgnore();
     });
   }
 
@@ -75,7 +74,6 @@ class _CrimeAlertOverlayState extends State<CrimeAlertOverlay> {
               ),
               const SizedBox(height: 20),
 
-              // ==================== TWO BUTTONS ====================
               Row(
                 children: [
                   Expanded(
@@ -92,7 +90,7 @@ class _CrimeAlertOverlayState extends State<CrimeAlertOverlay> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: widget.onDeliverJustice,
+                      onPressed: () => widget.onDeliverJustice(widget.perpetrator), // Pass name
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent,
                         foregroundColor: Colors.black,

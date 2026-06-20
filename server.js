@@ -453,6 +453,25 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ==================== NEW: Deliver Justice Handler ====================
+  socket.on('deliver-justice', async (data) => {
+    const witnessName = socket.data.displayName;
+    const perpetratorName = data?.perpetrator;
+
+    if (!witnessName || !perpetratorName) return;
+
+    // Notify the witness (the one who clicked)
+    socket.emit('show-deliver-justice');
+
+    // Notify the criminal (if they are online)
+    const perpetratorSocket = onlineSockets.get(perpetratorName);
+    if (perpetratorSocket) {
+      perpetratorSocket.emit('show-deliver-justice');
+    }
+
+    console.log(`[JUSTICE] ${witnessName} chose to deliver justice on ${perpetratorName}`);
+  });
+
   // ==================== PLACE HIT (BOUNTY) ====================
   socket.on('place-hit', async (data) => {
     const posterEmail = socket.data.email;

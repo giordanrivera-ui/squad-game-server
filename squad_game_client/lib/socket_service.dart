@@ -751,6 +751,10 @@ void stopGlobalCourseCompletionWatcher() {
     socket?.emit('leave-special-op');
   }
 
+  void deliverJustice(String perpetrator) {
+    socket?.emit('deliver-justice', { 'perpetrator': perpetrator });
+  }
+
   void buyProperty(String name) => socket?.emit('buy-property', name);
 
   void buyUpgrade(String propertyName, String upgradeName) {

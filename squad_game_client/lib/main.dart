@@ -260,6 +260,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Just refresh the UI when stats update
     });
 
+    // ==================== NEW: Listen for "show-deliver-justice" ====================
+_socketService.socket?.on('show-deliver-justice', (_) {
+  _showDeliverJusticeOverlay();
+});
+
         // Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {
@@ -457,7 +462,7 @@ Widget build(BuildContext context) {
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       try {
-                        await user.updatePhotoURL(null);   // Clear photo from Firebase Auth
+                        await user.updatePhotoURL(null);
                         await user.reload();
                       } catch (e) {
                         print('Error clearing photoURL: $e');
@@ -895,33 +900,35 @@ Widget _buildDashboard() {
     Overlay.of(context).insert(_rankUpOverlay!);
   }
 
-  void _showCrimeAlert() {
-    final data = _socketService.crimeAlertNotifier.value;
-    if (data == null) return;
+  // ==================== UPDATED: _showCrimeAlert ====================
+void _showCrimeAlert() {
+  final data = _socketService.crimeAlertNotifier.value;
+  if (data == null) return;
 
-    _crimeAlertOverlay?.remove();
+  _crimeAlertOverlay?.remove();
 
-    _crimeAlertOverlay = OverlayEntry(
-      builder: (context) => CrimeAlertOverlay(
-        message: data['message'] ?? '',
-        onIgnore: () {
-          _crimeAlertOverlay?.remove();
-          _crimeAlertOverlay = null;
-          _socketService.crimeAlertNotifier.value = null;
-        },
-        onDeliverJustice: () {
-          _crimeAlertOverlay?.remove();
-          _crimeAlertOverlay = null;
-          _socketService.crimeAlertNotifier.value = null;
+  _crimeAlertOverlay = OverlayEntry(
+    builder: (context) => CrimeAlertOverlay(
+      message: data['message'] ?? '',
+      perpetrator: data['perpetrator'] ?? '',           // NEW
+      onIgnore: () {
+        _crimeAlertOverlay?.remove();
+        _crimeAlertOverlay = null;
+        _socketService.crimeAlertNotifier.value = null;
+      },
+      onDeliverJustice: (perpetrator) {
+        _crimeAlertOverlay?.remove();
+        _crimeAlertOverlay = null;
+        _socketService.crimeAlertNotifier.value = null;
 
-          // Show Deliver Justice overlay
-          _showDeliverJusticeOverlay();
-        },
-      ),
-    );
+        // Tell server we want to deliver justice
+        _socketService.deliverJustice(perpetrator);
+      },
+    ),
+  );
 
-    Overlay.of(context).insert(_crimeAlertOverlay!);
-  }
+  Overlay.of(context).insert(_crimeAlertOverlay!);
+}
 
   void _showDeliverJusticeOverlay() {
     _deliverJusticeOverlay?.remove();

@@ -167,7 +167,7 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
     );
   }
 
-  // ==================== NEW: Dynamic Strength Image Function ====================
+  // ==================== Dynamic Strength Image Function ====================
   String _getStrengthImage(int strength) {
     if (strength >= 48) return 'assets/strength_48.png';
     if (strength >= 37) return 'assets/strength_37.png';
@@ -175,7 +175,7 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
     if (strength >= 21) return 'assets/strength_21.png';
     if (strength >= 13) return 'assets/strength_13.png';
     if (strength >= 6) return 'assets/strength_6.png';
-    return 'assets/strength_0.png'; // 0–5
+    return 'assets/strength_0.png';
   }
 
   Widget _buildTrainingButton(
