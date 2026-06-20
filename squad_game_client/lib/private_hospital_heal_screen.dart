@@ -1,4 +1,3 @@
-// private_hospital_heal_screen.dart
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
 import 'status_app_bar.dart';
@@ -55,7 +54,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  // Helper to show "Coming Soon" message
   void _showComingSoon(String serviceName) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -83,7 +81,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
         final int healingDurationMs = (freshHospital['customHealingDuration'] as num?)?.toInt() ?? 240000;
         final String formattedDuration = _formatDuration(healingDurationMs);
 
-        // ==================== NEW: Dynamic costs for performance services ====================
         final bool offersEnhancedStamina = freshHospital['offerEnhancedStamina'] == true;
         final bool offersEnhancedConstitution = freshHospital['offerEnhancedConstitution'] == true;
 
@@ -95,6 +92,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
           builder: (context, stats, child) {
             final int balance = (stats['balance'] ?? 0).toInt();
             final int health = stats['health'] ?? 100;
+            final int maxHealth = stats['maxHealth'] ?? 100; // NEW
             final int? healingEndTime = stats['healingEndTime'] as int?;
             final bool isDead = stats['dead'] ?? false;
 
@@ -109,7 +107,7 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
 
             final bool canHeal = !isHealing &&
                 !isDead &&
-                health < 100 &&
+                health < maxHealth &&
                 balance >= healCost &&
                 isOfferingHealing;
 
@@ -125,7 +123,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Hospital Header
                     Text(
                       "🏥 $ownerName's Private Hospital",
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -133,7 +130,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                     ),
                     const SizedBox(height: 30),
 
-                    // ==================== INJURY HEALING CARD ====================
                     if (!isHealing) ...[
                       if (!isOfferingHealing)
                         Container(
@@ -163,12 +159,10 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                         onTap: (canHeal && !_isHealingRequested)
                             ? () {
                                 setState(() => _isHealingRequested = true);
-
                                 SocketService().socket?.emit('start-private-healing', {
                                   'hospitalDocId': docId,
                                   'ownerEmail': freshHospital['ownerEmail'],
                                 });
-
                                 Future.delayed(const Duration(seconds: 3), () {
                                   if (mounted) setState(() => _isHealingRequested = false);
                                 });
@@ -177,7 +171,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                       ),
                     ],
 
-                    // ==================== ENHANCED STAMINA CARD ====================
                     if (offersEnhancedStamina)
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
@@ -199,7 +192,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                         ),
                       ),
 
-                    // ==================== ENHANCED CONSTITUTION CARD ====================
                     if (offersEnhancedConstitution)
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
@@ -216,7 +208,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
                         ),
                       ),
 
-                    // ==================== ALREADY HEALING STATE ====================
                     if (isHealing)
                       Padding(
                         padding: const EdgeInsets.only(top: 40),
@@ -250,7 +241,6 @@ class _PrivateHospitalHealScreenState extends State<PrivateHospitalHealScreen> {
     );
   }
 
-  // ==================== Reusable Service Card Widget ====================
   Widget _buildServiceCard({
     required IconData icon,
     required Color iconColor,

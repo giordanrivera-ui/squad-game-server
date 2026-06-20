@@ -443,8 +443,9 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientDocCheck = await patientRef.get();
   if (patientDocCheck.exists) {
     const patientData = patientDocCheck.data();
+    const maxHp = patientData.maxHealth || 100;
 
-    if (patientData.dead === true || (patientData.health ?? 100) <= 0) {
+    if (patientData.dead === true || (patientData.health ?? maxHp) <= 0) {
       socket.emit('heal-result', { 
         success: false, 
         message: 'You are dead and cannot heal.' 

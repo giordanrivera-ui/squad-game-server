@@ -19,9 +19,8 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
   @override
   void initState() {
     super.initState();
-  AdService.loadRewardedAd();
+    AdService.loadRewardedAd();
 
-    // Refresh UI every second while healing is active
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -41,6 +40,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
         final String location = stats['location'] ?? 'Unknown';
         final int balance = (stats['balance'] ?? 0).toInt();
         final int health = stats['health'] ?? 100;
+        final int maxHealth = stats['maxHealth'] ?? 100;
         final int? healingEndTime = stats['healingEndTime'] as int?;
         final bool hasBrokenBone = stats['hasBrokenBone'] == true;
 
@@ -49,7 +49,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
             ? ((healingEndTime - SocketService().currentServerTime) / 1000).ceil().clamp(0, 360)
             : 0;
 
-        final bool canStartHealing = !isHealing && health < 100 && balance >= 50;
+        final bool canStartHealing = !isHealing && health < maxHealth && balance >= 50;
         final bool canHealBone = hasBrokenBone && balance >= boneHealCost && location == "Lónghǎi";
 
         return Scaffold(
@@ -78,7 +78,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Health: $health/100', style: const TextStyle(fontSize: 24)),
+                      Text('Health: $health/$maxHealth', style: const TextStyle(fontSize: 24)), // UPDATED
                       const SizedBox(height: 20),
                       Text('Balance: \$$balance', style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 40),
@@ -93,12 +93,10 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // ==================== REACTIVE AD SECTION ====================
                             ValueListenableBuilder<bool>(
                               valueListenable: AdService.adReadyNotifier,
                               builder: (context, isAdReady, child) {
                                 if (stats['usedAdForHealing'] == true) {
-                                  // Ad already used
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 24),
                                     child: Container(
@@ -129,7 +127,6 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                                 }
 
                                 if (isAdReady) {
-                                  // Ad is ready - show the button
                                   return SizedBox(
                                     width: double.infinity,
                                     child: Padding(
@@ -160,7 +157,6 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                                     ),
                                   );
                                 } else {
-                                  // Ad is still loading
                                   return Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 24),
                                     child: Container(
@@ -205,7 +201,7 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
                             ),
                           ),
                         )
-                      else if (health == 100)
+                      else if (health >= maxHealth)
                         const Text(
                           'You are already at full health!',
                           style: TextStyle(color: Colors.green, fontSize: 18),
@@ -218,7 +214,6 @@ class _PublicHospitalScreenState extends State<PublicHospitalScreen> {
 
                       const SizedBox(height: 30),
 
-                      // Broken Bone Healing Button
                       if (location == "Lónghǎi")
                         SizedBox(
                           width: double.infinity,
