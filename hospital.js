@@ -489,12 +489,13 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       if (!patientDoc.exists) return;
 
       const patient = patientDoc.data();
+      const maxHp = patient.maxHealth || 100;
 
       if (patient.healingEndTime && patient.healingEndTime > Date.now()) {
         throw new Error('Already healing');
       }
 
-      if (patient.dead === true || (patient.health ?? 100) <= 0) {
+      if (patient.dead === true || (patient.health ?? maxHp) <= 0) {
         throw new Error('Dead or no health');
       }
 
