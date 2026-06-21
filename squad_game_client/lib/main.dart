@@ -1016,6 +1016,19 @@ void _showCrimeAlert() {
                 child: const Text('BULLETS +10K'),
               ),
               const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().socket?.emit('reset-martial-art');
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Test: Martial Art Reset')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+                child: const Text('RESET MARTIAL ART'),
+              ),
+              const SizedBox(height: 10),
             ],
           ),
         );

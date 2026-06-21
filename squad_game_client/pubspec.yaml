@@ -178,6 +178,13 @@ flutter:
     - assets/Olympic Weightlifting.jpg
     - assets/Parkour Training.jpg
     - assets/hospital-background.jpg
+    - assets/martial-arts_blank.jpg
+    - assets/martial-arts_brazilian jiu jitsu.jpg
+    - assets/martial-arts_judo.jpg
+    - assets/martial-arts_muay thai.jpg
+    - assets/button_brazilian jiu jitsu.jpg
+    - assets/button_muay thai.jpg
+    - assets/button_judo.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -26,7 +26,7 @@ const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapo
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
 const { normalLocations, travelCosts, handleTravel } = require('./travel.js');
 const { registerFitnessHandlers, updateMaxHealth } = require('./fitness.js');
-const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets } = require('./test_handlers');
+const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets, handleResetMartialArt } = require('./test_handlers');
 const { registerRespawnHandler } = require('./respawn.js');
 const { registerSellHandlers } = require('./sell.js');
 
@@ -422,6 +422,7 @@ io.on('connection', (socket) => {
   socket.on('add-test-exp', async (amount) => { await handleAddTestExp(db, socket, amount) });
   socket.on('add-test-money', async (amount) => { await handleAddTestMoney(db, socket, amount) });
   socket.on('add-test-bullets', async (amount) => { await handleAddTestBullets(db, socket, amount) });
+  socket.on('reset-martial-art', async () => { await handleResetMartialArt(db, socket) });
 
   // ==================== COURSES ====================
   socket.on('request-courses', () => {handleRequestCourses(db, socket);});
@@ -453,7 +454,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ==================== NEW: Deliver Justice Handler ====================
+  // ==================== Deliver Justice Handler ====================
   socket.on('deliver-justice', async (data) => {
     const witnessName = socket.data.displayName;
     const perpetratorName = data?.perpetrator;
@@ -470,6 +471,18 @@ io.on('connection', (socket) => {
     }
 
     console.log(`[JUSTICE] ${witnessName} chose to deliver justice on ${perpetratorName}`);
+  });
+
+  // ==================== MARTIAL ARTS SELECTION ====================
+  socket.on('select-martial-art', async (data) => {
+    const email = socket.data.email;
+    if (!email || !data.martialArt) return;
+
+    const docRef = db.collection('players').doc(email);
+    await docRef.update({ martialArt: data.martialArt });
+
+    const updatedDoc = await docRef.get();
+    socket.emit('update-stats', updatedDoc.data());
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================

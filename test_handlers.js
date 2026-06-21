@@ -66,8 +66,26 @@ async function handleAddTestBullets(db, socket, amount) {
   }
 }
 
+async function handleResetMartialArt(db, socket) {
+  const email = socket.data.email;
+  if (!email) return;
+
+  const docRef = db.collection('players').doc(email);
+  const doc = await docRef.get();
+  if (!doc.exists) return;
+
+  let p = doc.data();
+  p.martialArt = null;           // Clear the martial art
+
+  await docRef.set(p);
+  socket.emit('update-stats', p);
+
+  console.log(`[TEST] Martial art reset for ${email}`);
+}
+
 module.exports = {
   handleAddTestExp,
   handleAddTestMoney,
-  handleAddTestBullets
+  handleAddTestBullets,
+  handleResetMartialArt,
 };
