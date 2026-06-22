@@ -260,10 +260,16 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Just refresh the UI when stats update
     });
 
-    // ==================== NEW: Listen for "show-deliver-justice" ====================
-_socketService.socket?.on('show-deliver-justice', (_) {
-  _showDeliverJusticeOverlay();
-});
+    // ==================== Listen for "show-deliver-justice" ====================
+    _socketService.socket?.on('deliver-justice-result', (data) {
+      if (data is Map) {
+        _showDeliverJusticeOverlay(
+          isWinner: data['isWinner'] ?? false,
+          qualityScore: data['winnerScore'] ?? 0,
+          opponentName: data['perpetratorName'] ?? data['witnessName'] ?? 'Unknown',
+        );
+      }
+    });
 
         // Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
@@ -930,11 +936,18 @@ void _showCrimeAlert() {
   Overlay.of(context).insert(_crimeAlertOverlay!);
 }
 
-  void _showDeliverJusticeOverlay() {
+  void _showDeliverJusticeOverlay({
+    required bool isWinner,
+    required int qualityScore,
+    required String opponentName,
+  }) {
     _deliverJusticeOverlay?.remove();
 
     _deliverJusticeOverlay = OverlayEntry(
       builder: (context) => DeliverJusticeOverlay(
+        isWinner: isWinner,
+        qualityScore: qualityScore,
+        opponentName: opponentName,
         onDismiss: () {
           _deliverJusticeOverlay?.remove();
           _deliverJusticeOverlay = null;

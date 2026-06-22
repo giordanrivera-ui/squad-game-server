@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 class DeliverJusticeOverlay extends StatefulWidget {
+  final bool isWinner;
+  final int qualityScore;
+  final String opponentName;
   final VoidCallback onDismiss;
 
   const DeliverJusticeOverlay({
     super.key,
+    required this.isWinner,
+    required this.qualityScore,
+    required this.opponentName,
     required this.onDismiss,
   });
 
@@ -27,7 +33,7 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
     super.initState();
 
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 900),
       vsync: this,
     );
 
@@ -36,11 +42,11 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
 
     _controller.forward();
 
-    for (int i = 0; i < 35; i++) {
+    for (int i = 0; i < 40; i++) {
       _particles.add(Particle());
     }
 
-    Future.delayed(const Duration(milliseconds: 1600), () {
+    Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted) setState(() => _showTapHint = true);
     });
   }
@@ -53,13 +59,15 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final bool won = widget.isWinner;
+
     return GestureDetector(
       onTap: widget.onDismiss,
       child: Material(
         color: Colors.transparent,
         child: Stack(
           children: [
-            Container(color: Colors.black.withOpacity(0.85)),
+            Container(color: Colors.black.withOpacity(0.88)),
 
             Center(
               child: ScaleTransition(
@@ -70,12 +78,16 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3D2A1F), // Dark orange/brown
+                      color: won ? const Color(0xFF1B3A2F) : const Color(0xFF3D2A1F),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.orangeAccent, width: 3),
+                      border: Border.all(
+                        color: won ? Colors.greenAccent : Colors.orangeAccent,
+                        width: 3,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.orangeAccent.withOpacity(0.4),
+                          color: (won ? Colors.greenAccent : Colors.orangeAccent)
+                              .withOpacity(0.4),
                           blurRadius: 30,
                           spreadRadius: 8,
                         ),
@@ -84,27 +96,32 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.gavel_rounded,
+                        Icon(
+                          won ? Icons.emoji_events_rounded : Icons.gavel_rounded,
                           size: 80,
-                          color: Colors.orangeAccent,
+                          color: won ? Colors.greenAccent : Colors.orangeAccent,
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'TEST',
+                        const SizedBox(height: 20),
+                        Text(
+                          won ? 'JUSTICE SERVED!' : 'JUSTICE FAILED',
                           style: TextStyle(
-                            fontSize: 42,
+                            fontSize: 32,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: won ? Colors.greenAccent : Colors.orangeAccent,
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          won
+                              ? 'You successfully delivered justice on ${widget.opponentName}!'
+                              : '${widget.opponentName} got away from you.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 18, color: Colors.white70),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
-                          'Justice will be served...',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white70,
-                          ),
+                        Text(
+                          'Your Justice Score: ${widget.qualityScore}',
+                          style: const TextStyle(fontSize: 16, color: Colors.white54),
                         ),
                       ],
                     ),
@@ -119,14 +136,14 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
                   builder: (context, child) {
                     return Positioned(
                       left: p.x,
-                      top: p.y - (_controller.value * 350),
+                      top: p.y - (_controller.value * 380),
                       child: Opacity(
                         opacity: (1 - _controller.value * 1.1).clamp(0.0, 1.0),
                         child: Transform.rotate(
                           angle: _controller.value * p.rotation,
-                          child: const Icon(
-                            Icons.local_fire_department,
-                            color: Colors.orangeAccent,
+                          child: Icon(
+                            won ? Icons.stars_rounded : Icons.local_fire_department,
+                            color: won ? Colors.greenAccent : Colors.orangeAccent,
                             size: 16,
                           ),
                         ),

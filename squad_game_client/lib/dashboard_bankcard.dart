@@ -22,6 +22,14 @@ class DashboardBankCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+          color: Colors.black.withOpacity(0.5),
+          blurRadius: 12,
+          offset: const Offset(0, 8),
+          spreadRadius: 2,
+        ),
+          ]
         ),
         padding: const EdgeInsets.all(16),
         child: Stack(

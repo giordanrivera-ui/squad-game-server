@@ -454,24 +454,106 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ==================== Deliver Justice Handler ====================
-  socket.on('deliver-justice', async (data) => {
-    const witnessName = socket.data.displayName;
-    const perpetratorName = data?.perpetrator;
+  // ==================== DELIVER JUSTICE (with Quality Score + Random Resolution) ====================
+socket.on('deliver-justice', async (data) => {
+  const witnessName = socket.data.displayName;
+  const perpetratorName = data?.perpetrator;
+  if (!witnessName || !perpetratorName) return;
 
-    if (!witnessName || !perpetratorName) return;
+  // Get both players
+  const witnessQuery = await db.collection('players').where('displayName', '==', witnessName).limit(1).get();
+  const criminalQuery = await db.collection('players').where('displayName', '==', perpetratorName).limit(1).get();
 
-    // Notify the witness (the one who clicked)
-    socket.emit('show-deliver-justice');
+  if (witnessQuery.empty || criminalQuery.empty) return;
 
-    // Notify the criminal (if they are online)
-    const perpetratorSocket = onlineSockets.get(perpetratorName);
-    if (perpetratorSocket) {
-      perpetratorSocket.emit('show-deliver-justice');
-    }
+  const witnessDoc = witnessQuery.docs[0];
+  const criminalDoc = criminalQuery.docs[0];
 
-    console.log(`[JUSTICE] ${witnessName} chose to deliver justice on ${perpetratorName}`);
+  let witness = witnessDoc.data();
+  let criminal = criminalDoc.data();
+
+  // Calculate Winner Score (Quality Score)
+  const winnerStrength = witness.strength || 0;
+  const winnerStealth = witness.stealth || 0;
+  const loserStrength = criminal.strength || 0;
+  const loserStealth = criminal.stealth || 0;
+
+  let winnerScore = 0;
+
+  // 1. Archetype advantage
+  const winnerDominant = Math.max(winnerStrength, winnerStealth);
+  const loserDominant = Math.max(loserStrength, loserStealth);
+  const winnerTotal = winnerStrength + winnerStealth;
+
+  // Simple archetype check (you can improve this later)
+  const isPureStealthWinner = winnerStealth >= winnerStrength * 1.5;
+  const isPureStrengthWinner = winnerStrength >= winnerStealth * 1.5;
+
+  const isPureStealthLoser = loserStealth >= loserStrength * 1.5;
+  const isPureStrengthLoser = loserStrength >= loserStealth * 1.5;
+
+  let winnerArchetype = 'Mixed';
+  if (isPureStealthWinner) winnerArchetype = 'Pure Stealth';
+  if (isPureStrengthWinner) winnerArchetype = 'Pure Strength';
+
+  let loserArchetype = 'Mixed';
+  if (isPureStealthLoser) loserArchetype = 'Pure Stealth';
+  if (isPureStrengthLoser) loserArchetype = 'Pure Strength';
+
+  // RPS logic
+  let archetypeBonus = 0;
+  if ((winnerArchetype === 'Pure Stealth' && loserArchetype === 'Mixed') ||
+      (winnerArchetype === 'Mixed' && loserArchetype === 'Pure Strength') ||
+      (winnerArchetype === 'Pure Strength' && loserArchetype === 'Pure Stealth')) {
+    archetypeBonus = 26;
+  } else if (winnerArchetype === loserArchetype) {
+    archetypeBonus = 10;
+  }
+
+  winnerScore += archetypeBonus;
+
+  // 2. Stat dominance
+  const ratio = winnerDominant / Math.max(loserDominant, 1);
+  winnerScore += Math.min(ratio * 12, 30);
+
+  // 3. Total investment
+  winnerScore += Math.min(winnerTotal / 3, 20);
+
+  // Random rolls
+  const witnessRoll = Math.floor(Math.random() * (70 - 22 + 1)) + 22;
+  const criminalRoll = Math.floor(Math.random() * (70 - 22 + 1)) + 22;
+
+  const witnessFinal = witnessRoll + winnerScore;
+  const criminalFinal = criminalRoll + 20;
+
+  const witnessWins = witnessFinal > criminalFinal;
+
+  // Send result to both players
+  const resultData = {
+    winnerScore: Math.round(winnerScore),
+    witnessFinal,
+    criminalFinal,
+    witnessName,
+    perpetratorName,
+  };
+
+  // Witness result
+  socket.emit('deliver-justice-result', {
+    ...resultData,
+    isWinner: witnessWins,
   });
+
+  // Criminal result
+  const criminalSocket = onlineSockets.get(perpetratorName);
+  if (criminalSocket) {
+    criminalSocket.emit('deliver-justice-result', {
+      ...resultData,
+      isWinner: !witnessWins,
+    });
+  }
+
+  console.log(`[JUSTICE] ${witnessName} vs ${perpetratorName} | WinnerScore: ${Math.round(winnerScore)} | WitnessWins: ${witnessWins}`);
+});
 
   // ==================== MARTIAL ARTS SELECTION ====================
   socket.on('select-martial-art', async (data) => {

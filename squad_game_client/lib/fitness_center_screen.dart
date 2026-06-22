@@ -115,41 +115,49 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
     );
   }
 
-  // ==================== NEW: Martial Arts Section ====================
+  // ==================== Martial Arts Section ====================
   Widget _buildMartialArtsSection(String? selectedMartialArt) {
-    String backgroundImage = 'assets/martial-arts_blank.jpg';
+  String backgroundImage = 'assets/martial-arts_blank.jpg';
 
-    if (selectedMartialArt != null) {
-      if (selectedMartialArt == 'Brazilian Jiu Jitsu') {
-        backgroundImage = 'assets/martial-arts_brazilian jiu jitsu.jpg';
-      } else if (selectedMartialArt == 'Judo') {
-        backgroundImage = 'assets/martial-arts_judo.jpg';
-      } else if (selectedMartialArt == 'Muay Thai') {
-        backgroundImage = 'assets/martial-arts_muay thai.jpg';
-      }
+  if (selectedMartialArt != null) {
+    if (selectedMartialArt == 'Brazilian Jiu Jitsu') {
+      backgroundImage = 'assets/martial-arts_brazilian jiu jitsu.jpg';
+    } else if (selectedMartialArt == 'Judo') {
+      backgroundImage = 'assets/martial-arts_judo.jpg';
+    } else if (selectedMartialArt == 'Muay Thai') {
+      backgroundImage = 'assets/martial-arts_muay thai.jpg';
     }
+  }
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.28,
+  return Container(
+    height: MediaQuery.of(context).size.height * 0.28,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      image: DecorationImage(
+        image: AssetImage(backgroundImage),
+        fit: BoxFit.cover,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.5),
+          blurRadius: 12,
+          offset: const Offset(0, 8),
+          spreadRadius: 2,
+        ),
+      ],
+    ),
+    child: Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        image: DecorationImage(
-          image: AssetImage(backgroundImage),
-          fit: BoxFit.cover,
-        ),
+        color: Colors.black.withOpacity(0.55),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.black.withOpacity(0.55),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: selectedMartialArt == null
-            ? _buildMartialArtSelection()
-            : _buildSelectedMartialArt(selectedMartialArt),
-      ),
-    );
-  }
+      padding: const EdgeInsets.all(16),
+      child: selectedMartialArt == null
+          ? _buildMartialArtSelection()
+          : _buildSelectedMartialArt(selectedMartialArt),
+    ),
+  );
+}
 
   Widget _buildMartialArtSelection() {
     return Column(
@@ -175,25 +183,31 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
   }
 
   Widget _buildSelectedMartialArt(String martialArt) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.sports_martial_arts, size: 48, color: Colors.orangeAccent),
-          const SizedBox(height: 12),
-          Text(
-            martialArt,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+  return SizedBox(
+    width: double.infinity,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          martialArt,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Martial art selected',
-            style: TextStyle(fontSize: 16, color: Colors.white70),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Martial art selected',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white70,
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   // ==================== Martial Arts Option Widget ====================
   Widget _buildMartialArtOption(String name, String imagePath) {
@@ -260,7 +274,7 @@ class _FitnessCenterScreenState extends State<FitnessCenterScreen> {
           ),
           child: Container(
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: Colors.black.withOpacity(0.45)),
-            child: Center(child: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center,)),
+            child: Center(child: Text(label, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: const Color.fromARGB(255, 192, 190, 190).withOpacity(0.7)), textAlign: TextAlign.center,)),
           ),
         ),
       ),
