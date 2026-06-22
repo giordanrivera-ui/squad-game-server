@@ -260,16 +260,27 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       setState(() {});  // Just refresh the UI when stats update
     });
 
-    // ==================== Listen for "show-deliver-justice" ====================
-    _socketService.socket?.on('deliver-justice-result', (data) {
-      if (data is Map) {
-        _showDeliverJusticeOverlay(
-          isWinner: data['isWinner'] ?? false,
-          qualityScore: data['winnerScore'] ?? 0,
-          opponentName: data['perpetratorName'] ?? data['witnessName'] ?? 'Unknown',
-        );
-      }
-    });
+    // ==================== Listen for deliver justice result ====================
+_socketService.socket?.on('deliver-justice-result', (data) {
+  if (data is Map<String, dynamic>) {
+    _showDeliverJusticeOverlay(
+      isWinner: data['isWinner'] ?? false,
+      qualityScore: (data['winnerScore'] as num?)?.toInt() ?? 0,
+      opponentName: data['perpetratorName'] ?? 'Unknown',
+      witnessFinal: (data['witnessFinal'] as num?)?.toInt() ?? 0,
+      criminalFinal: (data['criminalFinal'] as num?)?.toInt() ?? 0,
+      witnessName: data['witnessName'] ?? '',
+      perpetratorName: data['perpetratorName'] ?? '',
+      witnessArchetype: data['witnessArchetype'],
+      criminalArchetype: data['criminalArchetype'],
+      archetypeBonus: (data['archetypeBonus'] as num?)?.toInt(),
+      dominanceBonus: (data['dominanceBonus'] as num?)?.toInt(),
+      investmentBonus: (data['investmentBonus'] as num?)?.toInt(),
+      witnessRoll: (data['witnessRoll'] as num?)?.toInt(),
+      criminalRoll: (data['criminalRoll'] as num?)?.toInt(),
+    );
+  }
+});
 
         // Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
@@ -937,26 +948,50 @@ void _showCrimeAlert() {
 }
 
   void _showDeliverJusticeOverlay({
-    required bool isWinner,
-    required int qualityScore,
-    required String opponentName,
-  }) {
-    _deliverJusticeOverlay?.remove();
+  required bool isWinner,
+  required int qualityScore,
+  required String opponentName,
+  required int witnessFinal,
+  required int criminalFinal,
+  required String witnessName,
+  required String perpetratorName,
+  // NEW optional debug parameters
+  String? witnessArchetype,
+  String? criminalArchetype,
+  int? archetypeBonus,
+  int? dominanceBonus,
+  int? investmentBonus,
+  int? witnessRoll,
+  int? criminalRoll,
+}) {
+  _deliverJusticeOverlay?.remove();
 
-    _deliverJusticeOverlay = OverlayEntry(
-      builder: (context) => DeliverJusticeOverlay(
-        isWinner: isWinner,
-        qualityScore: qualityScore,
-        opponentName: opponentName,
-        onDismiss: () {
-          _deliverJusticeOverlay?.remove();
-          _deliverJusticeOverlay = null;
-        },
-      ),
-    );
+  _deliverJusticeOverlay = OverlayEntry(
+    builder: (context) => DeliverJusticeOverlay(
+      isWinner: isWinner,
+      qualityScore: qualityScore,
+      opponentName: opponentName,
+      witnessFinal: witnessFinal,
+      criminalFinal: criminalFinal,
+      witnessName: witnessName,
+      perpetratorName: perpetratorName,
+      // Pass the new debug fields
+      witnessArchetype: witnessArchetype,
+      criminalArchetype: criminalArchetype,
+      archetypeBonus: archetypeBonus,
+      dominanceBonus: dominanceBonus,
+      investmentBonus: investmentBonus,
+      witnessRoll: witnessRoll,
+      criminalRoll: criminalRoll,
+      onDismiss: () {
+        _deliverJusticeOverlay?.remove();
+        _deliverJusticeOverlay = null;
+      },
+    ),
+  );
 
-    Overlay.of(context).insert(_deliverJusticeOverlay!);
-  }
+  Overlay.of(context).insert(_deliverJusticeOverlay!);
+}
 
   void _showDeveloperOptions() {
     showModalBottomSheet(
