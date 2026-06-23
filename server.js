@@ -454,7 +454,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // ==================== DELIVER JUSTICE (with full debug breakdown) ====================
 socket.on('deliver-justice', async (data) => {
   const witnessName = socket.data.displayName;
   const perpetratorName = data?.perpetrator;
@@ -492,7 +491,7 @@ socket.on('deliver-justice', async (data) => {
   const criminalArchetype = getArchetype(cStr, cSte);
 
   // ==================== RPS WINNER ====================
-  let rpsWinner = null; // 'witness', 'criminal', or 'tie'
+  let rpsWinner = null;
 
   if (witnessArchetype === criminalArchetype) {
     rpsWinner = 'tie';
@@ -514,8 +513,7 @@ socket.on('deliver-justice', async (data) => {
   let investmentBonus = 0;
 
   if (rpsWinner === 'witness') {
-    // Witness wins RPS → gets full Quality Score
-    archetypeBonus = 24; // Current value
+    archetypeBonus = 24;
     dominanceBonus = Math.min((Math.max(wStr, wSte) / Math.max(Math.max(cStr, cSte), 1)) * 12, 30);
     investmentBonus = Math.min(witnessTotal / 3, 20);
 
@@ -523,7 +521,6 @@ socket.on('deliver-justice', async (data) => {
     criminalScore = 20;
 
   } else if (rpsWinner === 'criminal') {
-    // Criminal wins RPS → gets full Quality Score
     archetypeBonus = 24;
     dominanceBonus = Math.min((Math.max(cStr, cSte) / Math.max(Math.max(wStr, wSte), 1)) * 12, 30);
     investmentBonus = Math.min(criminalTotal / 3, 20);
@@ -532,20 +529,27 @@ socket.on('deliver-justice', async (data) => {
     witnessScore = 20;
 
   } else {
-    // ==================== TIE LOGIC ====================
+    // ==================== TIE LOGIC (FIXED FOR DEBUG) ====================
     witnessScore = 10;
     criminalScore = 10;
+    archetypeBonus = 10;        // Base bonus both get in a tie
+    dominanceBonus = 0;         // Not used in ties
 
     if (witnessTotal > criminalTotal) {
-      witnessScore += witnessTotal / 3;
+      investmentBonus = witnessTotal / 3;
+      witnessScore += investmentBonus;
       criminalScore += criminalTotal / 4.5;
+
     } else if (criminalTotal > witnessTotal) {
-      criminalScore += criminalTotal / 3;
+      investmentBonus = criminalTotal / 3; // Show what the higher player got
+      criminalScore += investmentBonus;
       witnessScore += witnessTotal / 4.5;
+
     } else {
       // Equal totals
       witnessScore += 10;
       criminalScore += 10;
+      investmentBonus = 10;
     }
   }
 
@@ -577,10 +581,8 @@ socket.on('deliver-justice', async (data) => {
     isWinner: witnessWins
   };
 
-  // Send to witness
   socket.emit('deliver-justice-result', payload);
 
-  // Send to criminal (with flipped isWinner)
   const criminalSocket = onlineSockets.get(perpetratorName);
   if (criminalSocket) {
     criminalSocket.emit('deliver-justice-result', {
