@@ -279,6 +279,7 @@ _socketService.socket?.on('deliver-justice-result', (data) {
       witnessRoll: (data['witnessRoll'] as num?)?.toInt(),
       criminalRoll: (data['criminalRoll'] as num?)?.toInt(),
       viewerIsWitness: data['viewerIsWitness'] ?? true,
+      rpsWinner: data['rpsWinner'],
     );
   }
 });
@@ -965,6 +966,7 @@ void _showCrimeAlert() {
   int? witnessRoll,
   int? criminalRoll,
   bool? viewerIsWitness,
+  String? rpsWinner,
 }) {
   _deliverJusticeOverlay?.remove();
 
@@ -985,6 +987,7 @@ void _showCrimeAlert() {
       witnessRoll: witnessRoll,
       criminalRoll: criminalRoll,
       viewerIsWitness: viewerIsWitness,
+      rpsWinner: rpsWinner,
       onDismiss: () {
         _deliverJusticeOverlay?.remove();
         _deliverJusticeOverlay = null;

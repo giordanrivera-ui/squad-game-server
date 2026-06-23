@@ -478,21 +478,16 @@ socket.on('deliver-justice', async (data) => {
   const witnessTotal = wStr + wSte;
   const criminalTotal = cStr + cSte;
 
-  // ==================== ARCHETYPE DETECTION ====================
   const getArchetype = (str, ste) => {
     const ratio = Math.max(str, ste) / Math.min(str, ste);
-    if (ratio >= 1.5) {
-      return str > ste ? 'Pure Strength' : 'Pure Stealth';
-    }
+    if (ratio >= 1.5) return str > ste ? 'Pure Strength' : 'Pure Stealth';
     return 'Mixed';
   };
 
   const witnessArchetype = getArchetype(wStr, wSte);
   const criminalArchetype = getArchetype(cStr, cSte);
 
-  // ==================== RPS WINNER ====================
   let rpsWinner = null;
-
   if (witnessArchetype === criminalArchetype) {
     rpsWinner = 'tie';
   } else if (
@@ -505,52 +500,50 @@ socket.on('deliver-justice', async (data) => {
     rpsWinner = 'criminal';
   }
 
-  // ==================== SCORE CALCULATION ====================
+  // ==================== SCORE + BONUS CALCULATION ====================
   let witnessScore = 0;
   let criminalScore = 0;
   let archetypeBonus = 0;
   let dominanceBonus = 0;
-  let investmentBonus = 0;
+
+  let witnessInvestmentBonus = 0;
+  let criminalInvestmentBonus = 0;
 
   if (rpsWinner === 'witness') {
     archetypeBonus = 24;
     dominanceBonus = Math.min((Math.max(wStr, wSte) / Math.max(Math.max(cStr, cSte), 1)) * 12, 30);
-    investmentBonus = Math.min(witnessTotal / 3, 20);
+    witnessInvestmentBonus = Math.min(witnessTotal / 3, 20);
 
-    witnessScore = archetypeBonus + dominanceBonus + investmentBonus;
+    witnessScore = archetypeBonus + dominanceBonus + witnessInvestmentBonus;
     criminalScore = 20;
 
   } else if (rpsWinner === 'criminal') {
     archetypeBonus = 24;
     dominanceBonus = Math.min((Math.max(cStr, cSte) / Math.max(Math.max(wStr, wSte), 1)) * 12, 30);
-    investmentBonus = Math.min(criminalTotal / 3, 20);
+    criminalInvestmentBonus = Math.min(criminalTotal / 3, 20);
 
-    criminalScore = archetypeBonus + dominanceBonus + investmentBonus;
+    criminalScore = archetypeBonus + dominanceBonus + criminalInvestmentBonus;
     witnessScore = 20;
 
   } else {
-    // ==================== TIE LOGIC (FIXED FOR DEBUG) ====================
+    // ==================== TIE LOGIC ====================
     witnessScore = 10;
     criminalScore = 10;
-    archetypeBonus = 10;        // Base bonus both get in a tie
-    dominanceBonus = 0;         // Not used in ties
+    archetypeBonus = 10;
 
     if (witnessTotal > criminalTotal) {
-      investmentBonus = witnessTotal / 3;
-      witnessScore += investmentBonus;
-      criminalScore += criminalTotal / 4.5;
-
+      witnessInvestmentBonus = witnessTotal / 3;
+      criminalInvestmentBonus = criminalTotal / 4.5;
     } else if (criminalTotal > witnessTotal) {
-      investmentBonus = criminalTotal / 3; // Show what the higher player got
-      criminalScore += investmentBonus;
-      witnessScore += witnessTotal / 4.5;
-
+      criminalInvestmentBonus = criminalTotal / 3;
+      witnessInvestmentBonus = witnessTotal / 4.5;
     } else {
-      // Equal totals
-      witnessScore += 10;
-      criminalScore += 10;
-      investmentBonus = 10;
+      witnessInvestmentBonus = 10;
+      criminalInvestmentBonus = 10;
     }
+
+    witnessScore += witnessInvestmentBonus;
+    criminalScore += criminalInvestmentBonus;
   }
 
   // ==================== RANDOM ROLLS ====================
@@ -563,36 +556,36 @@ socket.on('deliver-justice', async (data) => {
   const witnessWins = witnessFinal > criminalFinal;
 
   // ==================== PAYLOAD ====================
-const payload = {
-  witnessName,
-  perpetratorName,
-  witnessArchetype,
-  criminalArchetype,
-  rpsWinner,
-  witnessScore: Math.round(witnessScore),
-  criminalScore: Math.round(criminalScore),
-  witnessFinal: Math.round(witnessFinal),
-  criminalFinal: Math.round(criminalFinal),
-  witnessRoll,
-  criminalRoll,
-  archetypeBonus: Math.round(archetypeBonus),
-  dominanceBonus: Math.round(dominanceBonus),
-  investmentBonus: Math.round(investmentBonus),
-  isWinner: witnessWins,
-  viewerIsWitness: true                   
-};
+  const payload = {
+    witnessName,
+    perpetratorName,
+    witnessArchetype,
+    criminalArchetype,
+    rpsWinner,
+    witnessScore: Math.round(witnessScore),
+    criminalScore: Math.round(criminalScore),
+    witnessFinal: Math.round(witnessFinal),
+    criminalFinal: Math.round(criminalFinal),
+    witnessRoll,
+    criminalRoll,
+    archetypeBonus: Math.round(archetypeBonus),
+    dominanceBonus: Math.round(dominanceBonus),
+    witnessInvestmentBonus: Math.round(witnessInvestmentBonus),
+    criminalInvestmentBonus: Math.round(criminalInvestmentBonus),
+    isWinner: witnessWins,
+    viewerIsWitness: true
+  };
 
-socket.emit('deliver-justice-result', payload);
+  socket.emit('deliver-justice-result', payload);
 
-// Send to criminal with flipped values
-const criminalSocket = onlineSockets.get(perpetratorName);
-if (criminalSocket) {
-  criminalSocket.emit('deliver-justice-result', {
-    ...payload,
-    isWinner: !witnessWins,
-    viewerIsWitness: false
-  });
-}
+  const criminalSocket = onlineSockets.get(perpetratorName);
+  if (criminalSocket) {
+    criminalSocket.emit('deliver-justice-result', {
+      ...payload,
+      isWinner: !witnessWins,
+      viewerIsWitness: false
+    });
+  }
 });
 
   // ==================== MARTIAL ARTS SELECTION ====================
