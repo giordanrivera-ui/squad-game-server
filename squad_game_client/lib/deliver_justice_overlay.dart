@@ -9,8 +9,6 @@ class DeliverJusticeOverlay extends StatefulWidget {
   final int criminalFinal;
   final String witnessName;
   final String perpetratorName;
-
-  // NEW debug fields
   final String? witnessArchetype;
   final String? criminalArchetype;
   final int? archetypeBonus;
@@ -20,6 +18,7 @@ class DeliverJusticeOverlay extends StatefulWidget {
   final int? criminalRoll;
 
   final VoidCallback onDismiss;
+  final bool? viewerIsWitness;
 
   const DeliverJusticeOverlay({
     super.key,
@@ -37,7 +36,9 @@ class DeliverJusticeOverlay extends StatefulWidget {
     this.investmentBonus,
     this.witnessRoll,
     this.criminalRoll,
+    
     required this.onDismiss,
+    this.viewerIsWitness,
   });
 
   @override
@@ -78,54 +79,84 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final bool won = widget.isWinner;
+Widget build(BuildContext context) {
+  final bool won = widget.isWinner;
+  final bool isCriminal = widget.viewerIsWitness == false; // New field
 
-    return GestureDetector(
-      onTap: widget.onDismiss,
-      child: Material(
-        color: Colors.transparent,
-        child: Stack(
-          children: [
-            Container(color: Colors.black.withOpacity(0.88)),
-            Center(
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: won ? const Color(0xFF1B3A2F) : const Color(0xFF3D2A1F),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: won ? Colors.greenAccent : Colors.orangeAccent, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (won ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.4),
-                          blurRadius: 30,
-                          spreadRadius: 8,
-                        ),
-                      ],
+  // Determine what text to show
+  String title;
+  String subtitle;
+
+  if (won && !isCriminal) {
+    // Witness won
+    title = 'JUSTICE SERVED!';
+    subtitle = 'You successfully delivered justice on ${widget.perpetratorName}!';
+  } else if (won && isCriminal) {
+    // Criminal won (escaped)
+    title = 'You escaped justice!';
+    subtitle = 'A player attempted to catch you but you escaped!';
+  } else {
+    // Lost
+    title = 'JUSTICE FAILED';
+    subtitle = isCriminal 
+        ? '${widget.witnessName} failed to catch you.' 
+        : '${widget.perpetratorName} got away from you.';
+  }
+
+  return GestureDetector(
+    onTap: widget.onDismiss,
+    child: Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          Container(color: Colors.black.withOpacity(0.88)),
+          Center(
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: won ? const Color(0xFF1B3A2F) : const Color(0xFF3D2A1F),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: won ? Colors.greenAccent : Colors.orangeAccent, 
+                      width: 3
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(won ? Icons.emoji_events_rounded : Icons.gavel_rounded,
-                            size: 70, color: won ? Colors.greenAccent : Colors.orangeAccent),
-                        const SizedBox(height: 16),
-                        Text(won ? 'JUSTICE SERVED!' : 'JUSTICE FAILED',
-                            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold,
-                                color: won ? Colors.greenAccent : Colors.orangeAccent)),
-                        const SizedBox(height: 12),
-                        Text(
-                          won
-                              ? 'You successfully delivered justice on ${widget.opponentName}!'
-                              : '${widget.opponentName} got away from you.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 17, color: Colors.white70),
-                        ),
-                        const SizedBox(height: 8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (won ? Colors.greenAccent : Colors.orangeAccent).withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        won ? Icons.emoji_events_rounded : Icons.gavel_rounded,
+                        size: 70, 
+                        color: won ? Colors.greenAccent : Colors.orangeAccent
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 28, 
+                          fontWeight: FontWeight.bold,
+                          color: won ? Colors.greenAccent : Colors.orangeAccent
+                        )
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 17, color: Colors.white70),
+                      ),
+                      const SizedBox(height: 8),
                         Text('Your Justice Score: ${widget.qualityScore}',
                             style: const TextStyle(fontSize: 15, color: Colors.white54)),
 

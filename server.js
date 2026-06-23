@@ -563,33 +563,36 @@ socket.on('deliver-justice', async (data) => {
   const witnessWins = witnessFinal > criminalFinal;
 
   // ==================== PAYLOAD ====================
-  const payload = {
-    witnessName,
-    perpetratorName,
-    witnessArchetype,
-    criminalArchetype,
-    rpsWinner,
-    witnessScore: Math.round(witnessScore),
-    criminalScore: Math.round(criminalScore),
-    witnessFinal: Math.round(witnessFinal),
-    criminalFinal: Math.round(criminalFinal),
-    witnessRoll,
-    criminalRoll,
-    archetypeBonus: Math.round(archetypeBonus),
-    dominanceBonus: Math.round(dominanceBonus),
-    investmentBonus: Math.round(investmentBonus),
-    isWinner: witnessWins
-  };
+const payload = {
+  witnessName,
+  perpetratorName,
+  witnessArchetype,
+  criminalArchetype,
+  rpsWinner,
+  witnessScore: Math.round(witnessScore),
+  criminalScore: Math.round(criminalScore),
+  witnessFinal: Math.round(witnessFinal),
+  criminalFinal: Math.round(criminalFinal),
+  witnessRoll,
+  criminalRoll,
+  archetypeBonus: Math.round(archetypeBonus),
+  dominanceBonus: Math.round(dominanceBonus),
+  investmentBonus: Math.round(investmentBonus),
+  isWinner: witnessWins,
+  viewerIsWitness: true                   
+};
 
-  socket.emit('deliver-justice-result', payload);
+socket.emit('deliver-justice-result', payload);
 
-  const criminalSocket = onlineSockets.get(perpetratorName);
-  if (criminalSocket) {
-    criminalSocket.emit('deliver-justice-result', {
-      ...payload,
-      isWinner: !witnessWins
-    });
-  }
+// Send to criminal with flipped values
+const criminalSocket = onlineSockets.get(perpetratorName);
+if (criminalSocket) {
+  criminalSocket.emit('deliver-justice-result', {
+    ...payload,
+    isWinner: !witnessWins,
+    viewerIsWitness: false
+  });
+}
 });
 
   // ==================== MARTIAL ARTS SELECTION ====================

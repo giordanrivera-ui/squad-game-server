@@ -278,6 +278,7 @@ _socketService.socket?.on('deliver-justice-result', (data) {
       investmentBonus: (data['investmentBonus'] as num?)?.toInt(),
       witnessRoll: (data['witnessRoll'] as num?)?.toInt(),
       criminalRoll: (data['criminalRoll'] as num?)?.toInt(),
+      viewerIsWitness: data['viewerIsWitness'] ?? true,
     );
   }
 });
@@ -963,6 +964,7 @@ void _showCrimeAlert() {
   int? investmentBonus,
   int? witnessRoll,
   int? criminalRoll,
+  bool? viewerIsWitness,
 }) {
   _deliverJusticeOverlay?.remove();
 
@@ -975,7 +977,6 @@ void _showCrimeAlert() {
       criminalFinal: criminalFinal,
       witnessName: witnessName,
       perpetratorName: perpetratorName,
-      // Pass the new debug fields
       witnessArchetype: witnessArchetype,
       criminalArchetype: criminalArchetype,
       archetypeBonus: archetypeBonus,
@@ -983,6 +984,7 @@ void _showCrimeAlert() {
       investmentBonus: investmentBonus,
       witnessRoll: witnessRoll,
       criminalRoll: criminalRoll,
+      viewerIsWitness: viewerIsWitness,
       onDismiss: () {
         _deliverJusticeOverlay?.remove();
         _deliverJusticeOverlay = null;
