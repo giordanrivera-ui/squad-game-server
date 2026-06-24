@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'socket_service.dart';
 
 class OperationResultOverlay extends StatefulWidget {
   final String operation;
@@ -8,8 +9,8 @@ class OperationResultOverlay extends StatefulWidget {
   final int actualDamage;
   final int totalDefense;
   final Map<String, dynamic>? stolenWeapon;
-  final Map<String, dynamic>? epinephrine;   // NEW
-  final int bulletsStolen;                   // NEW
+  final Map<String, dynamic>? epinephrine;
+  final int bulletsStolen;
   final VoidCallback onDismiss;
 
   const OperationResultOverlay({
@@ -20,8 +21,8 @@ class OperationResultOverlay extends StatefulWidget {
     required this.actualDamage,
     required this.totalDefense,
     this.stolenWeapon,
-    this.epinephrine,      // NEW
-    this.bulletsStolen = 0, // NEW
+    this.epinephrine,
+    this.bulletsStolen = 0,
     required this.onDismiss,
   });
 
@@ -67,11 +68,64 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
     super.dispose();
   }
 
+  // ==================== Check if player has Street Tactics ====================
+  bool _hasStreetTactics() {
+    final courses = SocketService().coursesNotifier.value;
+    return courses.any((c) =>
+        c['id'] == 'street-tactics' && c['status'] == 'completed');
+  }
+
+  // ==================== Custom messages for Mug a passerby ====================
+  String _getCustomMugMessage(int money) {
+    final hasStreetTactics = _hasStreetTactics();
+    final random = Random();
+
+    if (!hasStreetTactics) {
+      // No Street Tactics researched
+      if (money >= 10 && money <= 30) {
+        return random.nextBool()
+            ? "The passerby you mugged barely had any money. You didn't recognize this because of your lack of street tactics"
+            : "While searching the passerby they made a run for it. You barely got anything from them";
+      } else if (money >= 31 && money <= 70) {
+        return random.nextBool()
+            ? "You mugged an office worker who sits down all day. Easy target. If only they carried more cash..."
+            : "The target was giving you all the cash they had but a group of people were turning the corner and you were nearly seen. You got away ASAP.";
+      } else if (money >= 71 && money <= 100) {
+        return random.nextBool()
+            ? "You mugged quite a wealthy person, but if you had better street tactics you would've recognized the wealthier person you passed by."
+            : "The person you mugged had too much to lose. They readily gave up their entire wallet.";
+      }
+    } else {
+      // Has Street Tactics researched
+      if (money >= 20 && money <= 40) {
+        return random.nextBool()
+            ? "You didn't realize that the target had spent most of their money before you got to them. Maybe you need more advanced street tactics?"
+            : "The target was quite strong, while you were eyeing the cash, they resisted and got away.";
+      } else if (money >= 41 && money <= 85) {
+        return random.nextBool()
+            ? "Just as the target took out their wallet, the conditions were just right for a clean and quick robbery. You saw no need to milk them for more money."
+            : "While the target was emptying their pockets, a barking dog startled you and you made a run for it.";
+      } else if (money >= 86 && money <= 112) {
+        return random.nextBool()
+            ? "You recognized the brand of the expensive looking suitcase. They looked completely oblivious to their surroundings. Easy target."
+            : "You noticed the target give a fat tip to the waiter just before leaving the restaurant. They're full and they have cash. Easy target.";
+      }
+    }
+
+    // Fallback to original message
+    return widget.message;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool hasStolenWeapon = widget.stolenWeapon != null;
     final bool hasEpinephrine = widget.epinephrine != null;
     final bool hasBullets = widget.bulletsStolen > 0;
+
+    // Determine which message to show
+    final String displayMessage = widget.operation == "Mug a passerby"
+        ? _getCustomMugMessage(widget.money)
+        : widget.message;
 
     return GestureDetector(
       onTap: widget.onDismiss,
@@ -126,191 +180,180 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            widget.message,
+                            displayMessage,
                             style: const TextStyle(fontSize: 17, color: Colors.white70, height: 1.4),
                             textAlign: TextAlign.center,
                           ),
                         ),
 
                         if (widget.actualDamage > 0) ...[
-  const SizedBox(height: 16),
-  Text(
-    widget.totalDefense > 0
-        ? 'Your armor absorbed ${widget.totalDefense} damage!\nYou lost ${widget.actualDamage} health.'
-        : 'You lost ${widget.actualDamage} health.',
-    style: const TextStyle(
-      fontSize: 15,
-      color: Colors.orangeAccent,
-      height: 1.3,
-    ),
-    textAlign: TextAlign.center,
-  ),
-] else if (widget.totalDefense > 0) ...[
-  const SizedBox(height: 16),
-  Text(
-    'Your armor absorbed all damage!',
-    style: const TextStyle(
-      fontSize: 15,
-      color: Colors.greenAccent,
-    ),
-    textAlign: TextAlign.center,
-  ),
-],
+                          const SizedBox(height: 16),
+                          Text(
+                            widget.totalDefense > 0
+                                ? 'Your armor absorbed ${widget.totalDefense} damage!\nYou lost ${widget.actualDamage} health.'
+                                : 'You lost ${widget.actualDamage} health.',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.orangeAccent,
+                              height: 1.3,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ] else if (widget.totalDefense > 0) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Your armor absorbed all damage!',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Colors.greenAccent,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
 
                         // ==================== ADAPTIVE LOOT SECTION ====================
-if (hasStolenWeapon || hasEpinephrine || hasBullets) ...[
-  const SizedBox(height: 24),
-  const Divider(color: Colors.white24, thickness: 1),
-  const SizedBox(height: 12),
+                        if (hasStolenWeapon || hasEpinephrine || hasBullets) ...[
+                          const SizedBox(height: 24),
+                          const Divider(color: Colors.white24, thickness: 1),
+                          const SizedBox(height: 12),
 
-  // ==================== DYNAMIC HEADER ====================
-  Builder(
-    builder: (context) {
-      String headerText;
+                          // Dynamic Header
+                          Builder(
+                            builder: (context) {
+                              String headerText;
 
-      if (hasStolenWeapon && hasBullets) {
-        final weaponName = widget.stolenWeapon!['name'] as String;
-        final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
-        headerText = '$weaponName and $bulletWord Acquired';
-      } 
-      else if (hasEpinephrine && hasBullets) {
-        final quality = widget.epinephrine!['quality'];
-        final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
-        headerText = 'Epinephrine (Quality $quality) and $bulletWord Acquired';
-      } 
-      else if (hasStolenWeapon) {
-        headerText = 'Weapon Acquired';
-      } 
-      else if (hasEpinephrine) {
-        final quality = widget.epinephrine!['quality'];
-        headerText = 'Epinephrine Quality $quality Acquired';
-      } 
-      else {
-        final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
-        headerText = '$bulletWord Acquired';
-      }
+                              if (hasStolenWeapon && hasBullets) {
+                                final weaponName = widget.stolenWeapon!['name'] as String;
+                                final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
+                                headerText = '$weaponName and $bulletWord Acquired';
+                              } else if (hasEpinephrine && hasBullets) {
+                                final quality = widget.epinephrine!['quality'];
+                                final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
+                                headerText = 'Epinephrine (Quality $quality) and $bulletWord Acquired';
+                              } else if (hasStolenWeapon) {
+                                headerText = 'Weapon Acquired';
+                              } else if (hasEpinephrine) {
+                                final quality = widget.epinephrine!['quality'];
+                                headerText = 'Epinephrine Quality $quality Acquired';
+                              } else {
+                                final bulletWord = widget.bulletsStolen > 1 ? 'Bullets' : 'Bullet';
+                                headerText = '$bulletWord Acquired';
+                              }
 
-      return Text(
-        headerText,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.amber,
-        ),
-        textAlign: TextAlign.center,
-      );
-    },
-  ),
+                              return Text(
+                                headerText,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber,
+                                ),
+                                textAlign: TextAlign.center,
+                              );
+                            },
+                          ),
 
-  const SizedBox(height: 16),
+                          const SizedBox(height: 16),
 
-  // ==================== IMAGES LAYOUT ====================
-  Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      // Weapon Image
-if (hasStolenWeapon) ...[
-  Column(
-    children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.asset(
-          'assets/${widget.stolenWeapon!['name']}.jpg',
-          width: 165,
-          height: 75,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            width: 165,
-            height: 75,
-            color: Colors.grey[800],
-            child: const Icon(Icons.image_not_supported, color: Colors.white54),
-          ),
-        ),
-      ),
-      const SizedBox(height: 8),
+                          // Images Layout
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Weapon
+                              if (hasStolenWeapon) ...[
+                                Column(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.asset(
+                                        'assets/${widget.stolenWeapon!['name']}.jpg',
+                                        width: 165,
+                                        height: 75,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 165,
+                                          height: 75,
+                                          color: Colors.grey[800],
+                                          child: const Icon(Icons.image_not_supported, color: Colors.white54),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (!(hasStolenWeapon && hasBullets))
+                                      Text(
+                                        widget.stolenWeapon!['name'] as String,
+                                        style: const TextStyle(fontSize: 15, color: Colors.white70),
+                                      ),
+                                  ],
+                                ),
+                              ],
 
-      // Only show weapon name if it's NOT weapon + bullets
-      // (because the name already appears in the header in that case)
-      if (!(hasStolenWeapon && hasBullets))
-        Text(
-          widget.stolenWeapon!['name'] as String,
-          style: const TextStyle(fontSize: 15, color: Colors.white70),
-        ),
-    ],
-  ),
-],
+                              if (hasStolenWeapon && hasBullets) 
+                                const SizedBox(width: 0),
 
-      // === SPACING LOGIC ===
-    if (hasStolenWeapon && hasBullets)
-      const SizedBox(width: 0),
+                              if (hasEpinephrine && hasBullets) 
+                                const SizedBox(width: 32),
 
-    if (hasEpinephrine && hasBullets)
-      const SizedBox(width: 32),
+                              // Epinephrine
+                              if (hasEpinephrine) ...[
+                                Column(
+                                  children: [
+                                    Image.asset(
+                                      'assets/epinephrine_${widget.epinephrine!['quality']}.png',
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => const Icon(Icons.science, size: 70, color: Colors.purpleAccent),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Quality ${widget.epinephrine!['quality']}',
+                                      style: const TextStyle(fontSize: 15, color: Colors.white70),
+                                    ),
+                                  ],
+                                ),
+                              ],
 
-      // Epinephrine Image
-      if (hasEpinephrine) ...[
-        Column(
-          children: [
-            Image.asset(
-              'assets/epinephrine_${widget.epinephrine!['quality']}.png',
-              width: 80,
-              height: 80,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.science, size: 70, color: Colors.purpleAccent),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Quality ${widget.epinephrine!['quality']}',
-              style: const TextStyle(fontSize: 15, color: Colors.white70),
-            ),
-          ],
-        ),
-      ],
-
-      // Bullets with Badge
-if (hasBullets) ...[
-  if (hasStolenWeapon || hasEpinephrine) const SizedBox(width: 32),
-  Stack(
-    alignment: Alignment.center,
-    children: [
-      // Wrap the image with ClipRRect for rounded corners
-      ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.asset(
-          'assets/bullet.jpg',
-          width: 74,
-          height: 74,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 70, color: Colors.orange),
-        ),
-      ),
-
-      // Badge stays on top
-      Positioned(
-        bottom: 6,
-        right: 6,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.85),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'x${widget.bulletsStolen}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
-    ],
-  ),
-],
-    ],
-  ),
-],
+                              // Bullets
+                              if (hasBullets) ...[
+                                if (hasStolenWeapon || hasEpinephrine) const SizedBox(width: 32),
+                                Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.asset(
+                                        'assets/bullet.jpg',
+                                        width: 74,
+                                        height: 74,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => const Icon(Icons.circle, size: 70, color: Colors.orange),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 6,
+                                      right: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.85),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'x${widget.bulletsStolen}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -318,7 +361,7 @@ if (hasBullets) ...[
               ),
             ),
 
-            // Particles...
+            // Particles
             ..._particles.map((p) => AnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {

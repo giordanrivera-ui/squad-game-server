@@ -35,9 +35,7 @@ function resolveOperation(p, operation, level, exp) {
 
   const now = Date.now();
 
-  // =====================================================
-  // OPERATION REWARD CALCULATION
-  // =====================================================
+  // OPERATION REWARD CALCULATION =====================================================
 
   if (operation === "Mug a passerby") {
     const hasBasic = (p.completedCourses || []).some(c =>
@@ -240,9 +238,6 @@ function resolveOperation(p, operation, level, exp) {
     }
   }
 
-  // =====================================================
-  // RETURN OUTCOME
-  // =====================================================
   return {
     money,
     rawDamage,
@@ -279,9 +274,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
   const docRef = db.collection('players').doc(email);
 
   try {
-    // ============================================
-    // STEP A: Fast initial checks (outside transaction)
-    // ============================================
+    // STEP A: Fast initial checks (outside transaction) ============================================
     const initialSnap = await docRef.get();
     if (!initialSnap.exists) {
       socket.emit('error', { message: 'Player not found' });
@@ -328,9 +321,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       return; // Silent cooldown
     }
 
-    // ============================================
-    // STEP B: Run everything inside a transaction
-    // ============================================
+    // STEP B: Run everything inside a transaction ============================================
     const txResult = await db.runTransaction(async (transaction) => {
       const freshSnap = await transaction.get(docRef);
       if (!freshSnap.exists) throw new Error('Player not found');
@@ -338,7 +329,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
       let p = freshSnap.data();
       const exp = p.experience || 0;
 
-      // === NEW: Re-check prison inside transaction ===
+      // === Re-check prison inside transaction ===
       if (p.prisonEndTime && Date.now() < p.prisonEndTime) {
         throw new Error('In prison');
       }
@@ -400,62 +391,59 @@ async function handleExecuteOperation(db, socket, data, deps) {
       };
     });
 
-    // ============================================
-    // STEP C: Things that happen AFTER successful transaction
-    // ============================================
+    // STEP C: Things that happen AFTER successful transaction ============================================
     const { p, outcome, prisonEndTime, diedThisOperation, oldDisplayName, oldBalance } = txResult;
 
     if (outcome.isCaught) {
       imprisonedPlayers.set(p.displayName, prisonEndTime);
     }
 
-    // ==================== NEW: Crime Alert with 10s Cooldown (Lazy Cleanup) ====================
-if (!outcome.isCaught) {
-  const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
-  
-  if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
-    const now = Date.now();
+    // ==================== Crime Alert with 10s Cooldown (Lazy Cleanup) ====================
+    if (!outcome.isCaught) {
+      const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
+      
+      if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
+        const now = Date.now();
 
-    // Build list of eligible players + clean expired cooldowns on the fly
-    const eligiblePlayers = [];
+        // Build list of eligible players + clean expired cooldowns on the fly
+        const eligiblePlayers = [];
 
-    for (const name of onlinePlayers || []) {
-      if (name === p.displayName) continue; // Don't alert the perpetrator
+        for (const name of onlinePlayers || []) {
+          if (name === p.displayName) continue; // Don't alert the perpetrator
 
-      const cooldownEnd = crimeAlertCooldowns.get(name);
+          const cooldownEnd = crimeAlertCooldowns.get(name);
 
-      if (!cooldownEnd || cooldownEnd <= now) {
-        // Player is eligible (and clean up expired entry if it exists)
-        if (cooldownEnd) {
-          crimeAlertCooldowns.delete(name); // Lazy cleanup
+          if (!cooldownEnd || cooldownEnd <= now) {
+            // Player is eligible (and clean up expired entry if it exists)
+            if (cooldownEnd) {
+              crimeAlertCooldowns.delete(name); // Lazy cleanup
+            }
+            eligiblePlayers.push(name);
+          }
         }
-        eligiblePlayers.push(name);
+
+        if (eligiblePlayers.length > 0) {
+          // Pick a random eligible player
+          const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+          const targetName = eligiblePlayers[randomIndex];
+          const targetSocket = onlineSockets.get(targetName);
+
+          if (targetSocket) {
+            const crimeText = operation === "Mug a passerby" 
+              ? `${p.displayName} mugged a passerby` 
+              : `${p.displayName} looted a grocery store`;
+
+            targetSocket.emit('crime-alert', {
+              message: crimeText,
+              perpetrator: p.displayName
+            });
+
+            // Apply 10-second cooldown
+            crimeAlertCooldowns.set(targetName, now + 10000);
+          }
+        }
       }
     }
-
-    if (eligiblePlayers.length > 0) {
-      // Pick a random eligible player
-      const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
-      const targetName = eligiblePlayers[randomIndex];
-      const targetSocket = onlineSockets.get(targetName);
-
-      if (targetSocket) {
-        const crimeText = operation === "Mug a passerby" 
-          ? `${p.displayName} mugged a passerby` 
-          : `${p.displayName} looted a grocery store`;
-
-        targetSocket.emit('crime-alert', {
-          message: crimeText,
-          perpetrator: p.displayName
-        });
-
-        // Apply 10-second cooldown
-        crimeAlertCooldowns.set(targetName, now + 10000);
-      }
-    }
-  }
-}
-// ==================== END NEW FEATURE ====================
 
     // Broadcast prison list
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({

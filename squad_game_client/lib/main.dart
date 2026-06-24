@@ -275,7 +275,8 @@ _socketService.socket?.on('deliver-justice-result', (data) {
       criminalArchetype: data['criminalArchetype'],
       archetypeBonus: (data['archetypeBonus'] as num?)?.toInt(),
       dominanceBonus: (data['dominanceBonus'] as num?)?.toInt(),
-      investmentBonus: (data['investmentBonus'] as num?)?.toInt(),
+      witnessInvestmentBonus: (data['witnessInvestmentBonus'] as num?)?.toInt(),
+      criminalInvestmentBonus: (data['criminalInvestmentBonus'] as num?)?.toInt(),
       witnessRoll: (data['witnessRoll'] as num?)?.toInt(),
       criminalRoll: (data['criminalRoll'] as num?)?.toInt(),
       viewerIsWitness: data['viewerIsWitness'] ?? true,
@@ -962,11 +963,12 @@ void _showCrimeAlert() {
   String? criminalArchetype,
   int? archetypeBonus,
   int? dominanceBonus,
-  int? investmentBonus,
+  int? witnessInvestmentBonus,
   int? witnessRoll,
   int? criminalRoll,
   bool? viewerIsWitness,
   String? rpsWinner,
+  int? criminalInvestmentBonus,
 }) {
   _deliverJusticeOverlay?.remove();
 
@@ -983,11 +985,12 @@ void _showCrimeAlert() {
       criminalArchetype: criminalArchetype,
       archetypeBonus: archetypeBonus,
       dominanceBonus: dominanceBonus,
-      investmentBonus: investmentBonus,
+      witnessInvestmentBonus: witnessInvestmentBonus,
       witnessRoll: witnessRoll,
       criminalRoll: criminalRoll,
       viewerIsWitness: viewerIsWitness,
       rpsWinner: rpsWinner,
+      criminalInvestmentBonus: criminalInvestmentBonus,
       onDismiss: () {
         _deliverJusticeOverlay?.remove();
         _deliverJusticeOverlay = null;

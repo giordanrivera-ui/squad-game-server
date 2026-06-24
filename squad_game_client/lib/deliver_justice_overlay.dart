@@ -13,11 +13,12 @@ class DeliverJusticeOverlay extends StatefulWidget {
   final String? criminalArchetype;
   final int? archetypeBonus;
   final int? dominanceBonus;
-  final int? investmentBonus;
+  final int? witnessInvestmentBonus;
   final int? witnessRoll;
   final int? criminalRoll;
   final bool? viewerIsWitness;
   final String? rpsWinner;
+  final int? criminalInvestmentBonus;
   final VoidCallback onDismiss;
 
   const DeliverJusticeOverlay({
@@ -33,11 +34,12 @@ class DeliverJusticeOverlay extends StatefulWidget {
     this.criminalArchetype,
     this.archetypeBonus,
     this.dominanceBonus,
-    this.investmentBonus,
+    this.witnessInvestmentBonus,
     this.witnessRoll,
     this.criminalRoll,
     this.viewerIsWitness,
     this.rpsWinner,
+    this.criminalInvestmentBonus,
     required this.onDismiss,
   });
 
@@ -393,8 +395,8 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
           Text('Archetype Bonus: +${widget.archetypeBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
         if (widget.dominanceBonus != null && !isTie)
           Text('Dominance Bonus: +${widget.dominanceBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-        if (widget.investmentBonus != null)
-          Text('Investment Bonus: +${widget.investmentBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+        if (widget.witnessInvestmentBonus != null)
+          Text('Investment Bonus: +${widget.witnessInvestmentBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
         if (widget.witnessRoll != null)
           Text('Roll: ${widget.witnessRoll}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
         Text('Final Score: ${widget.witnessFinal}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
@@ -406,11 +408,10 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
         if (widget.criminalArchetype != null)
           Text('Archetype: ${widget.criminalArchetype}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
 
-        // Dynamic criminal bonus display
         if (isTie) ...[
           const Text('Archetype Bonus: +10', style: TextStyle(fontSize: 12, color: Colors.white70)),
-          if (widget.investmentBonus != null)
-            Text('Investment Bonus: +${widget.investmentBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+          if (widget.criminalInvestmentBonus != null)
+            Text('Investment Bonus: +${widget.criminalInvestmentBonus}', style: const TextStyle(fontSize: 12, color: Colors.white70)),
         ] else ...[
           const Text('Loser Score: 20 (fixed)', style: TextStyle(fontSize: 12, color: Colors.white70)),
         ],
