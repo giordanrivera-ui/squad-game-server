@@ -624,7 +624,7 @@ socket.on('place-hit', async (data) => {
     await posterDoc.ref.set(poster);
   }
 
-  // ==================== NEW: Respect crime freeze ====================
+  // ==================== Respect crime freeze ====================
   if (getAvailableBalance(poster) < data.reward) {
     socket.emit('hit-result', { 
       success: false, 
