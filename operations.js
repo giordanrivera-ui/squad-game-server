@@ -328,6 +328,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
       let p = freshSnap.data();
       const exp = p.experience || 0;
+      cleanupExpiredCrimeFreeze(p);
 
       // === Re-check prison inside transaction ===
       if (p.prisonEndTime && Date.now() < p.prisonEndTime) {
@@ -398,52 +399,68 @@ async function handleExecuteOperation(db, socket, data, deps) {
       imprisonedPlayers.set(p.displayName, prisonEndTime);
     }
 
-    // ==================== Crime Alert with 10s Cooldown (Lazy Cleanup) ====================
-    if (!outcome.isCaught) {
-      const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
-      
-      if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
-        const now = Date.now();
+// ==================== APPLY 17s FREEZE TO CRIMINAL (Improved) ====================
+if (!outcome.isCaught) {
+  const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
+  
+  if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
+    const now = Date.now();
+    const newFreezeUntil = now + 17000; // 17 seconds
 
-        // Build list of eligible players + clean expired cooldowns on the fly
-        const eligiblePlayers = [];
+    // Build list of eligible players + clean expired cooldowns on the fly
+    const eligiblePlayers = [];
 
-        for (const name of onlinePlayers || []) {
-          if (name === p.displayName) continue; // Don't alert the perpetrator
+    for (const name of onlinePlayers || []) {
+      if (name === p.displayName) continue; // Don't alert the perpetrator
 
-          const cooldownEnd = crimeAlertCooldowns.get(name);
+      const cooldownEnd = crimeAlertCooldowns.get(name);
 
-          if (!cooldownEnd || cooldownEnd <= now) {
-            // Player is eligible (and clean up expired entry if it exists)
-            if (cooldownEnd) {
-              crimeAlertCooldowns.delete(name); // Lazy cleanup
-            }
-            eligiblePlayers.push(name);
-          }
-        }
-
-        if (eligiblePlayers.length > 0) {
-          // Pick a random eligible player
-          const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
-          const targetName = eligiblePlayers[randomIndex];
-          const targetSocket = onlineSockets.get(targetName);
-
-          if (targetSocket) {
-            const crimeText = operation === "Mug a passerby" 
-              ? `${p.displayName} mugged a passerby` 
-              : `${p.displayName} looted a grocery store`;
-
-            targetSocket.emit('crime-alert', {
-              message: crimeText,
-              perpetrator: p.displayName
-            });
-
-            // Apply 10-second cooldown
-            crimeAlertCooldowns.set(targetName, now + 10000);
-          }
-        }
+      if (!cooldownEnd || cooldownEnd <= now) {
+        if (cooldownEnd) crimeAlertCooldowns.delete(name);
+        eligiblePlayers.push(name);
       }
     }
+
+    if (eligiblePlayers.length > 0) {
+      const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+      const targetName = eligiblePlayers[randomIndex];
+      const targetSocket = onlineSockets.get(targetName);
+
+      if (targetSocket) {
+        const crimeText = operation === "Mug a passerby" 
+          ? `${p.displayName} mugged a passerby` 
+          : `${p.displayName} looted a grocery store`;
+
+      targetSocket.emit('crime-alert', {
+        message: crimeText,
+        perpetrator: p.displayName
+      });
+
+      crimeAlertCooldowns.set(targetName, now + 10000);
+
+      // ==================== APPLY 17s FREEZE TO CRIMINAL ====================
+      // Extend the freeze timer (never shorten it)
+      if (!p.crimeFreezeUntil || p.crimeFreezeUntil < newFreezeUntil) {
+        p.crimeFreezeUntil = newFreezeUntil;
+      }
+
+      // Always add newly stolen money to the frozen pool
+      p.frozenCrimeMoney = (p.frozenCrimeMoney || 0) + outcome.money;
+
+      // Mark stolen items
+      if (outcome.stolenWeapon) {
+        outcome.stolenWeapon.frozenUntil = p.crimeFreezeUntil;
+      }
+      if (outcome.epinephrine) {
+        outcome.epinephrine.frozenUntil = p.crimeFreezeUntil;
+      }
+      await docRef.set(p, { merge: true });
+
+      console.log(`[CRIME FREEZE] Applied/extended freeze on ${p.displayName} | Frozen: $${p.frozenCrimeMoney}`);
+      }
+    }
+  }
+}
 
     // Broadcast prison list
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({

@@ -1,5 +1,25 @@
 const admin = require('firebase-admin');
 
+function getAvailableBalance(player) {
+  if (!player) return 0;
+
+  const now = Date.now();
+
+  // Auto-clean expired freeze data from the local object
+  if (player.crimeFreezeUntil && player.crimeFreezeUntil <= now) {
+    delete player.crimeFreezeUntil;
+    delete player.frozenCrimeMoney;
+  }
+
+  // Freeze is still active
+  if (player.crimeFreezeUntil && player.crimeFreezeUntil > now) {
+    const frozen = player.frozenCrimeMoney || 0;
+    return Math.max(0, (player.balance || 0) - frozen);
+  }
+
+  return player.balance || 0;
+}
+
 // ==================== CENTRALIZED TRANSACTION LOGGER ====================
 async function logTransaction(socket, amount, description, playerData, docRef) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
@@ -83,9 +103,25 @@ async function addExperienceAndGrantPoints(docRef, playerData, amount, { onlineS
   return playerData;
 }
 
+function cleanupExpiredCrimeFreeze(player) {
+  if (!player) return false;
+
+  const now = Date.now();
+
+  if (player.crimeFreezeUntil && player.crimeFreezeUntil <= now) {
+    delete player.crimeFreezeUntil;
+    delete player.frozenCrimeMoney;
+    return true; // We cleaned something
+  }
+
+  return false; // Nothing to clean
+}
+
 module.exports = { 
   logTransaction, 
   getRankTitle, 
   RANK_THRESHOLDS,
-  addExperienceAndGrantPoints
+  addExperienceAndGrantPoints,
+  getAvailableBalance,
+  cleanupExpiredCrimeFreeze,
 };

@@ -39,6 +39,9 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
   final List<Particle> _particles = [];
   bool _showTapHint = false;
 
+  // ==================== Store the message once ====================
+  String? _displayMessage;
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +58,13 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
 
     for (int i = 0; i < 40; i++) {
       _particles.add(Particle());
+    }
+
+    // ==================== Generate custom message ONLY ONCE ====================
+    if (widget.operation == "Mug a passerby") {
+      _displayMessage = _getCustomMugMessage(widget.money);
+    } else {
+      _displayMessage = widget.message;
     }
 
     Future.delayed(const Duration(milliseconds: 1600), () {
@@ -80,40 +90,62 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
     final hasStreetTactics = _hasStreetTactics();
     final random = Random();
 
+    String baseMessage;
+
     if (!hasStreetTactics) {
-      // No Street Tactics researched
       if (money >= 10 && money <= 30) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "The passerby you mugged barely had any money. You didn't recognize this because of your lack of street tactics"
             : "While searching the passerby they made a run for it. You barely got anything from them";
       } else if (money >= 31 && money <= 70) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "You mugged an office worker who sits down all day. Easy target. If only they carried more cash..."
             : "The target was giving you all the cash they had but a group of people were turning the corner and you were nearly seen. You got away ASAP.";
       } else if (money >= 71 && money <= 100) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "You mugged quite a wealthy person, but if you had better street tactics you would've recognized the wealthier person you passed by."
             : "The person you mugged had too much to lose. They readily gave up their entire wallet.";
+      } else {
+        baseMessage = "You mugged a passerby.";
       }
     } else {
-      // Has Street Tactics researched
       if (money >= 20 && money <= 40) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "You didn't realize that the target had spent most of their money before you got to them. Maybe you need more advanced street tactics?"
             : "The target was quite strong, while you were eyeing the cash, they resisted and got away.";
       } else if (money >= 41 && money <= 85) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "Just as the target took out their wallet, the conditions were just right for a clean and quick robbery. You saw no need to milk them for more money."
             : "While the target was emptying their pockets, a barking dog startled you and you made a run for it.";
       } else if (money >= 86 && money <= 112) {
-        return random.nextBool()
+        baseMessage = random.nextBool()
             ? "You recognized the brand of the expensive looking suitcase. They looked completely oblivious to their surroundings. Easy target."
             : "You noticed the target give a fat tip to the waiter just before leaving the restaurant. They're full and they have cash. Easy target.";
+      } else {
+        baseMessage = "You mugged a passerby.";
       }
     }
 
-    // Fallback to original message
-    return widget.message;
+    // ==================== Extract only bone-related messages ====================
+    String boneInfo = "";
+
+    if (widget.message.contains("broke a bone") || widget.message.contains("bone recovery")) {
+      final sentences = widget.message.split(RegExp(r'[.!]'));
+
+      final boneSentences = sentences.where((sentence) {
+        final lower = sentence.toLowerCase();
+        return lower.contains("broke a bone") ||
+               lower.contains("bone recovery") ||
+               sentence.contains("💥") ||
+               sentence.contains("⏳");
+      }).map((s) => s.trim()).toList();
+
+      if (boneSentences.isNotEmpty) {
+        boneInfo = "\n\n${boneSentences.join(". ")}.";
+      }
+    }
+
+    return baseMessage + boneInfo;
   }
 
   @override
@@ -122,10 +154,8 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
     final bool hasEpinephrine = widget.epinephrine != null;
     final bool hasBullets = widget.bulletsStolen > 0;
 
-    // Determine which message to show
-    final String displayMessage = widget.operation == "Mug a passerby"
-        ? _getCustomMugMessage(widget.money)
-        : widget.message;
+    // Use the pre-computed message (no more random switching)
+    final String displayMessage = _displayMessage ?? widget.message;
 
     return GestureDetector(
       onTap: widget.onDismiss,
@@ -287,11 +317,8 @@ class _OperationResultOverlayState extends State<OperationResultOverlay>
                                 ),
                               ],
 
-                              if (hasStolenWeapon && hasBullets) 
-                                const SizedBox(width: 0),
-
-                              if (hasEpinephrine && hasBullets) 
-                                const SizedBox(width: 32),
+                              if (hasStolenWeapon && hasBullets) const SizedBox(width: 0),
+                              if (hasEpinephrine && hasBullets) const SizedBox(width: 32),
 
                               // Epinephrine
                               if (hasEpinephrine) ...[

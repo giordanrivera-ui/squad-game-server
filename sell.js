@@ -53,6 +53,14 @@ function registerSellHandlers(socket, { db, logTransaction }) {
 
     // Successful sale: remove items from inventory
     for (const soldItem of data.items) {
+      if (soldItem.frozenUntil && soldItem.frozenUntil > Date.now()) {
+        socket.emit('sell-result', { 
+          success: false, 
+          message: 'You cannot sell items stolen from a recent crime yet.' 
+        });
+        return;
+      }
+
       const index = p.inventory.findIndex(
         (i) => i.name === soldItem.name && i.type === soldItem.type && i.power === soldItem.power
       );

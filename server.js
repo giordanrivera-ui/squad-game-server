@@ -8,11 +8,11 @@ const server = http.createServer(app);
 
 const io = new Server(server, { 
   cors: { origin: "*" },
-  pingTimeout: 10000,  // NEW: 10 sec timeout before disconnect
-  pingInterval: 5000   // NEW: Ping every 5 sec to check alive
+  pingTimeout: 10000,  // 10 sec timeout before disconnect
+  pingInterval: 5000   // Ping every 5 sec to check alive
 });
 
-const { logTransaction, getRankTitle, addExperienceAndGrantPoints } = require('./utils');
+const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableBalance, cleanupExpiredCrimeFreeze } = require('./utils');
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
@@ -302,6 +302,11 @@ io.on('connection', (socket) => {
       if (!playerData.displayName && playerData.dead !== true && displayName !== 'Anonymous') {
         playerData.displayName = displayName;
         playerData.displayNameLower = displayName.toLowerCase();
+      }
+
+      const wasCleaned = cleanupExpiredCrimeFreeze(playerData);
+      if (wasCleaned) {
+        console.log(`[CLEANUP] Removed expired crime freeze data for ${playerData.displayName || email}`);
       }
 
       await docRef.set(playerData);
@@ -601,48 +606,61 @@ socket.on('deliver-justice', async (data) => {
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
-  socket.on('place-hit', async (data) => {
-    const posterEmail = socket.data.email;
-    if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
-      socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
-      return;
-    }
+socket.on('place-hit', async (data) => {
+  const posterEmail = socket.data.email;
+  if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
+    socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
+    return;
+  }
 
-    const posterDoc = await db.collection('players').doc(posterEmail).get();
-    if (!posterDoc.exists || posterDoc.data().balance < data.reward) {
-      socket.emit('hit-result', { success: false, message: 'Not enough money for the bounty.' });
-      return;
-    }
+  const posterDoc = await db.collection('players').doc(posterEmail).get();
+  if (!posterDoc.exists) return;
 
-    const durationMinutes = data.durationDays || 5;  // NEW: Now called durationMinutes (accepts minutes from client)
-    const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);  // NEW: Minutes × 60 seconds
+  let poster = posterDoc.data();
 
-    const endTime = Date.now() + durationMs;
+  // Clean up expired crime freeze data if needed
+  const wasCleaned = cleanupExpiredCrimeFreeze(poster);
+  if (wasCleaned) {
+    await posterDoc.ref.set(poster);
+  }
 
-    const hitId = `${posterEmail}-${Date.now()}`;
-
-    await db.collection('hitlist').doc(hitId).set({
-      target: data.target,
-      posterEmail,
-      reward: data.reward,
-      endTime,
-      active: true
-    });
-
-    // Deduct from poster
-    await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-    await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, posterDoc.data(), posterDoc.ref);
-
-    const updatedPoster = await posterDoc.ref.get();
-    socket.emit('update-stats', updatedPoster.data());
-
+  // ==================== NEW: Respect crime freeze ====================
+  if (getAvailableBalance(poster) < data.reward) {
     socket.emit('hit-result', { 
-      success: true, 
-      message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
+      success: false, 
+      message: 'Not enough money for the bounty (some funds may be temporarily frozen)' 
     });
+    return;
+  }
 
-    io.emit('hitlist-update');
+  const durationMinutes = data.durationDays || 5;
+  const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);
+
+  const endTime = Date.now() + durationMs;
+  const hitId = `${posterEmail}-${Date.now()}`;
+
+  await db.collection('hitlist').doc(hitId).set({
+    target: data.target,
+    posterEmail,
+    reward: data.reward,
+    endTime,
+    active: true
   });
+
+  // Deduct from poster
+  await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+  await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, posterDoc.data(), posterDoc.ref);
+
+  const updatedPoster = await posterDoc.ref.get();
+  socket.emit('update-stats', updatedPoster.data());
+
+  socket.emit('hit-result', { 
+    success: true, 
+    message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
+  });
+
+  io.emit('hitlist-update');
+});
 
   // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {
@@ -851,7 +869,16 @@ socket.on('deliver-justice', async (data) => {
 
     let p = doc.data();
 
-    if (p.balance < data.totalCost) return; // Not enough balance
+    const wasCleaned = cleanupExpiredCrimeFreeze(p);
+    if (wasCleaned) {
+      await docRef.set(p);
+    }
+
+    const availableBalance = getAvailableBalance(p);
+    if (availableBalance < data.totalCost) {
+        socket.emit('error', { message: 'Not enough money (some funds may be temporarily frozen)' });
+        return;
+    }
 
     // Validate total cost on server to prevent cheating
     let calculatedCost = 0;
@@ -883,7 +910,7 @@ socket.on('deliver-justice', async (data) => {
     await handlePurchaseWeapons(db, socket, data);
   });
   
-  socket.on('equip-armor', async (data) => { // NEW: Equip armor
+  socket.on('equip-armor', async (data) => { // Equip armor
     const email = socket.data.email;
     if (!email || typeof data.slot !== 'string' || typeof data.item !== 'object') return;
 

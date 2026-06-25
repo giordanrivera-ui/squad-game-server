@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { logTransaction } = require('./utils');
+const { logTransaction, getAvailableBalance } = require('./utils');
 
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, ALLOWED_HOSPITAL_SERVICE_FIELDS } = require('./hospital_constants');
 const { handleWatchAdForFasterHealing } = require('./ads');
@@ -54,9 +54,13 @@ async function handleStartHealing(db, socket) {
   }
 
   const cost = 50;
-  if (p.balance < cost) {
-    socket.emit('heal-result', { success: false, message: 'Not enough money.' });
-    return;
+  const availableBalance = getAvailableBalance(p);
+  if (availableBalance < cost) {
+      socket.emit('heal-result', { 
+          success: false, 
+          message: 'Not enough money (some funds may be temporarily frozen).' 
+      });
+      return;
   }
 
   await logTransaction(socket, -cost, 'Started Healing ($50)', p, docRef);
@@ -139,12 +143,13 @@ async function handleHealBrokenBone(db, socket) {
   }
 
   const cost = 110;
-  if (p.balance < cost) {
-    socket.emit('heal-broken-bone-result', { 
-      success: false, 
-      message: 'Not enough money ($110 required).' 
-    });
-    return;
+  const availableBalance = getAvailableBalance(p);
+  if (availableBalance < cost) {
+      socket.emit('heal-broken-bone-result', { 
+          success: false, 
+          message: 'Not enough money ($110 required). Some funds may be temporarily frozen.' 
+      });
+      return;
   }
 
   await logTransaction(socket, -cost, 'Broken Bone Healing ($110)', p, docRef);

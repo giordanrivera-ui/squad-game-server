@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { logTransaction } = require('./utils');
+const { logTransaction, getAvailableBalance, cleanupExpiredCrimeFreeze } = require('./utils');
 
 const properties = [
   {
@@ -176,6 +176,12 @@ async function handleBuyProperty(db, socket, propertyName) {
 
   let p = doc.data();
 
+  // Clean up expired crime freeze data if needed
+  const wasCleaned = cleanupExpiredCrimeFreeze(p);
+  if (wasCleaned) {
+    await docRef.set(p);
+  }
+
   // Check if already owned
   const owned = p.ownedProperties || [];
   if (owned.includes(propertyName)) return;
@@ -184,8 +190,11 @@ async function handleBuyProperty(db, socket, propertyName) {
   const prop = properties.find(pr => pr.name === propertyName);
   if (!prop) return;
 
-  // Check balance
-  if (p.balance < prop.cost) return;
+  const availableBalance = getAvailableBalance(p);
+  if (availableBalance < property.cost) {
+    socket.emit('error', { message: 'Not enough money (some funds may be temporarily frozen)' });
+    return;
+  }
 
   const now = Date.now();
   await logTransaction(socket, -prop.cost, `Property Purchased: ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
@@ -208,6 +217,12 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
 
   let p = doc.data();
 
+  // Clean up expired crime freeze data if needed
+  const wasCleaned = cleanupExpiredCrimeFreeze(p);
+  if (wasCleaned) {
+    await docRef.set(p);
+  }
+
   // Check if owns property
   const owned = p.ownedProperties || [];
   if (!owned.includes(propertyName)) return;
@@ -220,8 +235,11 @@ async function handleBuyUpgrade(db, socket, propertyName, upgradeName) {
   const cost = upgradeCosts[upgradeName]?.[propertyName];
   if (cost === undefined) return;
 
-  // Check balance
-  if (p.balance < cost) return;
+  const availableBalance = getAvailableBalance(p);
+  if (availableBalance < cost) {
+      socket.emit('error', { message: 'Not enough money (some funds may be temporarily frozen)' });
+      return;
+  }
 
   await logTransaction(socket, -cost, `Upgrade Purchased: ${upgradeName} on ${propertyName}`, p, docRef);   // p = playerData, docRef = the Firestore reference
   p.balance -= cost;

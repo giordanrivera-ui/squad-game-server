@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { logTransaction } = require('./utils');
+const { logTransaction, getAvailableBalance, cleanupExpiredCrimeFreeze } = require('./utils');
 
 // ==================== VEHICLE MASTER LIST (SERVER-AUTHORITATIVE) ====================
 const vehicleTemplates = [
@@ -36,9 +36,16 @@ async function handlePurchaseVehicles(db, socket, data) {
 
   let p = doc.data();
 
+  // Clean up expired crime freeze data if needed
+  const wasCleaned = cleanupExpiredCrimeFreeze(p);
+  if (wasCleaned) {
+    await docRef.set(p);
+  }
+
   // 1. Check balance
-  if (p.balance < data.totalCost) {
-    socket.emit('purchase-result', { success: false, message: 'Not enough money' });
+  const availableBalance = getAvailableBalance(p);
+  if (availableBalance < data.totalCost) {
+    socket.emit('purchase-result', { success: false, message: 'Not enough money (some funds may be temporarily frozen)' });
     return;
   }
 
