@@ -1,3 +1,5 @@
+const { getAvailableBalance, cleanupExpiredCrimeFreeze } = require('./utils');
+
 function getTrainingDescription(type) {
   switch (type) {
     case 'calisthenics':
@@ -59,10 +61,18 @@ function registerFitnessHandlers(socket, { db, logTransaction }) {
       tempToll += 1;
     }
 
-    if ((p.balance || 0) < totalCost) {
+    // Clean up any expired frozen money first (same as weapons/armor do)
+    const wasCleaned = cleanupExpiredCrimeFreeze(p);
+    if (wasCleaned) {
+      await docRef.set(p);
+    }
+
+    // Check REAL available money (after subtracting any frozen crime money)
+    const availableBalance = getAvailableBalance(p);
+    if (availableBalance < totalCost) {
       socket.emit('training-result', {
         success: false,
-        message: `Not enough money. This training costs $${totalCost}.`
+        message: `Not enough money. This training costs $${totalCost}. (Some funds may be temporarily frozen)`
       });
       return;
     }

@@ -117,6 +117,64 @@ function cleanupExpiredCrimeFreeze(player) {
   return false; // Nothing to clean
 }
 
+// ==================== HELPER: Clear frozen loot from a criminal ====================
+// This runs when justice opportunity expires, witness loses justice, witness disconnects,
+// or when the criminal dies.
+// It unfreezes the criminal's money and items so they are not stuck forever.
+async function clearCrimeFreezeForPlayer(db, identifier, isEmail = false) {
+  if (!identifier) return;
+
+  try {
+    let playerRef;
+    let resolvedDisplayName = identifier;
+
+    if (isEmail) {
+      // Lookup directly by document ID (email) — used in death path
+      playerRef = db.collection('players').doc(identifier);
+    } else {
+      // Find the criminal in the database by displayName
+      const query = await db.collection('players')
+        .where('displayName', '==', identifier)
+        .limit(1)
+        .get();
+
+      if (query.empty) return;
+      playerRef = query.docs[0].ref;
+      resolvedDisplayName = identifier;
+    }
+
+    // Remove the frozen money and freeze timer (safe even if fields don't exist)
+    await playerRef.update({
+      frozenCrimeMoney: admin.firestore.FieldValue.delete(),
+      crimeFreezeUntil: admin.firestore.FieldValue.delete()
+    });
+
+    // Also remove any "frozenUntil" tags from items in their inventory
+    const snap = await playerRef.get();
+    if (snap.exists) {
+      let data = snap.data();
+      if (data.inventory && Array.isArray(data.inventory)) {
+        let changed = false;
+        data.inventory = data.inventory.map(item => {
+          if (item.frozenUntil) {
+            changed = true;
+            const { frozenUntil, ...cleanItem } = item;
+            return cleanItem;
+          }
+          return item;
+        });
+        if (changed) {
+          await playerRef.update({ inventory: data.inventory });
+        }
+      }
+    }
+
+    console.log(`[CRIME FREEZE] Cleared frozen loot for ${resolvedDisplayName} (justice window closed, lost, or player died)`);
+  } catch (err) {
+    console.error(`[CRIME FREEZE] Failed to clear freeze for ${identifier}:`, err);
+  }
+}
+
 module.exports = { 
   logTransaction, 
   getRankTitle, 
@@ -124,4 +182,5 @@ module.exports = {
   addExperienceAndGrantPoints,
   getAvailableBalance,
   cleanupExpiredCrimeFreeze,
+  clearCrimeFreezeForPlayer,
 };

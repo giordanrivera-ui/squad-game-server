@@ -102,6 +102,7 @@ function registerRespawnHandler(socket, { db, normalLocations, getRankTitle }) {
         activeSpecialOperationParty: null,
         completedCourses: [],
         martialArt: null,
+        pendingLootDecision: null,
       };
 
       p.rank = getRankTitle(0);

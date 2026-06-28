@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { logTransaction } = require('./utils');
+const { logTransaction, cleanupExpiredCrimeFreeze, clearCrimeFreezeForPlayer } = require('./utils');
 const { markPlayerAsDead } = require('./combat.js');
 const { weaponTemplates } = require('./weapons.js');
 const { getPrisonChance } = require('./operations_prison_chance');
@@ -17,6 +17,12 @@ const validOperations = new Set([
   ...highLevelOps
 ]);
 
+// ==================== CONSTANTS (for maintainability) ====================
+const JUSTICE_WINDOW_MS = 6000;      // Time witness has to decide take/return
+const CRIME_FREEZE_MS = 17000;       // How long criminal's loot is frozen
+const ALERT_COOLDOWN_MS = 10000;     // Cooldown before same witness can be alerted again
+const WITNESS_TRIGGER_PROB = 0.95;   // 95% chance a successful low-level crime triggers justice system
+
 function resolveOperation(p, operation, level, exp) {
   let money = 0;
   let rawDamage = 0;
@@ -31,7 +37,6 @@ function resolveOperation(p, operation, level, exp) {
   let boneCooldownTime = Date.now();
   let actualDamage = 0;
   let totalDefense = 0;
-
 
   const now = Date.now();
 
@@ -210,7 +215,7 @@ function resolveOperation(p, operation, level, exp) {
     (p.footwear?.defense || 0);
 
   if (isCaught) {
-    actualDamage = rawDamage;   // For caught players we still report the raw damage to client
+    actualDamage = rawDamage;
     message = `You were caught! You have been sent to prison for 60 seconds.`;
   } else {
     actualDamage = Math.max(0, rawDamage - totalDefense);
@@ -257,8 +262,23 @@ function resolveOperation(p, operation, level, exp) {
 }
 
 async function handleExecuteOperation(db, socket, data, deps) {
-  const { io, imprisonedPlayers, addExperienceAndGrantPoints, removeFromOnlineList, onlinePlayers, onlineSockets, crimeAlertCooldowns } = deps;
+  const { 
+    io, 
+    imprisonedPlayers, 
+    addExperienceAndGrantPoints, 
+    removeFromOnlineList, 
+    onlinePlayers, 
+    onlineSockets, 
+    crimeAlertCooldowns,
+    crimeWitnessOpportunities
+  } = deps;
+
   const email = socket.data.email;
+
+  if (!crimeWitnessOpportunities) {
+    console.warn('[OPERATIONS] WARNING: crimeWitnessOpportunities was not passed to handleExecuteOperation.');
+    console.warn('[OPERATIONS] The Justice / Deliver Justice system will be DISABLED for this operation.');
+  }
 
   if (!email || typeof data.operation !== 'string') {
     socket.emit('error', { message: 'Invalid request.' });
@@ -283,8 +303,9 @@ async function handleExecuteOperation(db, socket, data, deps) {
 
     let initialP = initialSnap.data();
     const operation = data.operation;
+    const displayName = initialP.displayName || socket.data.displayName;
 
-    // === NEW: Prison Check (Fast Path) ===
+    // === Prison Check (Fast Path) ===
     if (initialP.prisonEndTime && Date.now() < initialP.prisonEndTime) {
       socket.emit('operation-result', {
         operation,
@@ -321,7 +342,53 @@ async function handleExecuteOperation(db, socket, data, deps) {
       return; // Silent cooldown
     }
 
-    // STEP B: Run everything inside a transaction ============================================
+    // ==================== PRE-COMPUTE WITNESS / FREEZE DECISION (OUTSIDE TX - STABLE ACROSS RETRIES) ====================
+    // We decide the target ONCE before entering the transaction.
+    // This avoids:
+    //   - Non-deterministic witness selection on Firestore retry
+    //   - Side effects (cooldown deletion) inside retryable code
+    //   - Closure variable leakage bugs
+    // The actual freeze amount is still determined inside the tx (after resolveOperation knows the money).
+    let freezeTargetName = null;
+    let freezeTargetSocket = null;
+    let crimeTextForAlert = "";
+
+    const isLowLevelCrime = lowLevelOps.includes(operation) && 
+                           (operation === "Mug a passerby" || operation === "Loot a grocery store");
+
+    if (isLowLevelCrime && Math.random() < WITNESS_TRIGGER_PROB) {
+      const nowPre = Date.now();
+      const eligiblePlayers = [];
+
+            for (const name of onlinePlayers || []) {
+        if (name === displayName) continue;
+        const cooldownEnd = crimeAlertCooldowns.get(name);
+
+        if (!cooldownEnd || cooldownEnd <= nowPre) {
+          // === CLEANUP: Remove expired cooldowns from memory ===
+          if (cooldownEnd) {
+            crimeAlertCooldowns.delete(name);
+          }
+          eligiblePlayers.push(name);
+        }
+      }
+
+      if (eligiblePlayers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
+        const chosenName = eligiblePlayers[randomIndex];
+        const chosenSocket = onlineSockets.get(chosenName);
+
+        if (chosenSocket) {
+          freezeTargetName = chosenName;
+          freezeTargetSocket = chosenSocket;
+          crimeTextForAlert = operation === "Mug a passerby"
+            ? `${displayName} mugged a passerby`
+            : `${displayName} looted a grocery store`;
+        }
+      }
+    }
+
+    // STEP B: Run everything inside a single atomic transaction ============================================
     const txResult = await db.runTransaction(async (transaction) => {
       const freshSnap = await transaction.get(docRef);
       if (!freshSnap.exists) throw new Error('Player not found');
@@ -344,7 +411,7 @@ async function handleExecuteOperation(db, socket, data, deps) {
         throw new Error('On cooldown');
       }
 
-      // Call the extracted function
+      // Call the extracted function (pure)
       const outcome = resolveOperation(p, operation, level, exp);
 
       // Apply the outcome inside the transaction
@@ -378,6 +445,25 @@ async function handleExecuteOperation(db, socket, data, deps) {
           p.displayName = null;
           p.displayNameLower = null;
         }
+
+        // ==================== APPLY FREEZE INSIDE TX IF WE PRE-DECIDED (ATOMIC WITH LOOT) ====================
+        // Uses the pre-chosen target (stable across retries). Amount is known now.
+        if (freezeTargetName && !outcome.isCaught) {
+          const nowTx = Date.now();
+          const thisFreezeUntil = nowTx + CRIME_FREEZE_MS;
+
+          if (!p.crimeFreezeUntil || p.crimeFreezeUntil < thisFreezeUntil) {
+            p.crimeFreezeUntil = thisFreezeUntil;
+          }
+          p.frozenCrimeMoney = (p.frozenCrimeMoney || 0) + outcome.money;
+
+          if (outcome.stolenWeapon) {
+            outcome.stolenWeapon.frozenUntil = p.crimeFreezeUntil;
+          }
+          if (outcome.epinephrine) {
+            outcome.epinephrine.frozenUntil = p.crimeFreezeUntil;
+          }
+        }
       }
 
       transaction.set(docRef, p);
@@ -388,79 +474,53 @@ async function handleExecuteOperation(db, socket, data, deps) {
         prisonEndTime: p.prisonEndTime || 0,
         diedThisOperation: outcome.shouldDie,
         oldDisplayName: outcome.oldDisplayName,
-        oldBalance: outcome.oldBalance
+        oldBalance: outcome.oldBalance,
+        // Freeze metadata for post-tx handling (only meaningful if freezeTargetName was set)
+        freezeTargetName,
+        actualFrozenAmount: (freezeTargetName && !outcome.isCaught) ? outcome.money : 0,
+        crimeTextForAlert
       };
     });
 
-    // STEP C: Things that happen AFTER successful transaction ============================================
-    const { p, outcome, prisonEndTime, diedThisOperation, oldDisplayName, oldBalance } = txResult;
+    // STEP C: Things that happen AFTER successful transaction (only on commit) ============================================
+    const { 
+      p, outcome, prisonEndTime, diedThisOperation, oldDisplayName, oldBalance,
+      freezeTargetName: txFreezeTarget, actualFrozenAmount, crimeTextForAlert: txCrimeText
+    } = txResult;
 
     if (outcome.isCaught) {
       imprisonedPlayers.set(p.displayName, prisonEndTime);
     }
 
-// ==================== APPLY 17s FREEZE TO CRIMINAL (Improved) ====================
-if (!outcome.isCaught) {
-  const lowLevelCrimes = ["Mug a passerby", "Loot a grocery store"];
-  
-  if (lowLevelCrimes.includes(operation) && Math.random() < 0.95) {
-    const now = Date.now();
-    const newFreezeUntil = now + 17000; // 17 seconds
+    // ==================== RECORD JUSTICE OPPORTUNITY + SEND ALERT (only after successful atomic commit) ====================
+    if (txFreezeTarget && actualFrozenAmount > 0 && crimeWitnessOpportunities && freezeTargetSocket) {
+      const now = Date.now();
 
-    // Build list of eligible players + clean expired cooldowns on the fly
-    const eligiblePlayers = [];
-
-    for (const name of onlinePlayers || []) {
-      if (name === p.displayName) continue; // Don't alert the perpetrator
-
-      const cooldownEnd = crimeAlertCooldowns.get(name);
-
-      if (!cooldownEnd || cooldownEnd <= now) {
-        if (cooldownEnd) crimeAlertCooldowns.delete(name);
-        eligiblePlayers.push(name);
+      if (!crimeWitnessOpportunities.has(txFreezeTarget)) {
+        crimeWitnessOpportunities.set(txFreezeTarget, new Map());
       }
-    }
 
-    if (eligiblePlayers.length > 0) {
-      const randomIndex = Math.floor(Math.random() * eligiblePlayers.length);
-      const targetName = eligiblePlayers[randomIndex];
-      const targetSocket = onlineSockets.get(targetName);
+      const opportunities = crimeWitnessOpportunities.get(txFreezeTarget);
 
-      if (targetSocket) {
-        const crimeText = operation === "Mug a passerby" 
-          ? `${p.displayName} mugged a passerby` 
-          : `${p.displayName} looted a grocery store`;
-
-      targetSocket.emit('crime-alert', {
-        message: crimeText,
-        perpetrator: p.displayName
+      // Store as object so deliver-justice knows the EXACT amount from THIS crime only
+      opportunities.set(p.displayName, {
+        expiry: now + JUSTICE_WINDOW_MS,
+        frozenAmount: actualFrozenAmount
       });
 
-      crimeAlertCooldowns.set(targetName, now + 10000);
+      console.log(`[JUSTICE] Recorded opportunity for ${txFreezeTarget} to deliver justice on ${p.displayName} (amount: $${actualFrozenAmount})`);
 
-      // ==================== APPLY 17s FREEZE TO CRIMINAL ====================
-      // Extend the freeze timer (never shorten it)
-      if (!p.crimeFreezeUntil || p.crimeFreezeUntil < newFreezeUntil) {
-        p.crimeFreezeUntil = newFreezeUntil;
+      // Only alert if the target is still online right now
+      if (onlineSockets.has(txFreezeTarget)) {
+        freezeTargetSocket.emit('crime-alert', {
+          message: txCrimeText,
+          perpetrator: p.displayName
+        });
       }
 
-      // Always add newly stolen money to the frozen pool
-      p.frozenCrimeMoney = (p.frozenCrimeMoney || 0) + outcome.money;
-
-      // Mark stolen items
-      if (outcome.stolenWeapon) {
-        outcome.stolenWeapon.frozenUntil = p.crimeFreezeUntil;
-      }
-      if (outcome.epinephrine) {
-        outcome.epinephrine.frozenUntil = p.crimeFreezeUntil;
-      }
-      await docRef.set(p, { merge: true });
-
-      console.log(`[CRIME FREEZE] Applied/extended freeze on ${p.displayName} | Frozen: $${p.frozenCrimeMoney}`);
-      }
+      // Set cooldown ONLY on successful processing
+      crimeAlertCooldowns.set(txFreezeTarget, now + ALERT_COOLDOWN_MS);
     }
-  }
-}
 
     // Broadcast prison list
     const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
@@ -494,11 +554,17 @@ if (!outcome.isCaught) {
       removeFromOnlineList(oldDisplayName);
       await markPlayerAsDead(db, p, email, oldDisplayName, io);
       socket.emit('player-died');
+      
+      try {
+        await clearCrimeFreezeForPlayer(db, email, true);
+      } catch (e) {
+        console.error('[LOOT] Failed to clear freeze on player death:', e);
+      }
     }
 
   } catch (error) {
     if (error.message === 'On cooldown') return;
-    if (error.message === 'In prison') return; // Silent or you can emit a message here
+    if (error.message === 'In prison') return;
 
     console.error('[OPERATION ERROR]', error);
     socket.emit('error', { message: 'Operation failed. Please try again.' });
