@@ -12,6 +12,16 @@ function registerRespawnHandler(socket, { db, normalLocations, getRankTitle, cle
     if (p.dead) {
       const oldName = p.displayName;
 
+      if (oldName && cleanupJusticeDecisionsForDeadCriminal) {
+    cleanupJusticeDecisionsForDeadCriminal(oldName, { 
+      db, 
+      onlineSockets: {}, // we don't have onlineSockets here, but the function handles missing sockets gracefully
+      io: null,
+      lootDecisionWindows: new Map(),
+      crimeWitnessOpportunities: new Map()
+    }).catch(console.error);
+  }
+
       if (oldName) {
         // Save dead profile snapshot
         const deadProfile = {

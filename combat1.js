@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const { logTransaction, getRankTitle, clearCrimeFreezeForPlayer } = require('./utils');
+const { logTransaction, getRankTitle } = require('./utils');
 const { getAllHospitalOwnership } = require('./hospital_research');
 
 // ==================== HELPER FUNCTIONS (pure math, no DB) ====================
@@ -34,7 +34,7 @@ function calculateBulletsNeeded(p, o, k) {
 }
 
 // ==================== HELPER: Save dead profile & mark name used + RELEASE HOSPITALS ====================
-async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, io = null, lootDecisionWindows = null) {
+async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, io = null) {
   if (!targetDisplayName) return;
 
   // Save snapshot for dead profile
@@ -89,46 +89,6 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, 
   }
 
   console.log(`[DEATH] ${targetDisplayName} marked as dead and all assets released`);
-
-  // ==================== DEATH GUARD: Clean up any active justice/loot decisions ====================
-if (targetDisplayName) {
-  try {
-    // 1. If this dead player was a CRIMINAL in a justice decision → unfreeze their loot
-        await clearCrimeFreezeForPlayer(db, targetEmail, true);
-
-    // 2. If this dead player was a WITNESS who had a pending loot decision → clear it from their DB
-    await db.collection('players').doc(targetEmail).update({
-      pendingLootDecision: admin.firestore.FieldValue.delete()
-    }).catch(() => {
-      // Ignore error if field didn't exist
-    });
-
-    console.log(`[DEATH GUARD] Cleaned justice state for dead player: ${targetDisplayName}`);
-
-    // === If this dead player was a WITNESS with an active loot decision ===
-    // Clean up the in-memory map, cancel the 6-second timer, and immediately unfreeze the criminal.
-    // This prevents the criminal from staying frozen until the timer fires or disconnect happens.
-    // (Adapted from the socket 'disconnect' handler logic in server.js)
-    if (lootDecisionWindows && targetDisplayName) {
-      const decision = lootDecisionWindows.get(targetDisplayName);
-      if (decision) {
-        if (decision.timeoutId) {
-          clearTimeout(decision.timeoutId);
-          console.log(`[DEATH GUARD] Cancelled pending loot decision timeout for dead witness ${targetDisplayName}`);
-        }
-        if (decision.perpetrator) {
-          clearCrimeFreezeForPlayer(db, decision.perpetrator).catch(err => {
-            console.error(`[DEATH GUARD] Failed to unfreeze criminal ${decision.perpetrator} after witness ${targetDisplayName} died:`, err);
-          });
-          console.log(`[DEATH GUARD] Unfroze criminal ${decision.perpetrator} because witness ${targetDisplayName} died`);
-        }
-        lootDecisionWindows.delete(targetDisplayName);
-      }
-    }
-  } catch (err) {
-    console.error('[DEATH GUARD ERROR]', err);
-  }
-}
 }
 
 // ==================== MAIN HANDLER ====================
@@ -206,7 +166,7 @@ async function handleKillAttempt(db, socket, data, deps) {
   }
 
   // Pay mobilizing cost
-  await logTransaction(socket, -10000, 'Mobilizing for Kill', attacker, attackerDocRef);
+  await logTransaction(socket, -10000, 'Mobilizing for Kill', p, docRef);   // p = playerData, docRef = the Firestore reference
   attacker.balance -= 10000;
 
   let success = false;
@@ -251,7 +211,7 @@ async function handleKillAttempt(db, socket, data, deps) {
       const hitDoc = hitQuery.docs[0];
       const hitData = hitDoc.data();
       attacker.balance += hitData.reward;
-      await logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`, attacker, attackerDocRef);
+      await logTransaction(socket, hitData.reward, `Bounty Claimed on ${data.target}`, p, docRef);   // p = playerData, docRef = the Firestore reference
       await hitDoc.ref.update({ active: false });
       socket.emit('hit-claimed', { target: data.target, reward: hitData.reward });
     }
@@ -265,13 +225,10 @@ async function handleKillAttempt(db, socket, data, deps) {
     attacker.bullets -= data.bullets;
   }
 
-    // Save attacker (bullets + kills only on success)
+  // Save attacker (bullets + kills)
   attacker.bullets = Math.max(0, attacker.bullets);
-
-  if (success) {
-    attacker.kills = (attacker.kills || 0) + 1;
-  }
-
+  await attackerDocRef.set(attacker);
+  attacker.kills = (attacker.kills || 0) + 1;
   await attackerDocRef.set(attacker);
 
   // Send result

@@ -285,6 +285,26 @@ _socketService.socket?.on('deliver-justice-result', (data) {
   }
 });
 
+_socketService.socket?.on('loot-decision-result', (data) {
+  if (data is Map<String, dynamic>) {
+    final bool success = data['success'] ?? false;
+    final String choice = data['choice'] ?? '';
+
+    String message;
+    if (success) {
+      message = (choice == 'take')
+          ? 'You took the stolen loot!'
+          : 'You returned the loot (it was destroyed).';
+    } else {
+      message = data['message'] ?? 'Something went wrong with your decision.';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+});
+
         // Trust the server's balanceAfter completely and update the notifier directly
     _socketService.socket?.on('new-transaction', (data) {
       if (data is Map) {

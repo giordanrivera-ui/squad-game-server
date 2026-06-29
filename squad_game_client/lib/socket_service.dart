@@ -755,6 +755,16 @@ void stopGlobalCourseCompletionWatcher() {
     socket?.emit('deliver-justice', { 'perpetrator': perpetrator });
   }
 
+  void decideLootFate(String perpetrator, String choice) {
+    // choice must be either 'take' or 'return'
+    if (socket != null) {
+      socket!.emit('decide-loot-fate', {
+        'perpetrator': perpetrator,
+        'choice': choice,
+      });
+    }
+  }
+
   void buyProperty(String name) => socket?.emit('buy-property', name);
 
   void buyUpgrade(String propertyName, String upgradeName) {

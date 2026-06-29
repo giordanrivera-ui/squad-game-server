@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'socket_service.dart';
 
 class DeliverJusticeOverlay extends StatefulWidget {
   final bool isWinner;
@@ -270,7 +271,8 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Return loot logic
+                    SocketService().decideLootFate(widget.perpetratorName, 'return');
+                    widget.onDismiss();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange[700],
@@ -283,7 +285,8 @@ class _DeliverJusticeOverlayState extends State<DeliverJusticeOverlay>
               Expanded(
                 child: ElevatedButton(
                   onPressed: () {
-                    // TODO: Take loot logic
+                    SocketService().decideLootFate(widget.perpetratorName, 'take');
+                    widget.onDismiss();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green[700],

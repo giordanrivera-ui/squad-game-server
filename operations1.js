@@ -588,8 +588,14 @@ opportunities.set(p.displayName, opportunityObj);
       removeFromOnlineList(oldDisplayName);
       await markPlayerAsDead(db, p, email, oldDisplayName, io);
       socket.emit('player-died');
-      // Note: The clearCrimeFreezeForPlayer call was removed here because
-      // markPlayerAsDead (in combat2.js) now handles it via its DEATH GUARD.
+
+      
+      
+      try {
+        await clearCrimeFreezeForPlayer(db, email, true);
+      } catch (e) {
+        console.error('[LOOT] Failed to clear freeze on player death:', e);
+      }
     }
 
   } catch (error) {
