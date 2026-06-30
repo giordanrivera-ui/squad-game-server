@@ -10,8 +10,6 @@ class AirportScreen extends StatefulWidget {
   final int currentHealth;
   final String currentTime;
   final int prisonEndTime;
-
-  // ==================== NEW PARAMETERS ====================
   final String time;
   final VoidCallback onMenuPressed;
 
@@ -87,229 +85,41 @@ class _AirportScreenState extends State<AirportScreen> {
             fit: BoxFit.cover,
           ),
         ),
-        child: Container(
-          color: const Color.fromARGB(255, 0, 0, 0).withOpacity(0.4),
-          child: _isInPrison
-            ? _buildPrisonView()
+        child: _isInPrison
+            ? Container(
+                // Dark overlay that covers behind the GameHeader's rounded corners
+                color: Colors.black.withOpacity(0.55),
+                child: Column(
+                  children: [
+                    GameHeader(
+                      statsNotifier: SocketService().statsNotifier,
+                      time: widget.time,
+                      onMenuPressed: widget.onMenuPressed,
+                    ),
+                    Expanded(
+                      child: SafeArea(
+                        top: false,
+                        child: _buildPrisonView(),
+                      ),
+                    ),
+                  ],
+                ),
+              )
             : Column(
                 children: [
-                  // ==================== GAME HEADER ====================
                   GameHeader(
                     statsNotifier: SocketService().statsNotifier,
                     time: widget.time,
                     onMenuPressed: widget.onMenuPressed,
                   ),
-
-                  // ==================== MAIN CONTENT ====================
                   Expanded(
                     child: SafeArea(
                       top: false,
-                      child: ValueListenableBuilder<Map<String, dynamic>>(
-                        valueListenable: SocketService().statsNotifier,
-                        builder: (context, currentStats, child) {
-                          final socketService = SocketService();
-                          final available = socketService.normalLocations
-                              .where((city) => city != currentStats['location'])
-                              .toList();
-
-                          final int? cost = _selectedDestination != null
-                              ? socketService.travelCosts[_selectedDestination!]
-                              : null;
-
-                          final bool canTravel = _selectedDestination != null &&
-                              cost != null &&
-                              (currentStats['balance'] ?? 0) >= cost;
-
-                          return Column(
-                            children: [
-                              // Current Location Header
-                              // ==================== TITLE WITH WHITE SEMI-TRANSPARENT BACKGROUND ====================
-Padding(
-  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-  child: Container(
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.90),
-      borderRadius: BorderRadius.circular(30),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.4),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        // Left spacer (helps center the text)
-        const SizedBox(width: 40),
-
-        // Centered Content
-        Expanded(
-          child: Center(
-            child: RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                children: [ 
-                  TextSpan(
-                    text:"NATIONAL", style: TextStyle( fontSize: 16, color: Color.fromARGB(220, 60, 60, 60)),
-                  ),
-                  TextSpan(
-                    text:"              .", style: TextStyle( fontSize: 16, color: Color.fromARGB(0, 60, 60, 60)),
-                  ),
-                  TextSpan(
-                    text: '\nAIRPORT\n', style: GoogleFonts.bebasNeue( fontSize: 52, fontWeight: FontWeight.w700, color: Color.fromARGB(220, 60, 60, 60), letterSpacing: 2.5, height: 1.1),
-                  ),
-                  TextSpan(
-                    text:"        OF ${(currentStats['location'] ?? widget.currentLocation).toUpperCase()}", style: const TextStyle( fontSize: 16, color: Color.fromARGB(220, 30, 30, 30), letterSpacing: 0.5, height: 0.75),
-                  ),
-                ],
-              ),
-            ),
-          )
-        ),
-
-        // Right spacer (for visual balance)
-        const SizedBox(width: 40),
-      ],
-    ),
-  ),
-),
-
-                              // ==================== DESTINATION CARDS ====================
-Expanded(
-  child: ListView.builder(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    itemCount: available.length,
-    itemBuilder: (context, index) {
-      final city = available[index];
-      final cityCost = socketService.travelCosts[city] ?? 0;
-      final bool isSelected = _selectedDestination == city;
-
-      return GestureDetector(
-        onTap: () {
-          setState(() => _selectedDestination = city);
-        },
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? Colors.orange.withOpacity(0.15) 
-                : Colors.white.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? Colors.orange : Colors.grey.shade300,
-              width: isSelected ? 2.5 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // City Icon
-              Icon(
-                Icons.flight_takeoff,
-                size: 32,
-                color: isSelected ? Colors.orange : Colors.grey.shade700,
-              ),
-              const SizedBox(width: 16),
-
-              // City Name + Cost
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      city,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.orange.shade800 : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Flight Cost: \$$cityCost',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isSelected ? Colors.orange.shade700 : Colors.grey.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Selection Indicator
-              if (isSelected)
-                const Icon(
-                  Icons.check_circle,
-                  color: Colors.orange,
-                  size: 28,
-                ),
-            ],
-          ),
-        ),
-      );
-    },
-  ),
-),
-
-                              // Bottom Section
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    if (_selectedDestination != null)
-                                      Text(
-                                        'Flight to $_selectedDestination costs \$${cost}',
-                                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
-                                      )
-                                    else
-                                      const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.white70)),
-
-                                    const SizedBox(height: 12),
-
-                                    if (_selectedDestination == null)
-                                      const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
-                                    else if (cost! > (currentStats['balance'] ?? widget.currentBalance))
-                                      const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
-                                    else
-                                      const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
-
-                                    const SizedBox(height: 20),
-
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton(
-                                        onPressed: canTravel ? _travel : null,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: canTravel ? Colors.green : Colors.grey,
-                                          padding: const EdgeInsets.symmetric(vertical: 18),
-                                        ),
-                                        child: const Text(
-                                          '✈️ TRAVEL NOW ✈️',
-                                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
+                      child: _buildMainContent(),
                     ),
                   ),
                 ],
               ),
-        )
       ),
     );
   }
@@ -339,6 +149,213 @@ Expanded(
           ),
         ],
       ),
+    );
+  }
+
+  // ==================== MAIN AIRPORT CONTENT ====================
+  Widget _buildMainContent() {
+    return ValueListenableBuilder<Map<String, dynamic>>(
+      valueListenable: SocketService().statsNotifier,
+      builder: (context, currentStats, child) {
+        final socketService = SocketService();
+        final available = socketService.normalLocations
+            .where((city) => city != currentStats['location'])
+            .toList();
+
+        final int? cost = _selectedDestination != null
+            ? socketService.travelCosts[_selectedDestination!]
+            : null;
+
+        final bool canTravel = _selectedDestination != null &&
+            cost != null &&
+            (currentStats['balance'] ?? 0) >= cost;
+
+        return Column(
+          children: [
+            // ==================== TITLE ====================
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.90),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 40),
+                    Expanded(
+                      child: Center(
+                        child: RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: "NATIONAL",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Color.fromARGB(220, 60, 60, 60),
+                                ),
+                              ),
+                              TextSpan(
+                    text:"              .", style: TextStyle( fontSize: 16, color: Color.fromARGB(0, 60, 60, 60)),
+                  ),
+                              TextSpan(
+                                text: '\nAIRPORT\n',
+                                style: GoogleFonts.bebasNeue(
+                                  fontSize: 52,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color.fromARGB(220, 60, 60, 60),
+                                  letterSpacing: 2.5,
+                                  height: 1.1,
+                                ),
+                              ),
+                              TextSpan(
+                                text: "        OF ${(currentStats['location'] ?? widget.currentLocation).toUpperCase()}",
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Color.fromARGB(220, 30, 30, 30),
+                                  letterSpacing: 0.5,
+                                  height: 0.75,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 40),
+                  ],
+                ),
+              ),
+            ),
+
+            // ==================== DESTINATION CARDS ====================
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: available.length,
+                itemBuilder: (context, index) {
+                  final city = available[index];
+                  final cityCost = socketService.travelCosts[city] ?? 0;
+                  final bool isSelected = _selectedDestination == city;
+
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedDestination = city);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.orange.withOpacity(0.15)
+                            : Colors.white.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? Colors.orange : Colors.grey.shade300,
+                          width: isSelected ? 2.5 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.flight_takeoff,
+                            size: 32,
+                            color: isSelected ? Colors.orange : Colors.grey.shade700,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  city,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected ? Colors.orange.shade800 : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Flight Cost: \$$cityCost',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: isSelected ? Colors.orange.shade700 : Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(Icons.check_circle, color: Colors.orange, size: 28),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // ==================== BOTTOM SECTION ====================
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  if (_selectedDestination != null)
+                    Text(
+                      'Flight to $_selectedDestination costs \$${cost}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange),
+                    )
+                  else
+                    const Text('Pick a city above 👆', style: TextStyle(fontSize: 18, color: Colors.white70)),
+
+                  const SizedBox(height: 12),
+
+                  if (_selectedDestination == null)
+                    const Text('Please select a destination', style: TextStyle(color: Colors.red, fontSize: 16))
+                  else if (cost! > (currentStats['balance'] ?? widget.currentBalance))
+                    const Text('Not enough money!', style: TextStyle(color: Colors.red, fontSize: 16))
+                  else
+                    const Text('Ready to fly! ✈️', style: TextStyle(color: Colors.green, fontSize: 16)),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: canTravel ? _travel : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canTravel ? Colors.green : Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                      ),
+                      child: const Text(
+                        '✈️ TRAVEL NOW ✈️',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

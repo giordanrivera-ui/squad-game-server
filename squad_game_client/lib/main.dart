@@ -576,7 +576,10 @@ Widget build(BuildContext context) {
                   time: time,
                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),)
                   : _currentScreen == 2 
-                      ? MessagesScreen()
+                      ? MessagesScreen(
+                        time: time,
+                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                      )
                       : _currentScreen == 3 
                           ? AirportScreen(
                               currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
@@ -631,7 +634,8 @@ Widget build(BuildContext context) {
                                                   onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                                 )
                                               : _currentScreen == 10 
-                                                  ? const KillPlayerScreen()
+                                                  ? KillPlayerScreen(time: time,
+                                                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),)
                                                   : _currentScreen == 11 
                                                       ? HallOfFameScreen(
                                                         time: time,

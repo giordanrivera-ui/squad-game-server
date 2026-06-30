@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'socket_service.dart';
-import 'status_app_bar.dart';
+import 'game_header.dart';
 
 class WeaponsPage extends StatefulWidget {
   final int currentBalance;
   final int currentHealth;
   final String currentTime;
   final String currentLocation;
+  final String time;
 
   const WeaponsPage({
     super.key,
@@ -14,6 +15,7 @@ class WeaponsPage extends StatefulWidget {
     required this.currentHealth,
     required this.currentTime,
     required this.currentLocation,
+    required this.time,
   });
 
   @override
@@ -34,7 +36,6 @@ class _WeaponsPageState extends State<WeaponsPage> {
     _currentBalance = widget.currentBalance;
     _currentHealth = widget.currentHealth;
 
-    // Request weapons from server (now authoritative)
     SocketService().requestWeapons();
 
     SocketService().socket?.on('update-stats', _handleStatsUpdate);
@@ -52,8 +53,6 @@ class _WeaponsPageState extends State<WeaponsPage> {
 
   void _handleWeaponsList(dynamic data) {
     if (data is List && mounted) {
-      // Weapons are now server-controlled - we can store them if needed
-      // For now we just trigger rebuild (you can add a notifier later if you want)
       setState(() {});
     }
   }
@@ -65,7 +64,6 @@ class _WeaponsPageState extends State<WeaponsPage> {
     super.dispose();
   }
 
-  // Use server weapons list (live)
   List<Map<String, dynamic>> get _weapons => SocketService().weaponListNotifier.value;
 
   void _updateTotal() {
@@ -97,7 +95,9 @@ class _WeaponsPageState extends State<WeaponsPage> {
 
     SocketService().purchaseWeapons(purchased, _totalCost);
 
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Weapons purchased!')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Weapons purchased!')),
+    );
 
     setState(() {
       _checked.clear();
@@ -112,7 +112,14 @@ class _WeaponsPageState extends State<WeaponsPage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
         ),
         ...items.map((item) {
           final key = item['name'] as String;
@@ -120,6 +127,7 @@ class _WeaponsPageState extends State<WeaponsPage> {
           final quantity = _quantities[key] ?? 1;
 
           return Card(
+            color: Colors.grey[850],
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(
@@ -140,10 +148,22 @@ class _WeaponsPageState extends State<WeaponsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text('Cost: ${item['cost']}'),
+                        Text(
+                          item['name'] as String,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Cost: ${item['cost']}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                         const SizedBox(height: 4),
-                        Text(item['description'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(
+                          item['description'] as String,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
                       ],
                     ),
                   ),
@@ -151,15 +171,20 @@ class _WeaponsPageState extends State<WeaponsPage> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.remove),
-                          onPressed: quantity > 1 ? () {
-                            setState(() => _quantities[key] = quantity - 1);
-                            _updateTotal();
-                          } : null,
+                          icon: const Icon(Icons.remove, color: Colors.white),
+                          onPressed: quantity > 1
+                              ? () {
+                                  setState(() => _quantities[key] = quantity - 1);
+                                  _updateTotal();
+                                }
+                              : null,
                         ),
-                        Text('$quantity'),
+                        Text(
+                          '$quantity',
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                         IconButton(
-                          icon: const Icon(Icons.add),
+                          icon: const Icon(Icons.add, color: Colors.white),
                           onPressed: () {
                             setState(() => _quantities[key] = quantity + 1);
                             _updateTotal();
@@ -181,62 +206,94 @@ class _WeaponsPageState extends State<WeaponsPage> {
     final canPurchase = _totalCost > 0 && _currentBalance >= _totalCost;
 
     return Scaffold(
-      appBar: StatusAppBar(
-        title: 'Weapons',
-        statsNotifier: SocketService().statsNotifier,
-        time: widget.currentTime,
-        onMenuPressed: () => Navigator.pop(context),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _weapons.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    padding: const EdgeInsets.all(16),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/background.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Column(
+          children: [
+            // ==================== GAME HEADER ====================
+            GameHeader(
+              statsNotifier: SocketService().statsNotifier,
+              time: widget.time,
+              onMenuPressed: () => Navigator.pop(context),
+            ),
+
+            // ==================== CONTENT ====================
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  color: Colors.black.withOpacity(0.2),
+                  child: Column(
                     children: [
-                      _buildSection('Weapons', _weapons),
+                      Expanded(
+                        child: _weapons.isEmpty
+                            ? const Center(child: CircularProgressIndicator())
+                            : ListView(
+                                padding: const EdgeInsets.all(16),
+                                children: [
+                                  _buildSection('Weapons', _weapons),
+                                ],
+                              ),
+                      ),
+
+                      // ==================== BOTTOM PURCHASE BAR ====================
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(10,10,10,10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[900],
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: const Offset(0, -3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Total Cost: \$$_totalCost',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed: canPurchase ? _purchaseItems : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: canPurchase ? Colors.green : Colors.grey,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Purchase Items',
+                                    style: TextStyle(fontSize: 20, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ),
                     ],
                   ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, -3),
                 ),
-              ],
-            ),
-            child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Total Cost: $_totalCost', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: canPurchase ? _purchaseItems : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: canPurchase ? Colors.green : Colors.grey,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Purchase items', style: TextStyle(fontSize: 20)),
-                    ),
-                  ),
-                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -42,6 +42,7 @@ class StoreScreen extends StatelessWidget {
                 currentHealth: currentHealth,
                 currentTime: currentTime,
                 currentLocation: currentLocation,
+                time: time,
               ),
             ),
           );

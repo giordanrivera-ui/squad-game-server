@@ -4,9 +4,17 @@ import 'socket_service.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'game_header.dart';
 
 class KillPlayerScreen extends StatefulWidget {
-  const KillPlayerScreen({super.key});
+  final String time;
+  final VoidCallback onMenuPressed;
+
+  const KillPlayerScreen({
+    super.key,
+    required this.time,
+    required this.onMenuPressed,
+  });
 
   @override
   State<KillPlayerScreen> createState() => _KillPlayerScreenState();
@@ -21,14 +29,12 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   String? _selectedTarget;
   int _bullets = 0;
 
-  // NEW: Hitlist mode
   bool _isHitlistMode = false;
   List<Map<String, dynamic>> _hitlist = [];
+  Timer? _hitlistTimer;
 
-  Timer? _hitlistTimer;  // NEW: For updating remaining time every second
-  
   void _onHitlistUpdate(dynamic data) {
-    _loadHitlist();  // Reload the list from Firestore
+    _loadHitlist();
   }
 
   @override
@@ -39,9 +45,8 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     _loadHitlist();
     SocketService().socket?.on('hitlist-update', _onHitlistUpdate);
 
-    // NEW: Start timer to update remaining time every second
     _hitlistTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _hitlist.isNotEmpty) setState(() {});  // Refresh UI if hitlist not empty
+      if (mounted && _hitlist.isNotEmpty) setState(() {});
     });
   }
 
@@ -51,12 +56,11 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     _bulletsController.dispose();
     SocketService().socket?.off('kill-result', _handleKillResult);
     SocketService().socket?.off('hit-claimed', _handleHitClaimed);
-    _hitlistTimer?.cancel();  // NEW: Cancel timer
+    _hitlistTimer?.cancel();
     SocketService().socket?.off('hitlist-update', _onHitlistUpdate);
     super.dispose();
   }
 
-  // Load live hitlist from Firestore
   Future<void> _loadHitlist() async {
     final snap = await FirebaseFirestore.instance
         .collection('hitlist')
@@ -95,11 +99,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
         'displayName': doc.data()['displayName'],
       }).toList();
       _isSearching = false;
-      if (_searchResults.isEmpty) {
-        _searchError = 'No alive players found.';  // Set error if empty
-      } else {
-        _searchError = '';  // Clear if results
-      }
+      _searchError = _searchResults.isEmpty ? 'No alive players found.' : '';
     });
   }
 
@@ -117,36 +117,29 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   void _showBountyDialog(String target) {
     final rewardController = TextEditingController();
-    String selectedOption = '5 Minutes';  // Default
+    String selectedOption = '5 Minutes';
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Place Bounty on $target', style: TextStyle(color: Colors.white),),
+        title: Text('Place Bounty on $target'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: rewardController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Reward Amount (\$)', hintStyle: TextStyle(color: Colors.white)),
-              inputFormatters: [ThousandsFormatter()], // NEW: Add formatter for commas
+              decoration: const InputDecoration(labelText: 'Reward Amount (\$)'),
+              inputFormatters: [ThousandsFormatter()],
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: selectedOption,
-              items: [
-                '5 Minutes',
-                '1 Day',
-                '2 Days',
-                '3 Days',
-                '4 Days',
-                '5 Days',
-                '6 Days',
-                '7 Days'
-              ].map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
+              items: ['5 Minutes', '1 Day', '2 Days', '3 Days', '4 Days', '5 Days', '6 Days', '7 Days']
+                  .map((opt) => DropdownMenuItem(value: opt, child: Text(opt)))
+                  .toList(),
               onChanged: (v) => selectedOption = v!,
-              decoration: const InputDecoration(labelText: 'Duration', hintStyle: TextStyle(color: Colors.white)),
+              decoration: const InputDecoration(labelText: 'Duration'),
             ),
           ],
         ),
@@ -154,25 +147,22 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              final cleanReward = rewardController.text.replaceAll(',', ''); // NEW: Remove commas before parsing
+              final cleanReward = rewardController.text.replaceAll(',', '');
               final reward = int.tryParse(cleanReward) ?? 0;
+
               if (reward >= 1000) {
-                int durationMinutes;
-                if (selectedOption == '5 Minutes') {
-                  durationMinutes = 5;
-                } else {
-                  final days = int.parse(selectedOption.split(' ')[0]);
-                  durationMinutes = days * 1440;  // 24 * 60
-                }
+                final days = selectedOption == '5 Minutes' 
+                    ? 0 
+                    : int.parse(selectedOption.split(' ')[0]);
+                final durationMinutes = selectedOption == '5 Minutes' ? 5 : days * 1440;
+
                 SocketService().placeHit(target, reward, durationMinutes);
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Bounty placed on $target!')),
                 );
-                _searchController.clear(); // NEW: Clear the search bar after submitting
-                setState(() {
-                  _searchResults = []; // NEW: Clear the search results after submitting
-                });
+                _searchController.clear();
+                setState(() => _searchResults = []);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Minimum bounty is \$1000')),
@@ -214,10 +204,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                 ),
               ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
@@ -226,12 +213,9 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
   String _getEquippedWeaponImage() {
     final equipped = SocketService().statsNotifier.value['weapon'];
     if (equipped == null) return 'assets/weapon-empty.jpg';
-
-    final name = equipped['name'] as String;
-    return 'assets/$name.jpg';
+    return 'assets/${equipped['name']}.jpg';
   }
 
-  // Handle normal kill result
   void _handleKillResult(dynamic data) {
     if (data is Map && mounted) {
       final bool success = data['success'] ?? false;
@@ -247,7 +231,6 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     }
   }
 
-  // Handle bounty claimed notification
   void _handleHitClaimed(dynamic data) {
     if (data is Map && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -256,18 +239,15 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     }
   }
 
-  // NEW: Attempt kill on button click
   void _attemptKill() {
     if (_selectedTarget == null) return;
 
-    // Emit to server (server will calculate/validate)
     SocketService().socket?.emit('attempt-kill', {
       'target': _selectedTarget,
       'bullets': _bullets,
     });
   }
 
-  // NEW: Format remaining time as HHH:MM:SS
   String _formatRemainingTime(int endTimeMs) {
     final remainingMs = endTimeMs - DateTime.now().millisecondsSinceEpoch;
     if (remainingMs <= 0) return '00:00:00';
@@ -280,174 +260,222 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/background.jpg'),
-          fit: BoxFit.cover,
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/background.jpg'),
+            fit: BoxFit.cover,
+          ),
         ),
-      ),
-      child: Container(
-        color: Colors.black.withOpacity(0.2), // Dark overlay
-        child: ValueListenableBuilder<Map<String, dynamic>>(
-          valueListenable: SocketService().statsNotifier,
-          builder: (context, stats, child) {
-            final balance = stats['balance'] ?? 0;
-            final ownBullets = stats['bullets'] ?? 0;
-            final equippedWeapon = stats['weapon'];
-            final o = equippedWeapon?['power'] ?? 0;
-            final hasWeapon = o > 0;
-            final canKill = _selectedTarget != null && 
-                            _bullets > 0 && 
-                            _bullets <= ownBullets && 
-                            balance >= 10000 && 
-                            hasWeapon;
+        child: Column(
+          children: [
+            // ==================== GAME HEADER ====================
+            GameHeader(
+              statsNotifier: SocketService().statsNotifier,
+              time: widget.time,
+              onMenuPressed: widget.onMenuPressed,
+            ),
 
-            return Column(
-              children: [
-                // HITLIST SECTION
-                Container(
-                  width: MediaQuery.of(context).size.width,
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-                  color: Colors.red[50],
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('HITLIST', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-                      const SizedBox(height: 8),
-                      if (_hitlist.isEmpty)
-                        const Text('No active hits right now.', style: TextStyle(color: Colors.grey))
-                      else
-                        ..._hitlist.map((hit) => ListTile(
-                              title: Text(hit['target'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: Row(
+            // ==================== CONTENT ====================
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  color: Colors.black.withOpacity(0.2),
+                  child: ValueListenableBuilder<Map<String, dynamic>>(
+                    valueListenable: SocketService().statsNotifier,
+                    builder: (context, stats, child) {
+                      final balance = stats['balance'] ?? 0;
+                      final ownBullets = stats['bullets'] ?? 0;
+                      final equippedWeapon = stats['weapon'];
+                      final hasWeapon = (equippedWeapon?['power'] ?? 0) > 0;
+
+                      final canKill = _selectedTarget != null &&
+                          _bullets > 0 &&
+                          _bullets <= ownBullets &&
+                          balance >= 10000 &&
+                          hasWeapon;
+
+                      return Column(
+                        children: [
+                          // HITLIST SECTION
+                          // ==================== HITLIST SECTION (with rounded corners) ====================
+Padding(
+  padding: const EdgeInsets.all(16.0),
+  child: Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+    decoration: BoxDecoration(
+      color: const Color.fromARGB(200, 255, 200, 210), // Slightly stronger pink
+      borderRadius: BorderRadius.circular(20),          // ← Rounded corners
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.15),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'HITLIST',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.red,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (_hitlist.isEmpty)
+          const Text(
+            'No active hits right now.',
+            style: TextStyle(color: Colors.grey),
+          )
+        else
+          ..._hitlist.map((hit) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  hit['target'],
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Row(
+                  children: [
+                    Text('\$${NumberFormat('#,###').format(hit['reward'])} reward '),
+                    Text('(${_formatRemainingTime(hit['endTime'])})'),
+                  ],
+                ),
+                trailing: const Icon(Icons.whatshot, color: Colors.red),
+              )),
+      ],
+    ),
+  ),
+),
+
+                          // Toggle + Search
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                const Text('Normal Kill', style: TextStyle(color: Colors.white, fontSize: 16)),
+                                Switch(
+                                  value: _isHitlistMode,
+                                  onChanged: (v) => setState(() => _isHitlistMode = v),
+                                ),
+                                const Text('Place Bounty', style: TextStyle(color: Colors.white, fontSize: 16)),
+                              ],
+                            ),
+                          ),
+
+                          // Search bar
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: const InputDecoration(
+                                labelText: 'Search player',
+                                labelStyle: TextStyle(color: Colors.white),
+                                border: OutlineInputBorder(),
+                              ),
+                              onSubmitted: _searchPlayers,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+
+                          if (_searchError.isNotEmpty)
+                            Center(child: Text(_searchError, style: const TextStyle(color: Colors.red))),
+
+                          if (_isSearching)
+                            const Center(child: CircularProgressIndicator())
+                          else if (_searchResults.isEmpty && _selectedTarget == null)
+                            const Center(child: Text('Search for a player above', style: TextStyle(color: Colors.white)))
+                          else if (_selectedTarget == null)
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: _searchResults.length,
+                                itemBuilder: (context, index) {
+                                  final name = _searchResults[index]['displayName'] as String;
+                                  return ListTile(
+                                    title: Text(name, style: const TextStyle(color: Colors.white)),
+                                    onTap: () => _selectPlayer(name),
+                                  );
+                                },
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('\$${NumberFormat('#,###').format(hit['reward'])} reward '),
-                                  Text('(${_formatRemainingTime(hit['endTime'])})'),
+                                  Text('Target: $_selectedTarget', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 20),
+                                  const Text('Bullets to Use:', style: TextStyle(color: Colors.white)),
+                                  TextField(
+                                    controller: _bulletsController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      border: OutlineInputBorder(),
+                                      hintText: 'Enter number of bullets',
+                                      hintStyle: TextStyle(color: Colors.white),
+                                    ),
+                                    onChanged: (value) => setState(() => _bullets = int.tryParse(value) ?? 0),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  if (_bullets == 0)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 8),
+                                      child: Text('Enter bullets to proceed.', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  const SizedBox(height: 20),
+                                  const Text('Equipped Weapon:', style: TextStyle(color: Colors.white)),
+                                  GestureDetector(
+                                    onTap: _showWeaponInventory,
+                                    child: Container(
+                                      width: double.infinity,
+                                      height: 100,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Image.asset(
+                                        _getEquippedWeaponImage(),
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
+                                  if (!hasWeapon)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 8),
+                                      child: Text('You need to equip a weapon.', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  const SizedBox(height: 20),
+                                  ElevatedButton(
+                                    onPressed: canKill ? _attemptKill : null,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: canKill ? Colors.red : Colors.grey,
+                                      minimumSize: const Size(double.infinity, 50),
+                                    ),
+                                    child: const Text('Kill Player'),
+                                  ),
+                                  if (balance < 10000)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 8),
+                                      child: Text('Need at least \$10,000 for mobilizing costs.', style: TextStyle(color: Colors.red)),
+                                    ),
                                 ],
                               ),
-                              trailing: const Icon(Icons.whatshot, color: Colors.red),
-                            )),
-                    ],
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
-
-                // Toggle + Search
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Text('Normal Kill', style: TextStyle(color: Colors.white, fontSize: 16)),
-                      Switch(
-                        value: _isHitlistMode,
-                        onChanged: (v) => setState(() => _isHitlistMode = v),
-                      ),
-                      const Text('Place Bounty', style: TextStyle(color: Colors.white, fontSize: 16)),
-                    ],
-                  ),
-                ),
-
-                // Search bar
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(labelText: 'Search player', labelStyle: TextStyle(color: Colors.white),border: OutlineInputBorder()),
-                    onSubmitted: _searchPlayers,
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-
-                if (_searchError.isNotEmpty)
-                  Center(child: Text(_searchError, style: const TextStyle(color: Colors.red))),
-
-                if (_isSearching)
-                  const Center(child: CircularProgressIndicator())
-                else if (_searchResults.isEmpty && _selectedTarget == null)
-                  const Center(child: Text('Search for a player above', style: TextStyle(color: Colors.white),))
-                else if (_selectedTarget == null)
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _searchResults.length,
-                      itemBuilder: (context, index) {
-                        final player = _searchResults[index];
-                        final name = player['displayName'] as String;
-                        return ListTile(
-                          title: Text(name, style: TextStyle(color: Colors.white),),
-                          onTap: () => _selectPlayer(name),
-                        );
-                      },
-                    ),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Target: $_selectedTarget', style: const TextStyle(color: Colors.white,fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 20),
-                        const Text('Bullets to Use:', style: TextStyle(color: Colors.white),),
-                        TextField(
-                          controller: _bulletsController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Enter number of bullets', hintStyle: TextStyle(color: Colors.white)),
-                          onChanged: (value) => setState(() => _bullets = int.tryParse(value) ?? 0),
-                          style: TextStyle(color: Colors.white)
-                        ),
-                        if (_bullets == 0)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Text('Enter bullets to proceed.', style: TextStyle(color: Colors.red)),
-                          ),
-                        const SizedBox(height: 20),
-                        const Text('Equipped Weapon:',style: TextStyle(color: Colors.white)),
-                        GestureDetector(
-                          onTap: _showWeaponInventory,
-                          child: Container(
-                            width: double.infinity,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Image.asset(
-                              _getEquippedWeaponImage(),
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                        if (!hasWeapon)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Text(
-                              'You need to equip a weapon.',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: canKill ? _attemptKill : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: canKill ? Colors.red : Colors.grey,
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                          child: const Text('Kill Player'),
-                        ),
-                        if (balance < 10000)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Text(
-                              'Need at least \$10,000 for mobilizing costs.',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            );
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -460,7 +488,7 @@ class ThousandsFormatter extends TextInputFormatter {
     if (newValue.text.isEmpty) return newValue;
 
     final clean = newValue.text.replaceAll(',', '');
-    if (!RegExp(r'^\d+$').hasMatch(clean)) return oldValue; // Only allow digits
+    if (!RegExp(r'^\d+$').hasMatch(clean)) return oldValue;
 
     final numValue = int.parse(clean);
     final formatted = NumberFormat('#,###').format(numValue);
