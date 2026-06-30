@@ -534,32 +534,32 @@ Widget build(BuildContext context) {
         },
         child: Scaffold(
           key: _scaffoldKey,
-          appBar: _currentScreen == 0 
-              ? null 
-              : StatusAppBar(
-                  title: _currentScreen == 1 
-                      ? 'Players Online' 
-                      : _currentScreen == 2 
-                          ? 'Messages' 
-                          : _currentScreen == 3 
-                              ? '✈️ Airport' 
-                              : _currentScreen == 4 
-                                  ? '🏥 Hospital'
-                                  : _currentScreen == 5 
-                                      ? 'Operations'
-                                      : _currentScreen == 6 
-                                          ? 'Profile'
-                                          : _currentScreen == 7 
-                                              ? 'Store'
-                                              : _currentScreen == 12 
-        ? 'Businesses'
-        : _currentScreen == 13
-            ? 'Fitness Center'
-            : 'Businesses',
-                  statsNotifier: _socketService.statsNotifier,
-                  time: time,
-                  onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
+        //   appBar: _currentScreen == 0 
+        //       ? null 
+        //       : StatusAppBar(
+        //           title: _currentScreen == 1 
+        //               ? 'Players Online' 
+        //               : _currentScreen == 2 
+        //                   ? 'Messages' 
+        //                   : _currentScreen == 3 
+        //                       ? '✈️ Airport' 
+        //                       : _currentScreen == 4 
+        //                           ? '🏥 Hospital'
+        //                           : _currentScreen == 5 
+        //                               ? 'Operations'
+        //                               : _currentScreen == 6 
+        //                                   ? 'Profile'
+        //                                   : _currentScreen == 7 
+        //                                       ? 'Store'
+        //                                       : _currentScreen == 12 
+        // ? 'Businesses'
+        // : _currentScreen == 13
+        //     ? 'Fitness Center'
+        //     : 'Businesses',
+        //           statsNotifier: _socketService.statsNotifier,
+        //           time: time,
+        //           onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        //         ),
           drawer: Sidebar(
             currentScreen: _currentScreen,
             onScreenChanged: (screen) {
@@ -572,7 +572,9 @@ Widget build(BuildContext context) {
           body: _currentScreen == 0 
               ? _buildDashboard() 
               : _currentScreen == 1 
-                  ? OnlinePlayersScreen(onlinePlayers: onlinePlayers)
+                  ? OnlinePlayersScreen(onlinePlayers: onlinePlayers,
+                  time: time,
+                  onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),)
                   : _currentScreen == 2 
                       ? MessagesScreen()
                       : _currentScreen == 3 
@@ -582,9 +584,11 @@ Widget build(BuildContext context) {
                               currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                               currentTime: time,
                               prisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
+                              time: time,
+                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                             )
                           : _currentScreen == 4 
-                              ? HospitalScreen()
+                              ? HospitalScreen( time: time, onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),)
                               : _currentScreen == 5 
                                   ? OperationsScreen(
                                       currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
@@ -598,6 +602,8 @@ Widget build(BuildContext context) {
                                       skill: _socketService.statsNotifier.value['skill'] ?? 0,
                                       hasEnhancedStamina: _socketService.statsNotifier.value['enhancedStaminaEndTime'] != null &&
                                           (_socketService.statsNotifier.value['enhancedStaminaEndTime'] as int) > SocketService().currentServerTime,
+                                      time: time,
+                                      onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                     )
                                   : _currentScreen == 6 
                                       ? ProfileScreen(
@@ -605,6 +611,8 @@ Widget build(BuildContext context) {
                                             ..._socketService.statsNotifier.value,
                                             'balance': (_socketService.statsNotifier.value['balance'] ?? 0).toInt(),
                                           },
+                                          time: time,
+                                          onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                         )
                                       : _currentScreen == 7 
                                           ? StoreScreen(
@@ -612,21 +620,32 @@ Widget build(BuildContext context) {
                                               currentHealth: _socketService.statsNotifier.value['health'] ?? 100,
                                               currentTime: time,
                                               currentLocation: _socketService.statsNotifier.value['location'] ?? 'Unknown',
+                                              time: time,
+                                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                             )
                                           : _currentScreen == 9 
                                               ? PrisonScreen(
                                                   currentDisplayName: FirebaseAuth.instance.currentUser?.displayName ?? '',
                                                   initialViewerPrisonEndTime: _socketService.statsNotifier.value['prisonEndTime'] ?? 0,
+                                                  time: time,
+                                                  onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                                 )
                                               : _currentScreen == 10 
                                                   ? const KillPlayerScreen()
                                                   : _currentScreen == 11 
-                                                      ? const HallOfFameScreen()
+                                                      ? HallOfFameScreen(
+                                                      )
                                                       : _currentScreen == 12 
-                                                          ? const BusinessesScreen()
+                                                          ? BusinessesScreen(
+                                                              time: time,
+                                                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                                                          )
                                                           : _currentScreen == 13
-                                                            ? const FitnessCenterScreen()
-                                                            : const BusinessesScreen(),
+                                                            ? FitnessCenterScreen( time: time, onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(), )
+                                                            : BusinessesScreen(
+                                                              time: time,
+                                                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                                                            ),
 
           floatingActionButton: _currentScreen == 2
               ? FloatingActionButton(

@@ -188,6 +188,7 @@ flutter:
     - assets/button_judo.jpg
     - assets/profile_border.png
     - assets/bank_card_bg.jpg
+    - assets/airport_bg.jpg
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'chat_screen.dart';
 import 'view_profile.dart';
 import 'socket_service.dart';
-import 'invite_to_special_op_screen.dart';   // ← NEW IMPORT
+import 'invite_to_special_op_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'game_header.dart';
 
 class OnlinePlayersScreen extends StatefulWidget {
   final List<String> onlinePlayers;
+  final String time;
+  final VoidCallback onMenuPressed;
 
   const OnlinePlayersScreen({
     super.key,
     required this.onlinePlayers,
+    required this.time,
+    required this.onMenuPressed,
   });
 
   @override
@@ -31,11 +36,17 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
 
   Future<void> _searchPlayers(String query) async {
     if (query.isEmpty) {
-      setState(() { _searchResults = []; _searchError = ''; });
+      setState(() {
+        _searchResults = [];
+        _searchError = '';
+      });
       return;
     }
 
-    setState(() { _isSearching = true; _searchError = ''; });
+    setState(() {
+      _isSearching = true;
+      _searchError = '';
+    });
 
     try {
       final searchLower = query.toLowerCase();
@@ -54,28 +65,37 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
 
       setState(() {
         _searchResults = [
-          ...playersQuery.docs.map((doc) => {'displayName': doc.data()['displayName'], 'type': 'alive'}),
-          ...deadQuery.docs.map((doc) => {'displayName': doc.data()['displayName'], 'type': 'dead'}),
+          ...playersQuery.docs.map((doc) => {
+                'displayName': doc.data()['displayName'],
+                'type': 'alive'
+              }),
+          ...deadQuery.docs.map((doc) => {
+                'displayName': doc.data()['displayName'],
+                'type': 'dead'
+              }),
         ];
         _isSearching = false;
         if (_searchResults.isEmpty) _searchError = 'No players found.';
       });
     } catch (e) {
-      setState(() { _searchError = 'Error searching: $e'; _isSearching = false; });
+      setState(() {
+        _searchError = 'Error searching: $e';
+        _isSearching = false;
+      });
     }
   }
 
   void _showPlayerMenu(BuildContext context, String name) {
     final stats = SocketService().statsNotifier.value;
     final String currentDisplayName = (stats['displayName'] ?? '').toString();
-    final bool hasActiveSpecialOp = 
-    (stats['activeSpecialOperation'] ?? '').toString().isNotEmpty;
+    final bool hasActiveSpecialOp =
+        (stats['activeSpecialOperation'] ?? '').toString().isNotEmpty;
     final bool isSelf = name == currentDisplayName;
 
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -85,9 +105,9 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
-                context, 
-                MaterialPageRoute(
-                  builder: (_) => ViewProfileScreen(displayName: name)));
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => ViewProfileScreen(displayName: name)));
             },
           ),
           ListTile(
@@ -96,11 +116,9 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
-                context, 
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(partner: name),
-                  ),
-                  );
+                context,
+                MaterialPageRoute(builder: (_) => ChatScreen(partner: name)),
+              );
             },
           ),
           if (hasActiveSpecialOp && !isSelf)
@@ -124,53 +142,101 @@ class _OnlinePlayersScreenState extends State<OnlinePlayersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              labelText: 'Search for players',
-              suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: () => _searchPlayers(_searchController.text)),
-              border: const OutlineInputBorder(),
-            ),
-            onSubmitted: _searchPlayers,
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/background.jpg'),
+            fit: BoxFit.cover,
           ),
         ),
-        if (_isSearching) const Center(child: CircularProgressIndicator()),
-        if (_searchError.isNotEmpty) Center(child: Text(_searchError)),
-        if (_searchResults.isNotEmpty)
-          Expanded(
-            child: ListView.builder(
-              itemCount: _searchResults.length,
-              itemBuilder: (context, index) {
-                final player = _searchResults[index];
-                final name = player['displayName'] as String;
-                final type = player['type'] as String;
-                final displayText = type == 'dead' ? '$name (Dead)' : name;
-                return ListTile(
-                  title: Text(displayText),
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewProfileScreen(displayName: name, isDead: type == 'dead'))),
-                );
-              },
+        child: Column(
+          children: [
+            // ==================== GAME HEADER ====================
+            GameHeader(
+              statsNotifier: SocketService().statsNotifier,
+              time: widget.time,
+              onMenuPressed: widget.onMenuPressed,
             ),
-          ),
-        const Divider(),
-        Expanded(
-          child: ListView.builder(
-            itemCount: widget.onlinePlayers.length,
-            itemBuilder: (context, index) {
-              final name = widget.onlinePlayers[index];
-              return ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: Text(name, style: const TextStyle(fontSize: 18)),
-                onTap: () => _showPlayerMenu(context, name),
-              );
-            },
-          ),
+
+            // ==================== CONTENT ====================
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  color: Colors.black.withOpacity(0.2),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            labelText: 'Search for players',
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.search),
+                              onPressed: () =>
+                                  _searchPlayers(_searchController.text),
+                            ),
+                            border: const OutlineInputBorder(),
+                          ),
+                          onSubmitted: _searchPlayers,
+                        ),
+                      ),
+                      if (_isSearching)
+                        const Center(child: CircularProgressIndicator()),
+                      if (_searchError.isNotEmpty)
+                        Center(child: Text(_searchError)),
+                      if (_searchResults.isNotEmpty)
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: _searchResults.length,
+                            itemBuilder: (context, index) {
+                              final player = _searchResults[index];
+                              final name = player['displayName'] as String;
+                              final type = player['type'] as String;
+                              final displayText =
+                                  type == 'dead' ? '$name (Dead)' : name;
+                              return ListTile(
+                                title: Text(displayText, style: TextStyle(color: const Color.fromARGB(188, 255, 255, 255)),),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ViewProfileScreen(
+                                      displayName: name,
+                                      isDead: type == 'dead',
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      const Divider(),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: widget.onlinePlayers.length,
+                          itemBuilder: (context, index) {
+                            final name = widget.onlinePlayers[index];
+                            return ListTile(
+                              leading: const Icon(Icons.person,
+                                  color: Colors.blue),
+                              title: Text(name,
+                                  style: const TextStyle(fontSize: 18, color: Color.fromARGB(166, 255, 255, 255))),
+                              onTap: () =>
+                                  _showPlayerMenu(context, name),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

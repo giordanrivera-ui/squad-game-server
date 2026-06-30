@@ -5,11 +5,19 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'socket_service.dart';
 import 'inventory_page.dart';
+import 'game_header.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> stats;
+  final String time;
+  final VoidCallback onMenuPressed;
 
-  const ProfileScreen({super.key, required this.stats});
+  const ProfileScreen({
+    super.key, 
+    required this.stats,
+    required this.time,
+    required this.onMenuPressed,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -270,13 +278,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fit: BoxFit.cover,
       ),
     ),
-    child: Container(
-      color: Colors.black.withOpacity(0.2),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Profile Picture + Info
+    child: Column(
+      children: [
+        // ==================== GAME HEADER ====================
+        GameHeader(
+          statsNotifier: SocketService().statsNotifier,
+          time: widget.time,
+          onMenuPressed: widget.onMenuPressed,
+        ),
+
+        // ==================== CONTENT ====================
+        Expanded(
+          child: SafeArea(
+            top: false,
+            child: Container(
+              color: Colors.black.withOpacity(0.2),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    // Profile Picture + Info
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -556,6 +577,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    ),
+  ),
+        )
+      ],
     ),
   )
     );

@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'socket_service.dart';
+import 'game_header.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class PrisonScreen extends StatefulWidget {
   final String currentDisplayName;
   final int initialViewerPrisonEndTime;
+  final String time;
+  final VoidCallback onMenuPressed;
 
   const PrisonScreen({
     super.key,
     required this.currentDisplayName,
     required this.initialViewerPrisonEndTime,
+    required this.time,
+    required this.onMenuPressed,
   });
 
   @override
@@ -86,40 +92,63 @@ class _PrisonScreenState extends State<PrisonScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final imprisonedPlayers = SocketService().imprisonedPlayersNotifier.value;
+Widget build(BuildContext context) {
+  final imprisonedPlayers = SocketService().imprisonedPlayersNotifier.value;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Prison'),
-        backgroundColor: Colors.red[900],
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/background.jpg'),
-            fit: BoxFit.cover,
-          ),
+  return Scaffold(
+    body: Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/background.jpg'),
+          fit: BoxFit.cover,
         ),
-        child: Container(
-          // Dark overlay for readability
-          color: Colors.black.withOpacity(0.2),
-          child: imprisonedPlayers.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.gavel, size: 80, color: Colors.grey),
-                      SizedBox(height: 20),
-                      Text(
-                        'The prison is currently empty.',
-                        style: TextStyle(fontSize: 20, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
+      ),
+      child: Column(
+        children: [
+          // ==================== GAME HEADER ====================
+          GameHeader(
+            statsNotifier: SocketService().statsNotifier,
+            time: widget.time,
+            onMenuPressed: widget.onMenuPressed,
+          ),
+
+          // ==================== TITLE ====================
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Center(
+              child: Text(
+                'PRISON',
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 3,
+                ),
+              ),
+            ),
+          ),
+
+          // ==================== CONTENT ====================
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Container(
+                color: Colors.black.withOpacity(0.2),
+                child: imprisonedPlayers.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.gavel, size: 80, color: Colors.grey),
+                            SizedBox(height: 20),
+                            Text(
+                              'The prison is currently empty.',
+                              style: TextStyle(fontSize: 20, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: imprisonedPlayers.length,
                   itemBuilder: (context, index) {
@@ -161,8 +190,12 @@ class _PrisonScreenState extends State<PrisonScreen> {
                     );
                   },
                 ),
-        ),
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

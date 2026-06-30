@@ -4,6 +4,8 @@ import 'dart:async';
 import 'operation_result_overlay.dart';
 import 'package:flutter/services.dart';
 import 'special_ops_tab.dart';
+import 'game_header.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class OperationsScreen extends StatefulWidget {
   final String currentLocation;
@@ -16,6 +18,8 @@ class OperationsScreen extends StatefulWidget {
   final int lastHighLevelOp;
   final int skill;
   final bool hasEnhancedStamina;
+  final String time;
+  final VoidCallback onMenuPressed;
 
   const OperationsScreen({
     super.key,
@@ -29,6 +33,8 @@ class OperationsScreen extends StatefulWidget {
     required this.lastHighLevelOp,
     required this.skill,
     this.hasEnhancedStamina = false,
+    required this.time,
+    required this.onMenuPressed,
   });
 
   @override
@@ -69,49 +75,46 @@ class _OperationsScreenState extends State<OperationsScreen>
   OverlayEntry? _operationResultOverlay;
 
   void _onOperationResult(dynamic data) {
-  if (data == null || !mounted) return;
+    if (data == null || !mounted) return;
 
-  final bool success = data['isCaught'] != true;
+    final bool success = data['isCaught'] != true;
 
-  if (success) {
-    // Show beautiful overlay instead of Snackbar
-    _operationResultOverlay?.remove();
+    if (success) {
+      _operationResultOverlay?.remove();
 
-    _operationResultOverlay = OverlayEntry(
-      builder: (context) => OperationResultOverlay(
-        operation: data['operation'] ?? 'Operation',
-        money: data['money'] ?? 0,
-        message: data['message'] ?? 'Operation successful!',
-        actualDamage: data['actualDamage'] ?? 0,
-        totalDefense: data['totalDefense'] ?? 0,
-        stolenWeapon: data['stolenWeapon'],
-        epinephrine: data['epinephrine'],
-        bulletsStolen: data['bulletsStolen'] ?? 0,
-        onDismiss: () {
-          _operationResultOverlay?.remove();
-          _operationResultOverlay = null;
-        },
-      ),
-    );
+      _operationResultOverlay = OverlayEntry(
+        builder: (context) => OperationResultOverlay(
+          operation: data['operation'] ?? 'Operation',
+          money: data['money'] ?? 0,
+          message: data['message'] ?? 'Operation successful!',
+          actualDamage: data['actualDamage'] ?? 0,
+          totalDefense: data['totalDefense'] ?? 0,
+          stolenWeapon: data['stolenWeapon'],
+          epinephrine: data['epinephrine'],
+          bulletsStolen: data['bulletsStolen'] ?? 0,
+          onDismiss: () {
+            _operationResultOverlay?.remove();
+            _operationResultOverlay = null;
+          },
+        ),
+      );
 
-    Overlay.of(context).insert(_operationResultOverlay!);
-    HapticFeedback.mediumImpact();
+      Overlay.of(context).insert(_operationResultOverlay!);
+      HapticFeedback.mediumImpact();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(data['message'] ?? 'Operation failed.'),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
 
-  } else {
-    // Keep Snackbar for failure/prison cases
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(data['message'] ?? 'Operation failed.'),
-        backgroundColor: Colors.red[700],
-        duration: const Duration(seconds: 4),
-      ),
-    );
+    setState(() {
+      _selectedRegularOperation = null;
+    });
   }
-
-  setState(() {
-    _selectedRegularOperation = null;
-  });
-}
 
   @override
   void didUpdateWidget(covariant OperationsScreen oldWidget) {
@@ -132,138 +135,178 @@ class _OperationsScreenState extends State<OperationsScreen>
 
   void _executeOperation() {
     if (_selectedRegularOperation == null) return;
-
     SocketService().executeOperation(_selectedRegularOperation!);
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: _isInPrison ? Colors.grey[900] : null,
-      body: _isInPrison
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/background.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Column(
+          children: [
+            // ==================== GAME HEADER ====================
+            GameHeader(
+              statsNotifier: SocketService().statsNotifier,
+              time: widget.time,
+              onMenuPressed: widget.onMenuPressed,
+            ),
+
+            // ==================== MAIN CONTENT ====================
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: _isInPrison
+                    ? _buildPrisonView()
+                    : _buildOperationsContent(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== PRISON VIEW ====================
+  Widget _buildPrisonView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
+          const SizedBox(height: 30),
+          const Text(
+            'YOU ARE IN PRISON',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Time left: $_remainingSeconds seconds',
+            style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
+          ),
+          const SizedBox(height: 40),
+          const Text(
+            'You cannot perform operations\nor travel while in prison.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== MAIN OPERATIONS CONTENT ====================
+  Widget _buildOperationsContent() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(14, 20, 14, 10),
+          child: Center(
+            child: RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
                 children: [
-                  const Icon(Icons.gavel, size: 100, color: Colors.redAccent),
-                  const SizedBox(height: 30),
-                  const Text(
-                    'YOU ARE IN PRISON',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Time left: $_remainingSeconds seconds',
-                    style: const TextStyle(fontSize: 20, color: Colors.orangeAccent),
-                  ),
-                  const SizedBox(height: 40),
-                  const Text(
-                    'You cannot perform operations\nor travel while in prison.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
+                  TextSpan(text: 'Operations\n', style: GoogleFonts.bebasNeue(fontSize: 38, fontWeight: FontWeight.bold, color: const Color.fromARGB(211, 255, 255, 255), letterSpacing: 1.8)),
+                  TextSpan(text: widget.currentLocation.toUpperCase(), style: GoogleFonts.robotoCondensed(fontSize: 24, color: const Color.fromARGB(255, 165, 165, 165), fontWeight: FontWeight.w200, height: 0.95, letterSpacing: 2)),
+                ]
+              )
+            )
+          )
+        ),
+
+        Expanded(
+          child: Container(
+            color: Colors.black.withOpacity(0.25),
+            child: Column(
+            children: [
+              TabBar(
+                controller: _tabController,
+                labelColor: Colors.orange,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.orange,
+                tabs: const [
+                  Tab(text: 'Regular Ops'),
+                  Tab(text: 'Special Ops'),
                 ],
               ),
-            )
-          : Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  color: Colors.orange[50],
-                  child: Column(
-                    children: [
-                      const Text('Operations in', style: TextStyle(fontSize: 18)),
-                      Text(widget.currentLocation, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
 
-                Expanded(
-                  child: Column(
-                    children: [
-                      TabBar(
-                        controller: _tabController,
-                        labelColor: Colors.orange,
-                        unselectedLabelColor: Colors.grey,
-                        indicatorColor: Colors.orange,
-                        tabs: const [
-                          Tab(text: 'Regular Ops'),
-                          Tab(text: 'Special Ops'),
-                        ],
-                      ),
-
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            // Regular Ops Tab (unchanged)
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // Regular Ops Tab
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: _showRegularOperationBottomSheet,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  GestureDetector(
-                                    onTap: _showRegularOperationBottomSheet,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.grey.shade400),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            _selectedRegularOperation ?? 'Select an operation',
-                                            style: const TextStyle(fontSize: 16),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          const Icon(Icons.arrow_drop_down),
-                                        ],
-                                      ),
-                                    ),
+                                  Text(
+                                    _selectedRegularOperation ?? 'Select an operation',
+                                    style: const TextStyle(fontSize: 16, color:  Color.fromARGB(179, 255, 255, 255)),
                                   ),
-                                  const SizedBox(height: 30),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      child: ElevatedButton(
-                                        onPressed: _selectedRegularOperation != null ? _executeOperation : null,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: _selectedRegularOperation != null ? Colors.orange : Colors.grey,
-                                          padding: const EdgeInsets.symmetric(vertical: 18),
-                                        ),
-                                        child: const Text(
-                                          'Execute Operation',
-                                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_drop_down),
                                 ],
                               ),
                             ),
-
-                            // ==================== SPECIAL OPS TAB (fixed with instant rank updates) ====================
-                            Center(
-                              child: SpecialOpsTab()
+                          ),
+                          const SizedBox(height: 30),
+                          SizedBox(
+                            width: double.infinity,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: ElevatedButton(
+                                onPressed: _selectedRegularOperation != null ? _executeOperation : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _selectedRegularOperation != null ? Colors.orange : Colors.grey,
+                                  padding: const EdgeInsets.symmetric(vertical: 18),
+                                ),
+                                child: const Text(
+                                  'Execute Operation',
+                                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
-
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+
+                    // Special Ops Tab
+                    Center(
+                      child: SpecialOpsTab(),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          )
+        ),
+      ],
     );
   }
 
   void _showRegularOperationBottomSheet() {
     if (_isInPrison) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -283,6 +326,7 @@ class _OperationsScreenState extends State<OperationsScreen>
   }
 }
 
+// ==================== BOTTOM SHEET CONTENT (unchanged) ====================
 class _BottomSheetContent extends StatefulWidget {
   final int lastLowLevelOp;
   final int lastMidLevelOp;
@@ -330,9 +374,9 @@ class _BottomSheetContentState extends State<_BottomSheetContent> {
     double reduction = skill * 0.5;
 
     if (widget.hasEnhancedStamina) {
-      reduction += 3.0;   // +3 seconds from Enhanced Stamina buff
+      reduction += 3.0;
     }
-    
+
     final stats = SocketService().statsNotifier.value;
 
     _boneLow = (stats['bonePenaltyEndTimeLow'] ?? 0) > now
