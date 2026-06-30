@@ -1721,40 +1721,60 @@ socket.on('private-message', async (data) => {
   if (socket.data.displayName) {
     const name = socket.data.displayName;
 
-    // === Clean up any active loot decision for this player ===
-    const decision = lootDecisionWindows.get(name);
-    if (decision && decision.timeoutId) {
-      clearTimeout(decision.timeoutId);
-      console.log(`[LOOT] Cancelled pending loot decision timeout for ${name} (disconnected)`);
+    // === STEP 1: Check if this is still the CURRENT connection ===
+    // We look up what socket the server currently thinks belongs to this player
+    const currentSocket = onlineSockets.get(name);
+
+    // Only continue with removal if this disconnecting socket
+    // is the SAME object as the one we have saved as current.
+    // If it's an OLD socket (player already reconnected), we ignore it.
+    if (currentSocket === socket) {
+      // This is the real/current connection disconnecting → safe to remove
+
+      // === Clean up any active loot decision for this player ===
+      const decision = lootDecisionWindows.get(name);
+      if (decision && decision.timeoutId) {
+        clearTimeout(decision.timeoutId);
+        console.log(`[LOOT] Cancelled pending loot decision timeout for ${name} (disconnected)`);
+      }
+
+      if (decision && decision.perpetrator) {
+        clearCrimeFreezeForPlayer(db, decision.perpetrator).catch(err => {
+          console.error(`[LOOT] Failed to unfreeze criminal ${decision.perpetrator} after ${name} disconnected:`, err);
+        });
+        console.log(`[LOOT] Unfroze ${decision.perpetrator} because witness ${name} disconnected during loot decision`);
+      }
+
+      lootDecisionWindows.delete(name);
+
+      // === FIX for dangling state: Also remove the "sticky note" from the database ===
+      if (socket.data.email) {
+        const playerRef = db.collection('players').doc(socket.data.email);
+        playerRef.update({
+          pendingLootDecision: admin.firestore.FieldValue.delete()
+        }).catch(() => {
+          // We ignore any error
+        });
+      }
+
+      // Now safely remove from online list
+      removeFromOnlineList(name);
+      crimeWitnessOpportunities.delete(name);
+
+      console.log(`[SERVER] ${name} left - online now: ${onlinePlayers.size}`);
+    } else {
+      // This is an OLD socket disconnecting after the player already reconnected.
+      // We do NOT remove them from the online list.
+      // We still clean up loot decisions (safety), but skip the online list removal.
+      console.log(`[SERVER] Old/stale disconnect ignored for ${name} (player reconnected with new socket)`);
+      
+      // Optional: still clean up loot decisions for safety
+      const decision = lootDecisionWindows.get(name);
+      if (decision && decision.timeoutId) {
+        clearTimeout(decision.timeoutId);
+      }
+      lootDecisionWindows.delete(name);
     }
-
-    // === Unfreeze the criminal if witness disconnects mid-decision ===
-    // Without this, the criminal's money and items stay frozen forever.
-        if (decision && decision.perpetrator) {
-      clearCrimeFreezeForPlayer(db, decision.perpetrator).catch(err => {
-        console.error(`[LOOT] Failed to unfreeze criminal ${decision.perpetrator} after ${name} disconnected:`, err);
-      });
-      console.log(`[LOOT] Unfroze ${decision.perpetrator} because witness ${name} disconnected during loot decision`);
-    }
-
-    lootDecisionWindows.delete(name);
-
-    // === FIX for dangling state: Also remove the "sticky note" from the database ===
-    if (socket.data.email) {
-      const playerRef = db.collection('players').doc(socket.data.email);
-      playerRef.update({
-        pendingLootDecision: admin.firestore.FieldValue.delete()
-      }).catch(() => {
-        // We ignore any error (for example if the field didn't exist)
-      });
-    }
-
-    removeFromOnlineList(name);
-    crimeWitnessOpportunities.delete(name);
-    onlinePlayers.delete(name);
-    onlineSockets.delete(name);
-    io.emit('online-players', Array.from(onlinePlayers));
-    console.log(`[SERVER] ${name} left - online now: ${onlinePlayers.size}`);
   }
 });
 });

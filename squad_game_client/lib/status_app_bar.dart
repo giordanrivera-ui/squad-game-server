@@ -28,6 +28,31 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
         final int maxHealth = currentStats['maxHealth'] ?? 100;
 
         return AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          actionsIconTheme: const IconThemeData(color: Colors.white),
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/top-section-bg.jpg'),
+                fit: BoxFit.cover,
+              ),
+              // borderRadius: BorderRadius.only(
+              //   bottomLeft: Radius.circular(20),
+              //   bottomRight: Radius.circular(20),
+              // ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.2),
+              //borderRadius: const BorderRadius.only(
+              //  bottomLeft: Radius.circular(20),
+              //  bottomRight: Radius.circular(20),
+              //),
+            ),
+            ),
+          ),
           leading: Builder(
             builder: (context) => Stack(
               children: [
@@ -64,23 +89,23 @@ class StatusAppBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   const Icon(Icons.account_balance_wallet, size: 20, color: Colors.green),
                   const SizedBox(width: 4),
-                  Text('\$${NumberFormat('#,###').format(balance)}', style: const TextStyle(fontSize: 15)),
+                  Text('\$${NumberFormat('#,###').format(balance)}', style: const TextStyle(color: Color.fromARGB(255, 182, 181, 181), fontSize: 15)),
 
                   const SizedBox(width: 16),
 
                   // ==================== PULSING HEART ====================
                   _HealthIcon(health: health, maxHealth: currentStats['maxHealth'] ?? 100,),
                   const SizedBox(width: 4),
-                  Text('$currentHealth / $maxHealth', style: const TextStyle(fontSize: 15)),
+                  Text('$currentHealth / $maxHealth', style: const TextStyle(color: Color.fromARGB(255, 182, 181, 181),fontSize: 15)),
 
                   const SizedBox(width: 16),
 
                   const Icon(Icons.adjust, size: 20, color: Colors.orange),
                   const SizedBox(width: 4),
-                  Text('${currentStats['bullets'] ?? 0}', style: const TextStyle(fontSize: 15)),
+                  Text('${currentStats['bullets'] ?? 0}', style: const TextStyle(color: Color.fromARGB(255, 182, 181, 181),fontSize: 15)),
 
                   const SizedBox(width: 16),
-                  Text(time, style: const TextStyle(fontSize: 15)),
+                  Text(time, style: const TextStyle(color: Color.fromARGB(255, 182, 181, 181),fontSize: 15)),
                 ],
               ),
             ),

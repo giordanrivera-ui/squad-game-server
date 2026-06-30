@@ -6,7 +6,7 @@ function handleBrokenBone(player, level, message) {
   let brokenBoneChance = 0;
 
   if (level === "low") {
-    brokenBoneChance = 0.95;
+    brokenBoneChance = 0.05;
   } else if (level === "mid") {
     brokenBoneChance = 0.09;
   } else if (level === "high") {

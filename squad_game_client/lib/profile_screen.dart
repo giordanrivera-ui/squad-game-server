@@ -236,18 +236,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'Lord';
   }
 
-  // NEW: Update visibility on server
+  // Update visibility on server
   void _updateVisibility() {
     SocketService().updateVisibility(_showArmor, _showWeapon);
   }
 
-  // ==================== NEW: ALLOCATE ATTRIBUTE POINTS ====================
+  // ==================== ALLOCATE ATTRIBUTE POINTS ====================
   void _allocatePoint(String attribute) {
         SocketService().allocateAttribute(attribute);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final avatarRadius = (screenWidth * 0.16).clamp(55.0, 90.0);
+
     final headwearImage = _getEquippedImage('headwear', 'assets/helmet-empty.jpg');
     final armorImage = _getEquippedImage('armor', 'assets/armor-empty.jpg');
     final footwearImage = _getEquippedImage('footwear', 'assets/boots-empty.jpg');
@@ -260,8 +263,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final rankProgress = _getRankProgress(exp);
 
     return Scaffold(
-      backgroundColor: Colors.grey[800],
-      body: SingleChildScrollView(
+  body: Container(
+    decoration: const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/background.jpg'),
+        fit: BoxFit.cover,
+      ),
+    ),
+    child: Container(
+      color: Colors.black.withOpacity(0.2),
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -271,9 +282,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 GestureDetector(
                   onTap: _uploadPhoto,
-                  child: CircleAvatar(
-                    radius: 60,
-                    backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Profile Picture
+                        CircleAvatar(
+                          radius: avatarRadius,
+                          backgroundImage: NetworkImage(_photoURL ?? 'https://via.placeholder.com/150'),
+                        ),
+
+                        // Border with transparency
+                        Opacity(
+                          opacity: 0.8,                    // ← Change this number to adjust transparency
+                          child: Image.asset(
+                            'assets/profile_border.png',
+                            width: avatarRadius * 2.5,
+                            height: avatarRadius * 2.5,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 20),
@@ -516,6 +556,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    ),
+  )
     );
   }
   

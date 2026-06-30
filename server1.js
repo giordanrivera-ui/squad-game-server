@@ -960,6 +960,11 @@ if (typeof opportunityData === 'object' && opportunityData.timeoutId) {
   const criminalTotal = cStr + cSte;
 
   const getArchetype = (str, ste) => {
+    // Safety check: if either stat is zero, we can't divide
+    if (str === 0 && ste === 0) return 'Mixed';
+    if (str === 0) return 'Pure Stealth';
+    if (ste === 0) return 'Pure Strength';
+
     const ratio = Math.max(str, ste) / Math.min(str, ste);
     if (ratio >= 1.5) return str > ste ? 'Pure Strength' : 'Pure Stealth';
     return 'Mixed';

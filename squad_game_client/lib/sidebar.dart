@@ -55,10 +55,39 @@ class Sidebar extends StatelessWidget {
                           onScreenChanged(6); // Profile
                           Navigator.pop(context);
                         },
-                        child: CircleAvatar(
-                          radius: 40,
-                          backgroundImage: NetworkImage(
-                            FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Profile Picture
+                              CircleAvatar(
+                                radius: 40,
+                                backgroundImage: NetworkImage(
+                                  FirebaseAuth.instance.currentUser?.photoURL ?? 'https://via.placeholder.com/150',
+                                ),
+                              ),
+
+                              // Border with transparency
+                              Opacity(
+                                opacity: 0.8,
+                                child: Image.asset(
+                                  'assets/profile_border.png',
+                                  width: 104,
+                                  height: 104,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

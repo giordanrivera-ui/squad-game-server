@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'socket_service.dart';
-import 'dart:async';  // For Timer
-import 'package:intl/intl.dart'; // NEW: For NumberFormat
-import 'package:flutter/services.dart'; // NEW: For TextInputFormatter
+import 'dart:async';
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 
 class KillPlayerScreen extends StatefulWidget {
   const KillPlayerScreen({super.key});
@@ -122,14 +122,14 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Place Bounty on $target'),
+        title: Text('Place Bounty on $target', style: TextStyle(color: Colors.white),),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: rewardController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Reward Amount (\$)'),
+              decoration: const InputDecoration(labelText: 'Reward Amount (\$)', hintStyle: TextStyle(color: Colors.white)),
               inputFormatters: [ThousandsFormatter()], // NEW: Add formatter for commas
             ),
             const SizedBox(height: 16),
@@ -146,7 +146,7 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
                 '7 Days'
               ].map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
               onChanged: (v) => selectedOption = v!,
-              decoration: const InputDecoration(labelText: 'Duration'),
+              decoration: const InputDecoration(labelText: 'Duration', hintStyle: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -280,172 +280,180 @@ class _KillPlayerScreenState extends State<KillPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Map<String, dynamic>>(
-      valueListenable: SocketService().statsNotifier,
-      builder: (context, stats, child) {
-        final balance = stats['balance'] ?? 0;
-        final ownBullets = stats['bullets'] ?? 0;
-        final equippedWeapon = stats['weapon'];
-        final o = equippedWeapon?['power'] ?? 0;
-        final hasWeapon = o > 0;
-        final canKill = _selectedTarget != null && 
-                        _bullets > 0 && 
-                        _bullets <= ownBullets && 
-                        balance >= 10000 && 
-                        hasWeapon;
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/background.jpg'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        color: Colors.black.withOpacity(0.2), // Dark overlay
+        child: ValueListenableBuilder<Map<String, dynamic>>(
+          valueListenable: SocketService().statsNotifier,
+          builder: (context, stats, child) {
+            final balance = stats['balance'] ?? 0;
+            final ownBullets = stats['bullets'] ?? 0;
+            final equippedWeapon = stats['weapon'];
+            final o = equippedWeapon?['power'] ?? 0;
+            final hasWeapon = o > 0;
+            final canKill = _selectedTarget != null && 
+                            _bullets > 0 && 
+                            _bullets <= ownBullets && 
+                            balance >= 10000 && 
+                            hasWeapon;
 
-        return Column(
-          children: [
-            // HITLIST SECTION (always at top)
-            Container(
-              width: MediaQuery.of(context).size.width,
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-              color: Colors.red[50],
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('HITLIST', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-                  const SizedBox(height: 8),
-                  if (_hitlist.isEmpty)
-                    const Text('No active hits right now.', style: TextStyle(color: Colors.grey))
-                  else
-                    ..._hitlist.map((hit) => ListTile(
-                          title: Text(hit['target'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Row(
-                            children: [
-                              Text('\$${NumberFormat('#,###').format(hit['reward'])} reward '), // EDITED: Add commas to reward
-                              Text('(${_formatRemainingTime(hit['endTime'])})'),  // NEW: Remaining timer
-                            ],
-                          ),
-                          trailing: const Icon(Icons.whatshot, color: Colors.red),
-                        )),
-                ],
-              ),
-            ),
-
-            // Toggle + Search
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Text('Normal Kill', style: TextStyle(fontSize: 16)),
-                  Switch(
-                    value: _isHitlistMode,
-                    onChanged: (v) => setState(() => _isHitlistMode = v),
+            return Column(
+              children: [
+                // HITLIST SECTION
+                Container(
+                  width: MediaQuery.of(context).size.width,
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                  color: Colors.red[50],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('HITLIST', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                      const SizedBox(height: 8),
+                      if (_hitlist.isEmpty)
+                        const Text('No active hits right now.', style: TextStyle(color: Colors.grey))
+                      else
+                        ..._hitlist.map((hit) => ListTile(
+                              title: Text(hit['target'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Row(
+                                children: [
+                                  Text('\$${NumberFormat('#,###').format(hit['reward'])} reward '),
+                                  Text('(${_formatRemainingTime(hit['endTime'])})'),
+                                ],
+                              ),
+                              trailing: const Icon(Icons.whatshot, color: Colors.red),
+                            )),
+                    ],
                   ),
-                  const Text('Place Bounty', style: TextStyle(fontSize: 16)),
-                ],
-              ),
-            ),
-
-            // Search bar
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(labelText: 'Search player', border: OutlineInputBorder()),
-                onSubmitted: _searchPlayers,
-              ),
-            ),
-
-            // NEW: Show search error if any
-            if (_searchError.isNotEmpty)
-              Center(child: Text(_searchError, style: const TextStyle(color: Colors.red))),
-
-            // Search results or normal kill UI
-            if (_isSearching)
-              const Center(child: CircularProgressIndicator())
-            else if (_searchResults.isEmpty && _selectedTarget == null)
-              const Center(child: Text('Search for a player above'))
-            else if (_selectedTarget == null)
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final player = _searchResults[index];
-                    final name = player['displayName'] as String;
-                    return ListTile(
-                      title: Text(name),
-                      onTap: () => _selectPlayer(name),
-                    );
-                  },
                 ),
-              )
-            else
-              // Normal kill flow (bullets + weapon + button)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Target: $_selectedTarget', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 20),
-                    const Text('Bullets to Use:'),
-                    TextField(
-                      controller: _bulletsController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Enter number of bullets'),
-                      onChanged: (value) => setState(() => _bullets = int.tryParse(value) ?? 0),
-                    ),
-                    // NEW: Use _bullets in a check (e.g., show warning if 0)
-                    if (_bullets == 0)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('Enter bullets to proceed.', style: TextStyle(color: Colors.red)),
+
+                // Toggle + Search
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Text('Normal Kill', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      Switch(
+                        value: _isHitlistMode,
+                        onChanged: (v) => setState(() => _isHitlistMode = v),
                       ),
-                    const SizedBox(height: 20),
-                    const Text('Equipped Weapon:'),
-                    GestureDetector(
-                      onTap: _showWeaponInventory,
-                      child: Container(
-                        width: double.infinity,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Image.asset(
-                          _getEquippedWeaponImage(),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                    if (!hasWeapon)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'You need to equip a weapon.',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: canKill ? _attemptKill : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: canKill ? Colors.red : Colors.grey,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text('Kill Player'),
-                    ),
-                    if (balance < 10000)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Need at least \$10,000 for mobilizing costs.',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                  ],
+                      const Text('Place Bounty', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(labelText: 'Search player', labelStyle: TextStyle(color: Colors.white),border: OutlineInputBorder()),
+                    onSubmitted: _searchPlayers,
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+
+                if (_searchError.isNotEmpty)
+                  Center(child: Text(_searchError, style: const TextStyle(color: Colors.red))),
+
+                if (_isSearching)
+                  const Center(child: CircularProgressIndicator())
+                else if (_searchResults.isEmpty && _selectedTarget == null)
+                  const Center(child: Text('Search for a player above', style: TextStyle(color: Colors.white),))
+                else if (_selectedTarget == null)
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final player = _searchResults[index];
+                        final name = player['displayName'] as String;
+                        return ListTile(
+                          title: Text(name, style: TextStyle(color: Colors.white),),
+                          onTap: () => _selectPlayer(name),
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Target: $_selectedTarget', style: const TextStyle(color: Colors.white,fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
+                        const Text('Bullets to Use:', style: TextStyle(color: Colors.white),),
+                        TextField(
+                          controller: _bulletsController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Enter number of bullets', hintStyle: TextStyle(color: Colors.white)),
+                          onChanged: (value) => setState(() => _bullets = int.tryParse(value) ?? 0),
+                          style: TextStyle(color: Colors.white)
+                        ),
+                        if (_bullets == 0)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text('Enter bullets to proceed.', style: TextStyle(color: Colors.red)),
+                          ),
+                        const SizedBox(height: 20),
+                        const Text('Equipped Weapon:',style: TextStyle(color: Colors.white)),
+                        GestureDetector(
+                          onTap: _showWeaponInventory,
+                          child: Container(
+                            width: double.infinity,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Image.asset(
+                              _getEquippedWeaponImage(),
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        if (!hasWeapon)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'You need to equip a weapon.',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: canKill ? _attemptKill : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: canKill ? Colors.red : Colors.grey,
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                          child: const Text('Kill Player'),
+                        ),
+                        if (balance < 10000)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Need at least \$10,000 for mobilizing costs.',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
 
-// NEW: Custom formatter for thousands commas
 class ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
