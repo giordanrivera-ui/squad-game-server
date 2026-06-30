@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'socket_service.dart';
+import 'game_header.dart';
 
 class HallOfFameScreen extends StatefulWidget {
-  const HallOfFameScreen({super.key});
+  final String time;
+  final VoidCallback onMenuPressed;
+
+  const HallOfFameScreen({
+    super.key,
+    required this.time,
+    required this.onMenuPressed,
+  });
 
   @override
   State<HallOfFameScreen> createState() => _HallOfFameScreenState();
@@ -58,30 +67,49 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Hall of Fame')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const Text(
-              'Richest Players of All-Time',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Live players + deceased legends',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/background.jpg'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Column(
+        children: [
+          // ==================== GAME HEADER ====================
+          GameHeader(
+            statsNotifier: SocketService().statsNotifier,
+            time: widget.time,           // Add this parameter to the widget
+            onMenuPressed: widget.onMenuPressed,
+          ),
 
-            Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: _loadAllTimeRichest(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+          // ==================== CONTENT ====================
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Richest Players of All-Time',
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Live players + deceased legends',
+                      style: TextStyle(fontSize: 14, color: Colors.white70),
+                    ),
+                    const SizedBox(height: 24),
+
+                    Expanded(
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _loadAllTimeRichest(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
@@ -144,12 +172,17 @@ class _HallOfFameScreenState extends State<HallOfFameScreen> {
                       }),
                     ),
                   );
-                },
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

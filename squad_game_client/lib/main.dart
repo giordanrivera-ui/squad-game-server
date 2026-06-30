@@ -634,6 +634,8 @@ Widget build(BuildContext context) {
                                                   ? const KillPlayerScreen()
                                                   : _currentScreen == 11 
                                                       ? HallOfFameScreen(
+                                                        time: time,
+                                                              onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                                                       )
                                                       : _currentScreen == 12 
                                                           ? BusinessesScreen(
