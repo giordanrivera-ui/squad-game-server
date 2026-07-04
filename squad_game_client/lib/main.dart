@@ -1160,7 +1160,7 @@ void _showPeterSighting() {
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                 child: const Text('BULLETS +10K'),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
               ElevatedButton(
                 onPressed: () {
@@ -1174,6 +1174,18 @@ void _showPeterSighting() {
                 child: const Text('RESET MARTIAL ART'),
               ),
               const SizedBox(height: 10),
+
+              ElevatedButton(
+                onPressed: () {
+                  SocketService().socket?.emit('reset-peter-hunger'); // We will add this on server later
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Peter hunger reset to 100')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
+                child: const Text('RESET PETER HUNGER'),
+              ),
             ],
           ),
         );

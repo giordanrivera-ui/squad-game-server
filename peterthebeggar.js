@@ -75,7 +75,7 @@ function setupPeterTheBeggar(humans, onlinePlayers, onlineSockets) {
 
     // Decrease hunger
     if (peter.hunger > 0) {
-      peter.hunger -= 2;
+      peter.hunger -= 1;
       if (peter.hunger < 0) peter.hunger = 0;
     }
 

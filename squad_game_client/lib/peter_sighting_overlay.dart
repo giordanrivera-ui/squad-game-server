@@ -44,14 +44,14 @@ class _PeterSightingOverlayState extends State<PeterSightingOverlay> {
     final cardWidth = screenWidth > 400 ? 340.0 : screenWidth * 0.85;
 
     return Positioned(
-      bottom: bottomPadding + 20,
+      bottom: bottomPadding + 10,
       right: 20,
       child: Material(
         color: Colors.transparent,
         elevation: 12,
         child: Container(
           width: cardWidth,
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: const Color(0xFF2C2416), // Warm dark brown (beggar / street vibe)
             borderRadius: BorderRadius.circular(18),
@@ -84,7 +84,7 @@ class _PeterSightingOverlayState extends State<PeterSightingOverlay> {
                     child: const Icon(
                       Icons.person_outline_rounded,
                       color: Colors.orangeAccent,
-                      size: 26,
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -93,7 +93,7 @@ class _PeterSightingOverlayState extends State<PeterSightingOverlay> {
                       'Peter the Beggar',
                       style: TextStyle(
                         color: Colors.orangeAccent,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.3,
                       ),
@@ -102,20 +102,17 @@ class _PeterSightingOverlayState extends State<PeterSightingOverlay> {
                 ],
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // The actual sighting message from server
               Text(
                 widget.message,
                 style: const TextStyle(
                   color: Colors.white70,
-                  fontSize: 15.5,
-                  height: 1.38,
+                  fontSize: 12,
                   fontWeight: FontWeight.w400,
                 ),
               ),
-
-              const SizedBox(height: 8),
 
               // Subtle hint that it's a temporary sighting
               Align(

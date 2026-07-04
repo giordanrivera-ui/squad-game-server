@@ -889,6 +889,22 @@ io.on('connection', (socket) => {
   socket.on('add-test-bullets', async (amount) => { await handleAddTestBullets(db, socket, amount) });
   socket.on('reset-martial-art', async () => { await handleResetMartialArt(db, socket) });
 
+  // ==================== RESET PETER HUNGER (Developer Tool) ====================
+  socket.on('reset-peter-hunger', async () => {
+    const peter = humans.get('Peter the Beggar');
+    if (!peter) return;
+
+    peter.hunger = 100;
+    peter.lastHungerUpdate = Date.now();
+
+    // Also save to Firestore immediately
+    await db.collection('humans').doc('peter-the-beggar').update({
+      hunger: 100,
+      lastHungerUpdate: Date.now()
+    });
+
+    console.log('[PETER] Hunger manually reset to 100 by admin');
+  });
   // ==================== COURSES ====================
   socket.on('request-courses', () => {handleRequestCourses(db, socket);});
   socket.on('purchase-course', async (courseId) => {await handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncPartyTeamSynergy });});
