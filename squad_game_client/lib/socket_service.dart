@@ -29,6 +29,9 @@ class SocketService {
   // Crime alert notifier
   final ValueNotifier<Map<String, dynamic>?> crimeAlertNotifier = ValueNotifier(null);
 
+  // Peter the Beggar sighting notifier (bottom-right overlay)
+final ValueNotifier<Map<String, dynamic>?> peterSightingNotifier = ValueNotifier(null);
+
   // Notifier for income claimed (for optional snackbar/UI feedback)
   final ValueNotifier<int?> incomeClaimedNotifier = ValueNotifier(null);
   
@@ -303,6 +306,16 @@ class SocketService {
           crimeAlertNotifier.value = {
             'message': data['message'] ?? '',
             'perpetrator': data['perpetrator'] ?? '',
+          };
+        }
+      });
+
+      // Peter the Beggar sighting (sent by server every 20s to up to 5 random online players)
+      socket?.on('peter-sighting', (data) {
+        if (data is Map<String, dynamic>) {
+          peterSightingNotifier.value = {
+            'message': data['message'] ?? 'You see Peter the Beggar walking by...',
+            'hunger': data['hunger'] ?? 100,
           };
         }
       });

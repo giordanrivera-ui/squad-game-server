@@ -29,6 +29,8 @@ const { registerFitnessHandlers, updateMaxHealth } = require('./fitness.js');
 const { handleAddTestExp, handleAddTestMoney, handleAddTestBullets, handleResetMartialArt } = require('./test_handlers');
 const { registerRespawnHandler } = require('./respawn.js');
 const { registerSellHandlers } = require('./sell.js');
+const Human = require('./human');
+const { setupPeterTheBeggar } = require('./peterthebeggar');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -89,7 +91,7 @@ function removeFromOnlineList(displayName) {
   console.log(`[SERVER] ${displayName} removed from online list (death or cleanup)`);
 }
 
-// ==================== NEW HELPER: Clean up expired loot decision safely (even after restart) ====================
+// ==================== Clean up expired loot decision safely (even after restart) ====================
 async function cleanupExpiredLootDecision(witnessName, savedDecision) {
   if (!savedDecision) return;
 
@@ -346,8 +348,20 @@ const imprisonedPlayers = new Map(); // Key: displayName, Value: prisonEndTime
 const crimeAlertCooldowns = new Map(); // Key: displayName, Value: cooldownEndTime
 const crimeWitnessOpportunities = new Map();
 const lootDecisionWindows = new Map();
+const humans = new Map();
 
+// ==================== HUMAN FIRESTORE HELPERS ====================
+async function saveHumanToFirestore(human) {
+  if (!human || !human.name) return;
 
+  try {
+    const docId = human.name.toLowerCase().replace(/ /g, '-'); // e.g. "peter-the-beggar"
+    await db.collection('humans').doc(docId).set(human.toFirestore());
+    console.log(`[HUMANS] Saved ${human.name} to Firestore`);
+  } catch (err) {
+    console.error('[HUMANS] Failed to save to Firestore:', err);
+  }
+}
 
 // ==================== AUTO-CLEANUP EXPIRED PRISONERS ====================
 // Runs every second. Removes expired prisoners from the in-memory list
@@ -1778,6 +1792,81 @@ socket.on('private-message', async (data) => {
   }
 });
 });
+
+// ==================== INITIALIZE HUMANS (WITH FIRESTORE PERSISTENCE) ====================
+async function initializeHumans() {
+  try {
+    const docId = 'peter-the-beggar';
+    const doc = await db.collection('humans').doc(docId).get();
+
+    if (doc.exists) {
+      const data = doc.data();
+      const peter = new Human(data);
+
+      peter.vicinity = [];
+
+      // Calculate missed hunger since last save
+      if (data.lastHungerUpdate) {
+        const millisecondsPassed = Math.max(0, Date.now() - (data.lastHungerUpdate || 0));   
+        const missedTicks = Math.floor(millisecondsPassed / 20000);
+        const hungerLost = missedTicks * 2;
+        peter.hunger = Math.max(0, peter.hunger - hungerLost);
+      }
+
+      peter.lastHungerUpdate = Date.now();
+
+      humans.set(peter.name, peter);
+      console.log('[HUMANS] Loaded Peter the Beggar from Firestore');
+
+    } else {
+      // First time creating Peter
+      const peter = new Human({
+        name: 'Peter the Beggar',
+        health: 100,
+        hunger: 100,
+        balance: 5,
+        strength: 8,
+        stealth: 4,
+        martialArt: 'Judo',
+        weapon: null,
+        drunk: false,
+        vicinity: [],
+        lastHungerUpdate: Date.now()
+      });
+
+      humans.set(peter.name, peter);
+      await saveHumanToFirestore(peter);
+      console.log('[HUMANS] Created and saved Peter the Beggar to Firestore');
+    }
+
+    setupPeterTheBeggar(humans, onlinePlayers, onlineSockets);
+
+  } catch (err) {
+    console.error('[HUMANS] Error initializing humans from Firestore:', err);
+  }
+}
+
+initializeHumans();
+
+// Periodic backup save for Peter every 5 minutes (name is never re-written)
+setInterval(async () => {
+  const peter = humans.get('Peter the Beggar');
+  if (!peter) return;
+
+  const docId = 'peter-the-beggar';
+
+  try {
+    await db.collection('humans').doc(docId).set({
+      hunger: peter.hunger,
+      lastHungerUpdate: Date.now(),
+      updatedAt: Date.now()
+    }, { merge: true });
+
+    console.log('[HUMANS] Periodic backup save for Peter the Beggar (partial update)');
+  } catch (err) {
+    console.error('[HUMANS] Failed to save Peter to Firestore:', err);
+  }
+}, 5 * 60 * 1000);
 
 const port = process.env.PORT || 3000;
 server.listen(port, () => console.log(`Server running on ${port}`));

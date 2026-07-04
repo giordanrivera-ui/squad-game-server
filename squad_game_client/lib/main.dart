@@ -17,6 +17,7 @@ import 'screens.dart';
 import 'crime_alert_overlay.dart';
 import 'deliver_justice_overlay.dart';
 import 'audio_service.dart';
+import 'peter_sighting_overlay.dart';
 
 // Global plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -240,6 +241,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   OverlayEntry? _rankUpOverlay;
   OverlayEntry? _crimeAlertOverlay;
   OverlayEntry? _deliverJusticeOverlay;
+  OverlayEntry? _peterSightingOverlay;
 
   @override
   void initState() {
@@ -253,6 +255,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     SocketService().startGlobalCourseCompletionWatcher();
     SocketService().startGlobalHealingClaimer();
     _socketService.crimeAlertNotifier.addListener(_showCrimeAlert);
+    _socketService.peterSightingNotifier.addListener(_showPeterSighting);
     _socketService.rescueNotifier.addListener(_showRescueAnimation);
     _socketService.rankUpNotifier.addListener(_showRankUpAnimation);
 
@@ -680,20 +683,37 @@ Widget _buildDashboard() {
       child: ValueListenableBuilder<Map<String, dynamic>>(
         valueListenable: _socketService.statsNotifier,
         builder: (context, stats, child) {
-          final int? staminaEndTime = stats['enhancedStaminaEndTime'] as int?;
-          final bool hasEnhancedStamina = 
-              staminaEndTime != null && staminaEndTime > SocketService().currentServerTime;
-          
-          String? staminaRemainingText;
-          if (hasEnhancedStamina && staminaEndTime != null) {
-            final remainingMs = staminaEndTime - SocketService().currentServerTime;
-            if (remainingMs > 0) {
-              final remainingSeconds = (remainingMs / 1000).ceil();
-              final minutes = remainingSeconds ~/ 60;
-              final seconds = remainingSeconds % 60;
-              staminaRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
-            }
-          }
+          // ==================== STAMINA + HEALING STATUS ====================
+final int? staminaEndTime = stats['enhancedStaminaEndTime'] as int?;
+final bool hasEnhancedStamina = 
+    staminaEndTime != null && staminaEndTime > SocketService().currentServerTime;
+
+String? staminaRemainingText;
+if (hasEnhancedStamina && staminaEndTime != null) {
+  final remainingMs = staminaEndTime - SocketService().currentServerTime;
+  if (remainingMs > 0) {
+    final remainingSeconds = (remainingMs / 1000).ceil();
+    final minutes = remainingSeconds ~/ 60;
+    final seconds = remainingSeconds % 60;
+    staminaRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+}
+
+// Healing
+final int? healingEndTime = stats['healingEndTime'] as int?;
+final bool hasHealing = 
+    healingEndTime != null && healingEndTime > SocketService().currentServerTime;
+
+String? healingRemainingText;
+if (hasHealing && healingEndTime != null) {
+  final remainingMs = healingEndTime - SocketService().currentServerTime;
+  if (remainingMs > 0) {
+    final remainingSeconds = (remainingMs / 1000).ceil();
+    final minutes = remainingSeconds ~/ 60;
+    final seconds = remainingSeconds % 60;
+    healingRemainingText = '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+}
 
           // ==================== NET WORTH CALCULATION ====================
           final int bankBalance = (stats['balance'] as num?)?.toInt() ?? 0;
@@ -737,6 +757,8 @@ Widget _buildDashboard() {
                 stats: stats,
                 hasEnhancedStamina: hasEnhancedStamina,
                 staminaRemainingText: staminaRemainingText,
+                hasHealing: hasHealing,
+                healingRemainingText: healingRemainingText,
                 onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
                 onDeveloperOptionsPressed: _showDeveloperOptions,
               ),
@@ -995,6 +1017,28 @@ void _showCrimeAlert() {
   Overlay.of(context).insert(_crimeAlertOverlay!);
 }
 
+// ==================== PETER THE BEGGAR SIGHTING OVERLAY (bottom-right, 20s auto-dismiss) ====================
+void _showPeterSighting() {
+  final data = _socketService.peterSightingNotifier.value;
+  if (data == null) return;
+
+  _peterSightingOverlay?.remove();
+
+  _peterSightingOverlay = OverlayEntry(
+    builder: (context) => PeterSightingOverlay(
+      message: data['message'] ?? 'You see Peter the Beggar walking by...',
+      hunger: (data['hunger'] as num?)?.toInt() ?? 100,
+      onDismiss: () {
+        _peterSightingOverlay?.remove();
+        _peterSightingOverlay = null;
+        _socketService.peterSightingNotifier.value = null;
+      },
+    ),
+  );
+
+  Overlay.of(context).insert(_peterSightingOverlay!);
+}
+
   void _showDeliverJusticeOverlay({
   required bool isWinner,
   required int qualityScore,
@@ -1167,9 +1211,11 @@ void _showCrimeAlert() {
     _socketService.rescueNotifier.removeListener(_showRescueAnimation);
     _socketService.rankUpNotifier.removeListener(_showRankUpAnimation);
     _socketService.crimeAlertNotifier.removeListener(_showCrimeAlert);
+    _socketService.peterSightingNotifier.removeListener(_showPeterSighting);
     _rescueOverlay?.remove();
     _rankUpOverlay?.remove();
     _crimeAlertOverlay?.remove();
+    _peterSightingOverlay?.remove();
     _deliverJusticeOverlay?.remove();
     WidgetsBinding.instance.removeObserver(this);
     _incomeTimer?.cancel();

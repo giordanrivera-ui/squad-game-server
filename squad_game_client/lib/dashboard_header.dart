@@ -7,6 +7,8 @@ class DashboardHeader extends StatelessWidget {
   final Map<String, dynamic> stats;
   final bool hasEnhancedStamina;
   final String? staminaRemainingText;
+  final bool hasHealing;                    // NEW
+  final String? healingRemainingText;       // NEW
   final VoidCallback onMenuPressed;
   final VoidCallback? onDeveloperOptionsPressed;
 
@@ -16,6 +18,8 @@ class DashboardHeader extends StatelessWidget {
     required this.stats,
     required this.hasEnhancedStamina,
     this.staminaRemainingText,
+    required this.hasHealing,
+    this.healingRemainingText,
     required this.onMenuPressed,
     this.onDeveloperOptionsPressed,
   });
@@ -35,7 +39,6 @@ class DashboardHeader extends StatelessWidget {
           image: AssetImage('assets/top-section-bg.jpg'),
           fit: BoxFit.cover,
         ),
-        // ==================== ROUNDED BOTTOM CORNERS ====================
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(20),
           bottomRight: Radius.circular(20),
@@ -51,7 +54,6 @@ class DashboardHeader extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          // ==================== SEMI-TRANSPARENT OVERLAY (with rounded corners) ====================
           Container(
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.55),
@@ -61,14 +63,12 @@ class DashboardHeader extends StatelessWidget {
               ),
             ),
           ),
-
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Row: Menu + Time + Inventory + Developer Options
+              // Top Row
               Row(
                 children: [
-                  // Menu Button with Unread Indicator
                   Builder(
                     builder: (context) => Stack(
                       children: [
@@ -99,7 +99,6 @@ class DashboardHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
 
-                  // Time
                   Expanded(
                     child: Text(
                       time,
@@ -111,7 +110,7 @@ class DashboardHeader extends StatelessWidget {
                     ),
                   ),
 
-                  // Inventory Icon
+                  // Inventory
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
@@ -135,23 +134,14 @@ class DashboardHeader extends StatelessWidget {
                           color: Colors.white.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(30),
                         ),
-                        child: Image.asset(
-                          'assets/inventory.png',
-                          width: 42,
-                          height: 42,
-                        ),
+                        child: Image.asset('assets/inventory.png', width: 42, height: 42),
                       ),
                     ),
                   ),
 
-                  // ==================== DEVELOPER OPTIONS ICON ====================
                   if (onDeveloperOptionsPressed != null)
                     IconButton(
-                      icon: const Icon(
-                        Icons.bug_report,
-                        color: Colors.amber,
-                        size: 28,
-                      ),
+                      icon: const Icon(Icons.bug_report, color: Colors.amber, size: 28),
                       tooltip: 'Developer Options',
                       onPressed: onDeveloperOptionsPressed,
                     ),
@@ -176,14 +166,16 @@ class DashboardHeader extends StatelessWidget {
 
               const SizedBox(height: 6),
 
-              // Health Text + Status Indicators
+              // Health + Status Indicators (Stamina + Healing)
               Row(
                 children: [
                   Text(
                     'Health: $currentHealth/$maxHealth',
                     style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
-                  if (stats['hasBrokenBone'] == true || hasEnhancedStamina)
+
+                  // Status indicators (Stamina + Healing)
+                  if (stats['hasBrokenBone'] == true || hasEnhancedStamina || hasHealing)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
                       child: Row(
@@ -198,6 +190,8 @@ class DashboardHeader extends StatelessWidget {
                                 child: Text('🦴', style: TextStyle(fontSize: 16)),
                               ),
                             ),
+
+                          // Enhanced Stamina
                           if (hasEnhancedStamina)
                             Padding(
                               padding: const EdgeInsets.only(left: 8),
@@ -207,11 +201,7 @@ class DashboardHeader extends StatelessWidget {
                                   Tooltip(
                                     message: 'Enhanced Stamina active\nOperation cooldowns reduced by 3 seconds',
                                     waitDuration: const Duration(milliseconds: 400),
-                                    child: const Icon(
-                                      Icons.bolt,
-                                      color: Colors.amber,
-                                      size: 22,
-                                    ),
+                                    child: const Icon(Icons.bolt, color: Colors.amber, size: 22),
                                   ),
                                   if (staminaRemainingText != null)
                                     Padding(
@@ -220,6 +210,30 @@ class DashboardHeader extends StatelessWidget {
                                         staminaRemainingText!,
                                         style: const TextStyle(
                                           color: Colors.amber,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                          // Healing Timer (NEW)
+                          if (hasHealing)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.local_hospital, color: Colors.green, size: 20),
+                                  if (healingRemainingText != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 4),
+                                      child: Text(
+                                        healingRemainingText!,
+                                        style: const TextStyle(
+                                          color: Colors.green,
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -241,17 +255,11 @@ class DashboardHeader extends StatelessWidget {
                 children: [
                   const Icon(Icons.adjust, size: 20, color: Colors.orange),
                   const SizedBox(width: 4),
-                  Text(
-                    '${stats['bullets'] ?? 0}',
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+                  Text('${stats['bullets'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   const SizedBox(width: 6),
                   const Icon(Icons.whatshot, size: 20, color: Colors.red),
                   const SizedBox(width: 4),
-                  Text(
-                    '${stats['kills'] ?? 0}',
-                    style: const TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+                  Text('${stats['kills'] ?? 0}', style: const TextStyle(fontSize: 16, color: Colors.white)),
                 ],
               ),
             ],
