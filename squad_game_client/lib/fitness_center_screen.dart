@@ -259,13 +259,13 @@ Widget build(BuildContext context) {
         children: [
           Text(
             martialArt,
-            style: const TextStyle(
-              fontSize: 22,
+            style: GoogleFonts.bebasNeue(
+              fontSize: 34,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: const Color.fromARGB(190, 255, 255, 255),
+              letterSpacing: 1.5
             ),
           ),
-          const SizedBox(height: 8),
           const Text(
             'Martial art selected',
             style: TextStyle(

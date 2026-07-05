@@ -82,12 +82,95 @@ function setupPeterTheBeggar(humans, onlinePlayers, onlineSockets) {
     // Keep the "last update time" fresh in memory (helps on restart)
     peter.lastHungerUpdate = Date.now();
 
-    // Update vicinity and notify players
-    updatePeterVicinity(peter, onlinePlayers, onlineSockets);
+    // ==================== NEW: REST / NAP / SLEEP LOGIC ====================
+    // Initialize tracking properties if they don't exist
+    if (peter.consecutiveWalkingStreak === undefined) peter.consecutiveWalkingStreak = 0;
+    if (peter.restCyclesRemaining === undefined) peter.restCyclesRemaining = 0;
 
-  }, 20000); // Every 20 seconds
+    // CASE 1: Peter is currently resting, napping, or sleeping
+    if (peter.restCyclesRemaining > 0) {
+      peter.restCyclesRemaining--;
 
-  console.log('[PETER] Peter the Beggar 20-second cycle started.');
+      // Clear vicinity during rest/nap/sleep (no players see him)
+      peter.vicinity = [];
+
+      // When rest/nap/sleep period ends, reset the walking streak
+      if (peter.restCyclesRemaining === 0) {
+        peter.consecutiveWalkingStreak = 0;
+        console.log('[PETER] Finished resting/napping/sleeping. Streak reset.');
+      } else {
+        console.log(`[PETER] Still resting... ${peter.restCyclesRemaining} cycles remaining.`);
+      }
+
+      return; // Skip normal vicinity update this cycle
+    }
+
+    // CASE 2: Peter is walking around (not resting)
+    peter.consecutiveWalkingStreak++;
+
+    let shouldRestThisCycle = false;
+    let restDuration = 0; // 1 = rest, 2 = nap, 5 = sleep
+
+    const streak = peter.consecutiveWalkingStreak;
+
+    if (streak === 4) {
+      // After 4 consecutive walking cycles → 50% chance to rest on the 5th cycle
+      if (Math.random() < 0.5) {
+        shouldRestThisCycle = true;
+        restDuration = 1; // rest (1 cycle)
+      }
+    } 
+    else if (streak === 5) {
+      // After 5 walking cycles → decide for the 6th cycle
+      const roll = Math.random();
+      if (roll < 0.4) {
+        shouldRestThisCycle = true;
+        restDuration = 1; // rest
+      } else if (roll < 0.5) {
+        shouldRestThisCycle = true;
+        restDuration = 2; // nap (2 cycles)
+      }
+      // 50% chance: continue walking (do nothing)
+    } 
+    else if (streak === 6) {
+      // After 6 walking cycles → decide for the 7th cycle
+      const roll = Math.random();
+      if (roll < 0.3) {
+        shouldRestThisCycle = true;
+        restDuration = 1; // rest
+      } else if (roll < 0.5) {
+        shouldRestThisCycle = true;
+        restDuration = 2; // nap
+      }
+      // 50% chance: continue walking
+    } 
+    else if (streak === 7) {
+      // After 7 walking cycles (has been walking for 7 straight cycles)
+      const roll = Math.random();
+      if (roll < 0.5) {
+        shouldRestThisCycle = true;
+        restDuration = 2; // nap (2 cycles)
+      } else {
+        shouldRestThisCycle = true;
+        restDuration = 5; // sleep (5 cycles)
+      }
+    }
+
+    if (shouldRestThisCycle && restDuration > 0) {
+      // Start resting/napping/sleeping
+      peter.restCyclesRemaining = restDuration;
+      peter.vicinity = [];
+
+      const type = restDuration === 1 ? 'rest' : restDuration === 2 ? 'nap' : 'sleep';
+      console.log(`[PETER] Starting ${restDuration}-cycle ${type} (after ${streak} walking cycles).`);
+    } else {
+      // Normal walking cycle - update vicinity and notify players
+      updatePeterVicinity(peter, onlinePlayers, onlineSockets);
+    }
+
+  }, 30000); // Every 20 seconds
+
+  console.log('[PETER] Peter the Beggar 20-second cycle started with rest/nap/sleep logic.');
 }
 
 module.exports = {

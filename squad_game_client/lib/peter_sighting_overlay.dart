@@ -41,7 +41,7 @@ class _PeterSightingOverlayState extends State<PeterSightingOverlay> {
     final screenWidth = MediaQuery.of(context).size.width;
 
     // Responsive width: max 340px or 85% of screen (whichever is smaller)
-    final cardWidth = screenWidth > 400 ? 340.0 : screenWidth * 0.85;
+    final cardWidth = screenWidth > 400 ? 250.0 : screenWidth * 0.50;
 
     return Positioned(
       bottom: bottomPadding + 10,
