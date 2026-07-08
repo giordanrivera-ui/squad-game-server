@@ -1,6 +1,12 @@
 const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH } = require('./hospital_constants');
+const { 
+  scheduleHospitalResearch, 
+  cancelHospitalResearchTimers, 
+  catchUpActiveHospitalResearches,
+  RESEARCH_TYPES 
+} = require('./hospital_research_timers');
 
 // ==================== SAFE HELPER FUNCTION ====================
 function getEarliestResearchEndTime(hospitalData) {
@@ -63,7 +69,7 @@ async function handleStartEfficientDoctorsResearch(db, socket, hospitalDocId) {
 
     const completionTime = Date.now() + EFFICIENT_DOCTORS_RESEARCH.durationMs;
 
-    // ==================== FIXED: Calculate correct nextResearchEndTime ====================
+    // ==================== Calculate correct nextResearchEndTime ====================
     const updatedHospital = {
       ...hospitalData,
       efficientDoctorsResearchEndTime: completionTime
@@ -75,6 +81,8 @@ async function handleStartEfficientDoctorsResearch(db, socket, hospitalDocId) {
       nextResearchEndTime: newNextTime
     });
     // ====================================================================================
+
+    scheduleHospitalResearch(db, hospitalDocId, RESEARCH_TYPES.EFFICIENT_DOCTORS, completionTime, socket.server || socket);
 
     const freshPlayer = await playerRef.get();
     socket.emit('update-stats', freshPlayer.data());
@@ -145,7 +153,7 @@ async function handleStartPerformanceResearch(db, socket, hospitalDocId, researc
 
     const completionTime = Date.now() + researchConfig.durationMs;
 
-    // ==================== FIXED: Calculate correct nextResearchEndTime ====================
+    // ==================== Calculate correct nextResearchEndTime ====================
     const updatedHospital = {
       ...hospitalData,
       [endTimeField]: completionTime
@@ -157,6 +165,19 @@ async function handleStartPerformanceResearch(db, socket, hospitalDocId, researc
       nextResearchEndTime: newNextTime
     });
     // ====================================================================================
+
+        // Safer way to decide which research type this is
+    let researchTypeKey;
+    if (endTimeField === 'enhancedStaminaResearchEndTime') {
+      researchTypeKey = RESEARCH_TYPES.ENHANCED_STAMINA;
+    } else if (endTimeField === 'enhancedConstitutionResearchEndTime') {
+      researchTypeKey = RESEARCH_TYPES.ENHANCED_CONSTITUTION;
+    } else {
+      console.error(`[RESEARCH BUG] Unknown research type: ${researchName}`);
+      return; // Stop here so we don't schedule a broken timer
+    }
+
+    scheduleHospitalResearch(db, hospitalDocId, researchTypeKey, completionTime, socket.server || socket);
 
     const freshPlayer = await playerRef.get();
     socket.emit('update-stats', freshPlayer.data());
@@ -192,8 +213,17 @@ async function handleClaimEfficientDoctorsResearch(db, socket, hospitalDocId) {
   if (hospitalData.ownerEmail !== email) return;
 
   if (!hospitalData.efficientDoctorsResearchEndTime || hospitalData.efficientDoctorsResearchEndTime > Date.now()) {
+    
+    // If the research is already finished (completed by timer), tell the player nicely
+    if (hospitalData.hasEfficientDoctors === true) {
+      cancelHospitalResearchTimers(hospitalDocId);
+        socket.emit('research-result', {
+            success: true,
+            message: '✅ Efficient Doctors research already completed automatically!'
+        });
+    }
     return;
-  }
+}
 
   await hospitalRef.update({
     hasEfficientDoctors: true,
@@ -228,8 +258,18 @@ async function handleClaimPerformanceResearch(db, socket, hospitalDocId, hasFiel
   if (hospitalData.ownerEmail !== email) return;
 
   if (!hospitalData[endTimeField] || hospitalData[endTimeField] > Date.now()) {
+    
+    // If the research is already finished (completed by the timer), 
+    // tell the player a clear message instead of doing nothing
+    if (hospitalData[hasField] === true) {
+        cancelHospitalResearchTimers(hospitalDocId);
+        socket.emit('research-result', {
+            success: true,
+            message: `✅ ${researchName} research already completed automatically!`
+        });
+    }
     return;
-  }
+}
 
   await hospitalRef.update({
     [hasField]: true,
@@ -368,8 +408,6 @@ module.exports = {
   handleStartPerformanceResearch,
   handleClaimEfficientDoctorsResearch,
   handleClaimPerformanceResearch,
-  catchUpEfficientDoctorsResearch,
-  catchUpPerformanceResearches,
   getAllHospitalOwnership,
   getEarliestResearchEndTime
 };

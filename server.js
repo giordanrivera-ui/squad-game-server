@@ -20,7 +20,7 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
-const { startHospitalMaintenanceChecker, startHospitalResearchChecker, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
+const { startHospitalMaintenanceChecker, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
 const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
@@ -630,9 +630,7 @@ startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
 startHospitalMaintenanceChecker(db, { onlineSockets, io });
-startHospitalResearchChecker(db, { io });  // generalized checker for all researches
-catchUpEfficientDoctorsResearch(db, { io });
-catchUpPerformanceResearches(db, { io });
+catchUpActiveHospitalResearches(db, io).catch(console.error);
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 

@@ -3,6 +3,7 @@ const { logTransaction, getAvailableBalance } = require('./utils');
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, ALLOWED_HOSPITAL_SERVICE_FIELDS } = require('./hospital_constants');
 const { handleWatchAdForFasterHealing } = require('./ads');
 const { handleStartEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimEfficientDoctorsResearch, handleClaimPerformanceResearch, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, getAllHospitalOwnership, getEarliestResearchEndTime } = require('./hospital_research');
+const { scheduleHospitalResearch, cancelHospitalResearchTimers, catchUpActiveHospitalResearches } = require('./hospital_research_timers');
 
 // ==================== HELPER: Broadcast hospital ownership update ====================
 async function broadcastHospitalOwnership(hospitalOwnershipRef, ioOrSocket) {
@@ -226,6 +227,8 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     selectedEpinephrineQuality: null
   });
 
+  cancelHospitalResearchTimers(docId);
+
   socket.emit('hospital-claim-result', { 
     success: true, 
     message: `You now own the private hospital in ${data.location}!` 
@@ -240,6 +243,8 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
   const email = socket.data.email;
   const { docId } = data;
   if (!email || !docId) return;
+
+  cancelHospitalResearchTimers(docId);
 
   const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
   if (!hospitalDoc.exists) return;
@@ -827,64 +832,6 @@ async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwner
   await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
-// ==================== HOSPITAL RESEARCH COMPLETION CHECKER ====================
-function startHospitalResearchChecker(db, { io }) {
-  setInterval(async () => {
-    try {
-      const now = Date.now();
-
-      const snapshot = await db.collection('hospitals')
-        .where('nextResearchEndTime', '<=', now)
-        .get();
-
-      if (snapshot.empty) {
-        return;
-      }
-
-      const batch = db.batch();
-      let completedCount = 0;
-
-      for (const doc of snapshot.docs) {
-        const h = doc.data();
-        let updates = {};
-
-        if (h.efficientDoctorsResearchEndTime > 0 && h.efficientDoctorsResearchEndTime <= now) {
-          updates.hasEfficientDoctors = true;
-          updates.efficientDoctorsResearchEndTime = 0;
-        }
-
-        if (h.enhancedStaminaResearchEndTime > 0 && h.enhancedStaminaResearchEndTime <= now) {
-          updates.hasEnhancedStamina = true;
-          updates.enhancedStaminaResearchEndTime = 0;
-        }
-
-        if (h.enhancedConstitutionResearchEndTime > 0 && h.enhancedConstitutionResearchEndTime <= now) {
-          updates.hasEnhancedConstitution = true;
-          updates.enhancedConstitutionResearchEndTime = 0;
-        }
-
-        if (Object.keys(updates).length > 0) {
-          const newNextTime = getEarliestResearchEndTime({ ...h, ...updates });
-          updates.nextResearchEndTime = newNextTime;
-
-          batch.update(doc.ref, updates);
-          completedCount++;
-        }
-      }
-
-      if (completedCount > 0) {
-        await batch.commit();
-        console.log(`[HOSPITAL RESEARCH] Auto-completed ${completedCount} research(es)`);
-
-        await broadcastHospitalOwnership(db.collection('hospitals'), io);
-      }
-
-    } catch (e) {
-      console.error('Hospital research checker error:', e);
-    }
-  }, 5000);
-}
-
 // ==================== ENHANCED STAMINA SERVICE ====================
 async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
@@ -1093,7 +1040,6 @@ module.exports = {
   handleUpdateHospitalHealingDuration,
   handleStartEfficientDoctorsResearch,
   handleClaimEfficientDoctorsResearch,
-  startHospitalResearchChecker,
   catchUpEfficientDoctorsResearch,
   calculateMaintenanceFee,
   handleStartPerformanceResearch,

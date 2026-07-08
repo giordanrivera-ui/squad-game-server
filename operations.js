@@ -24,6 +24,11 @@ const ALERT_COOLDOWN_MS = 10000;     // Cooldown before same witness can be aler
 const WITNESS_TRIGGER_PROB = 0.95;   // 95% chance a successful low-level crime triggers justice system
 
 function resolveOperation(p, operation, level, exp) {
+
+  if (!p || typeof p !== 'object') {
+    return { money: 0, rawDamage: 0, expGain: 0, message: "Error calculating outcome", isCaught: true };
+  }
+
   let money = 0;
   let rawDamage = 0;
   let expGain = 0;
@@ -394,6 +399,26 @@ async function handleExecuteOperation(db, socket, data, deps) {
       if (!freshSnap.exists) throw new Error('Player not found');
 
       let p = freshSnap.data();
+
+      p.experience = Math.max(0, Number(p.experience) || 0);
+      p.skill = Math.max(0, Number(p.skill) || 0);
+      p.intelligence = Math.max(0, Number(p.intelligence) || 0);
+      p.marksmanship = Math.max(0, Number(p.marksmanship) || 0);
+      p.strength = Math.max(0, Number(p.strength) || 0);
+      p.stealth = Math.max(0, Number(p.stealth) || 0);
+      p.balance = Math.max(0, Number(p.balance) || 0);
+      p.health = Math.max(0, Number(p.health) || 100);
+
+      // Make sure completedCourses is always a valid array
+      if (!Array.isArray(p.completedCourses)) {
+        p.completedCourses = [];
+      }
+
+      // Make sure location is a string
+      if (typeof p.location !== 'string') {
+        p.location = 'Riverstone'; // safe default
+      }
+
       const exp = p.experience || 0;
       cleanupExpiredCrimeFreeze(p);
 
