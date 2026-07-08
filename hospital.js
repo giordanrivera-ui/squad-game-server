@@ -1,9 +1,14 @@
 const admin = require('firebase-admin');
 const { logTransaction, getAvailableBalance } = require('./utils');
-
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, ALLOWED_HOSPITAL_SERVICE_FIELDS } = require('./hospital_constants');
 const { handleWatchAdForFasterHealing } = require('./ads');
 const { handleStartEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimEfficientDoctorsResearch, handleClaimPerformanceResearch, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, getAllHospitalOwnership, getEarliestResearchEndTime } = require('./hospital_research');
+
+// ==================== HELPER: Broadcast hospital ownership update ====================
+async function broadcastHospitalOwnership(hospitalOwnershipRef, ioOrSocket) {
+  const ownership = await getAllHospitalOwnership(hospitalOwnershipRef);
+  (ioOrSocket.server || ioOrSocket).emit('hospital-ownership-update', ownership);
+}
 
 // ==================== DYNAMIC MAINTENANCE FEE CALCULATOR ====================
 // Base: $10 at 4:00 (240s)
@@ -226,8 +231,7 @@ async function handleClaimHospital(socket, data, { hospitalOwnershipRef }) {
     message: `You now own the private hospital in ${data.location}!` 
   });
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 
   console.log(`[HOSPITAL] ${displayName} claimed ${docId} — broadcast sent to all players`);
 }
@@ -267,8 +271,7 @@ async function handleReleaseHospital(socket, data, { hospitalOwnershipRef }) {
 
   console.log(`[HOSPITAL] ${email} released hospital ${docId}`);
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
 async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef, db }) {
@@ -299,11 +302,13 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
 
   if (field === 'offerInjuryHealing' && value === true) {
     const playerDoc = await db.collection('players').doc(email).get();
-    const currentBalance = playerDoc.exists ? (playerDoc.data().balance || 0) : 0;
+    
+    const playerData = playerDoc.exists ? playerDoc.data() : {};
+    const availableBalance = getAvailableBalance(playerData);
 
-    if (currentBalance < 10) {
+    if (availableBalance < 10) {
       socket.emit('error', { 
-        message: 'You need at least $10 balance to enable Injury Healing (maintenance fee).' 
+        message: 'You need at least $10 available balance to enable Injury Healing (maintenance fee).' 
       });
       return;
     }
@@ -313,8 +318,7 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
 
   console.log(`[HOSPITAL] ${email} updated ${field} on ${docId} → ${value}`);
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 
   if (field === 'offerInjuryHealing' && value === false) {
     console.log(`[HOSPITAL] Injury Healing turned OFF for ${docId} — maintenance fee stopped`);
@@ -324,115 +328,163 @@ async function handleUpdateHospitalService(socket, data, { hospitalOwnershipRef,
 function startHospitalMaintenanceChecker(db, { onlineSockets, io }) {
   setInterval(async () => {
     try {
-      const now = Date.now();
-      const batch = db.batch();
-      const playersToNotify = [];
-      let hospitalsToDisable = [];
-
-      // ONLY fetch hospitals that actually have Injury Healing enabled
-      const activeHospitals = await db.collection('hospitals')
+      const snapshot = await db.collection('hospitals')
         .where('offerInjuryHealing', '==', true)
         .get();
 
-      for (const doc of activeHospitals.docs) {
+      if (snapshot.empty) return;
+
+      // Group hospitals by owner for efficient per-owner processing
+      const hospitalsByOwner = {};
+      for (const doc of snapshot.docs) {
         const h = doc.data();
         if (!h.ownerEmail) continue;
 
-        const ownerRef = db.collection('players').doc(h.ownerEmail);
-        const ownerDoc = await ownerRef.get();
-        if (!ownerDoc.exists) continue;
+        if (!hospitalsByOwner[h.ownerEmail]) {
+          hospitalsByOwner[h.ownerEmail] = [];
+        }
+        hospitalsByOwner[h.ownerEmail].push({ ref: doc.ref, data: h });
+      }
 
-        const owner = ownerDoc.data();
-        
-        // ==================== DYNAMIC FEE ====================
-        const fee = calculateMaintenanceFee(h.customHealingDuration);
+      if (Object.keys(hospitalsByOwner).length === 0) {
+        return;
+      }
 
-        if ((owner.balance || 0) >= fee) {
-          // Has enough money → deduct normally
-          batch.update(ownerRef, {
-            balance: admin.firestore.FieldValue.increment(-fee)
-          });
+      const hospitalsToDisable = [];
 
-          const txRef = ownerRef.collection('transactions').doc();
-          batch.set(txRef, {
-            amount: -fee,
-            description: `Hospital Maintenance - Injury Healing ($${fee})`,
-            balanceAfter: (owner.balance || 0) - fee,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
-          });
+      // Process each owner in its own atomic transaction
+      for (const [ownerEmail, ownerHospitals] of Object.entries(hospitalsByOwner)) {
+        const ownerRef = db.collection('players').doc(ownerEmail);
 
-          playersToNotify.push({
-            email: h.ownerEmail,
-            displayName: owner.displayName,
-            fee: fee
-          });
+        try {
+          const txResult = await db.runTransaction(async (transaction) => {
+            const ownerSnap = await transaction.get(ownerRef);
+            if (!ownerSnap.exists) {
+              return { success: false };
+            }
 
-          console.log(`[HOSPITAL MAINT] $${fee} deducted from ${owner.displayName || h.ownerEmail}`);
-        } else {
-          // ==================== AUTO-DISABLE LOGIC ====================
-          console.log(`[HOSPITAL MAINT] ${owner.displayName || h.ownerEmail} has insufficient funds ($${(owner.balance || 0)}). Auto-disabling Injury Healing for hospital ${doc.id} (fee was $${fee})`);
+            const owner = ownerSnap.data();
+            let availableBalance = getAvailableBalance(owner);
+            let runningBalance = owner.balance || 0;
 
-          hospitalsToDisable.push(doc.ref);
+            const paidHospitals = [];
+            const toDisableThisOwner = [];
 
-          if (owner.displayName) {
-            const ownerSocket = onlineSockets.get(owner.displayName);
-            if (ownerSocket) {
-              ownerSocket.emit('error', {
-                message: `Injury Healing has been automatically disabled on your hospital because you don't have enough money for the $${fee} maintenance fee.`
+            // Sort by fee ascending → pay cheapest hospitals first (maximizes number kept active)
+            const hospitalsWithFees = ownerHospitals
+              .map(hospital => ({
+                ...hospital,
+                fee: calculateMaintenanceFee(hospital.data.customHealingDuration || 240000)
+              }))
+              .sort((a, b) => a.fee - b.fee);
+
+            let totalDeducted = 0;
+
+            for (const hospital of hospitalsWithFees) {
+              const fee = hospital.fee;
+              if (fee <= 0) continue;
+
+              if (availableBalance >= fee) {
+                // Can afford this hospital
+                availableBalance -= fee;
+                runningBalance -= fee;
+                totalDeducted += fee;
+
+                // Create transaction log
+                const txRef = ownerRef.collection('transactions').doc();
+                transaction.set(txRef, {
+                  amount: -fee,
+                  description: `Hospital Maintenance - Injury Healing ($${fee})`,
+                  balanceAfter: runningBalance,
+                  timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                paidHospitals.push({ fee, balanceAfter: runningBalance });
+              } else {
+                // Cannot afford → will be disabled after transaction
+                toDisableThisOwner.push({
+                  ref: hospital.ref,
+                  ownerEmail,
+                  displayName: owner.displayName || ownerEmail
+                });
+              }
+            }
+
+            // Apply single atomic deduction for all paid hospitals
+            if (totalDeducted > 0) {
+              transaction.update(ownerRef, {
+                balance: admin.firestore.FieldValue.increment(-totalDeducted)
               });
             }
+
+            return {
+              success: true,
+              displayName: owner.displayName || ownerEmail,
+              paidHospitals,
+              totalDeducted,
+              hospitalsToDisable: toDisableThisOwner
+            };
+          });
+
+          // === Post-transaction handling ===
+          if (txResult.success) {
+            if (txResult.totalDeducted > 0) {
+              console.log(
+                `[HOSPITAL MAINT] $${txResult.totalDeducted} deducted from ${txResult.displayName} ` +
+                `(${txResult.paidHospitals.length} hospital${txResult.paidHospitals.length === 1 ? '' : 's'})`
+              );
+            }
+
+            hospitalsToDisable.push(...txResult.hospitalsToDisable);
+
+            // Send one clean update to the owner
+            const socket = onlineSockets.get(txResult.displayName);
+            if (socket && txResult.totalDeducted > 0) {
+              const freshDoc = await db.collection('players').doc(ownerEmail).get();
+              if (freshDoc.exists) {
+                socket.emit('update-stats', freshDoc.data());
+              }
+            }
           }
+        } catch (err) {
+          console.error(`[HOSPITAL MAINT] Transaction failed for owner ${ownerEmail}:`, err);
         }
       }
 
-      // Disable hospitals that couldn't afford the fee
-      for (const hospitalRef of hospitalsToDisable) {
-        batch.update(hospitalRef, { offerInjuryHealing: false });
-      }
-
-      await batch.commit();
-
+      // === Disable hospitals that couldn't be paid for ===
       if (hospitalsToDisable.length > 0) {
+        const batch = db.batch();
+        for (const item of hospitalsToDisable) {
+          batch.update(item.ref, { offerInjuryHealing: false });
+        }
+        await batch.commit();
+
         console.log(`[HOSPITAL MAINT] Auto-disabled Injury Healing on ${hospitalsToDisable.length} hospital(s).`);
 
-        // === FIX: Broadcast the update to all clients ===
-        const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-        io.emit('hospital-ownership-update', freshOwnership);
+        await broadcastHospitalOwnership(db.collection('hospitals'), io);
 
-        // Also notify the specific owners (optional but nice)
-        for (const doc of hospitalsToDisable) {
-          const h = (await doc.get()).data();
-          if (h?.ownerEmail) {
-            const ownerSocket = onlineSockets.get(h.ownerDisplayName);
-            if (ownerSocket) {
-              ownerSocket.emit('error', {
-                message: "Injury Healing has been automatically disabled because you don't have enough money for the maintenance fee."
-              });
-            }
+        // Notify affected owners (deduplicated)
+        const notifiedOwners = new Set();
+        for (const item of hospitalsToDisable) {
+          if (notifiedOwners.has(item.ownerEmail)) continue;
+          notifiedOwners.add(item.ownerEmail);
+
+          const socket = onlineSockets.get(item.displayName);
+          if (socket) {
+            socket.emit('error', {
+              message: "Injury Healing has been automatically disabled on one or more of your hospitals because you don't have enough money for the maintenance fee(s)."
+            });
           }
         }
       }
 
-      // Notify players who paid
-      for (const p of playersToNotify) {
-        const socket = onlineSockets.get(p.displayName);
-        if (socket) {
-          const fresh = await db.collection('players').doc(p.email).get();
-          socket.emit('update-stats', fresh.data());
-          socket.emit('new-transaction', {
-            amount: -p.fee,
-            description: `Hospital Maintenance - Injury Healing ($${p.fee})`,
-            balanceAfter: fresh.data().balance
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Hospital maintenance error:', e);
+    } catch (err) {
+      console.error('[HOSPITAL MAINT] Critical error in maintenance checker:', err);
     }
   }, 120000);
 }
 
-// ==================== PRIVATE HOSPITAL HEALING (Updated to use custom duration) ====================
+// ==================== PRIVATE HOSPITAL HEALING ====================
 async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const patientEmail = socket.data.email;
   const hospitalDocId = data.hospitalDocId;
@@ -444,7 +496,6 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
   const ownerRef = db.collection('players').doc(ownerEmail);
   const hospitalRef = db.collection('hospitals').doc(hospitalDocId);
 
-  // Fast-path checks
   const patientDocCheck = await patientRef.get();
   if (patientDocCheck.exists) {
     const patientData = patientDocCheck.data();
@@ -519,14 +570,15 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       }
 
       const healCost = hospitalData.customHealCost ?? 50;
-      const healingDuration = hospitalData.customHealingDuration ?? 240000;   // ← USE CUSTOM DURATION
+      const healingDuration = hospitalData.customHealingDuration ?? 240000;
 
       const ownerDoc = await transaction.get(ownerRef);
       if (!ownerDoc.exists) return;
 
       const owner = ownerDoc.data();
 
-      if ((patient.balance || 0) < healCost) {
+      const availableBalance = getAvailableBalance(patient);
+      if (availableBalance < healCost) {
         throw new Error('Not enough money');
       }
 
@@ -535,7 +587,7 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
 
       transaction.update(patientRef, {
         balance: newPatientBalance,
-        healingEndTime: Date.now() + healingDuration     // ← DYNAMIC DURATION
+        healingEndTime: Date.now() + healingDuration
       });
 
       transaction.update(ownerRef, {
@@ -559,7 +611,6 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       });
     });
 
-    // === SUCCESS PATH ===
     const freshHospital = await hospitalRef.get();
     const actualHealCost = freshHospital.exists 
       ? (freshHospital.data().customHealCost ?? 50) 
@@ -588,7 +639,6 @@ async function handleStartPrivateHealing(db, socket, data, { onlineSockets }) {
       message: `Healing started for $${actualHealCost} (${durationText})` 
     });
 
-    // Notify owner
     const ownerDoc = await ownerRef.get();
     const owner = ownerDoc.data();
     if (owner && owner.displayName) {
@@ -681,8 +731,7 @@ async function handleUpdateHospitalHealCost(socket, data, { hospitalOwnershipRef
 
   console.log(`[HOSPITAL] ${email} changed heal cost of ${docId} to $${newCost}`);
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
 // ==================== UPDATE CUSTOM STAMINA COST ====================
@@ -708,8 +757,7 @@ async function handleUpdateHospitalStaminaCost(socket, data, { hospitalOwnership
 
   console.log(`[HOSPITAL] ${email} changed Stamina cost of ${docId} to $${newCost}`);
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
 // ==================== UPDATE CUSTOM CONSTITUTION COST ====================
@@ -735,11 +783,10 @@ async function handleUpdateHospitalConstitutionCost(socket, data, { hospitalOwne
 
   console.log(`[HOSPITAL] ${email} changed Constitution cost of ${docId} to $${newCost}`);
 
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
-// ==================== UPDATE CUSTOM HEALING DURATION (FIXED) ====================
+// ==================== UPDATE CUSTOM HEALING DURATION ====================
 async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwnershipRef }) {
   const email = socket.data.email;
   const { docId, healingDurationMs } = data;
@@ -749,25 +796,19 @@ async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwner
     return;
   }
 
-  // Get the hospital document
   const hospitalDoc = await hospitalOwnershipRef.doc(docId).get();
   if (!hospitalDoc.exists) return;
 
   const hospitalData = hospitalDoc.data();
 
-  // Security check: only owner can change it
   if (hospitalData.ownerEmail !== email) {
     socket.emit('error', { message: 'You do not own this hospital.' });
     return;
   }
 
-  // ==================== NEW: Dynamic minimum (the actual fix) ====================
   const hasEfficientDoctors = hospitalData.hasEfficientDoctors === true;
-
-  // If researched → allow 2:00 (120000). If not → keep 3:00 (180000)
   const minAllowed = hasEfficientDoctors ? 120000 : 180000;
 
-  // Final validation using the dynamic minimum
   if (healingDurationMs < minAllowed || healingDurationMs > 240000) {
     socket.emit('error', { 
       message: hasEfficientDoctors 
@@ -777,19 +818,16 @@ async function handleUpdateHospitalHealingDuration(socket, data, { hospitalOwner
     return;
   }
 
-  // Save the new duration
   await hospitalOwnershipRef.doc(docId).update({ 
     customHealingDuration: healingDurationMs 
   });
 
   console.log(`[HOSPITAL] ${email} changed healing duration of ${docId} to ${healingDurationMs} ms`);
 
-  // Broadcast the change to all clients (so the manager screen updates)
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
-// ==================== HOSPITAL RESEARCH COMPLETION CHECKER (generalized) ====================
+// ==================== HOSPITAL RESEARCH COMPLETION CHECKER ====================
 function startHospitalResearchChecker(db, { io }) {
   setInterval(async () => {
     try {
@@ -838,14 +876,13 @@ function startHospitalResearchChecker(db, { io }) {
         await batch.commit();
         console.log(`[HOSPITAL RESEARCH] Auto-completed ${completedCount} research(es)`);
 
-        const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
-        io.emit('hospital-ownership-update', freshOwnership);
+        await broadcastHospitalOwnership(db.collection('hospitals'), io);
       }
 
     } catch (e) {
       console.error('Hospital research checker error:', e);
     }
-  }, 5000); // Check every 5 seconds
+  }, 5000);
 }
 
 // ==================== ENHANCED STAMINA SERVICE ====================
@@ -884,7 +921,8 @@ async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }
 
       const cost = hospitalData.customStaminaCost ?? 150;
 
-      if ((patient.balance || 0) < cost) {
+      const availableBalance = getAvailableBalance(patient);
+      if (availableBalance < cost) {
         throw new Error('Not enough money');
       }
 
@@ -905,14 +943,12 @@ async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }
         );
 
         if (index !== -1) {
-          // Apply bonus duration
           if (selectedQuality === 1) buffDurationMinutes = 6;
           else if (selectedQuality === 2) buffDurationMinutes = 7;
           else if (selectedQuality === 3) buffDurationMinutes = 8;
           else if (selectedQuality === 4) buffDurationMinutes = 10;
           else if (selectedQuality === 5) buffDurationMinutes = 12;
 
-          // Consume the item
           ownerInventory.splice(index, 1);
           transaction.update(ownerRef, { inventory: ownerInventory });
         }
@@ -929,7 +965,6 @@ async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }
         balance: newOwnerBalance
       });
 
-      // Log transactions...
       const patientTxRef = patientRef.collection('transactions').doc();
       transaction.set(patientTxRef, {
         amount: -cost,
@@ -947,14 +982,12 @@ async function handlePurchaseEnhancedStamina(db, socket, data, { onlineSockets }
       });
     });
 
-    // === SUCCESS PATH ===
     const freshPatient = await patientRef.get();
-    const freshOwnerDoc = await ownerRef.get();           // renamed for clarity
-    const ownerData = freshOwnerDoc.data();               // get the actual data
+    const freshOwnerDoc = await ownerRef.get();
+    const ownerData = freshOwnerDoc.data();
 
     socket.emit('update-stats', freshPatient.data());
 
-    // Send update to the hospital owner so their Epinephrine badge updates live
     const ownerSocket = onlineSockets.get(ownerData.displayName);
     if (ownerSocket) {
       ownerSocket.emit('update-stats', ownerData);
@@ -988,28 +1021,23 @@ async function handleSetSelectedEpinephrineQuality(socket, data, { hospitalOwner
 
   const hospitalData = hospitalDoc.data();
 
-  // Security check: only the owner can change this
   if (hospitalData.ownerEmail !== email) {
     socket.emit('error', { message: 'You do not own this hospital.' });
     return;
   }
 
-  // Save the selected quality (can be null to clear)
   await hospitalRef.update({
     selectedEpinephrineQuality: quality || null
   });
 
   console.log(`[HOSPITAL] ${email} set selected Epinephrine quality to ${quality} on ${hospitalDocId}`);
 
-  // Broadcast update so all clients (including the owner) see the change
-  const freshOwnership = await getAllHospitalOwnership(hospitalOwnershipRef);
-  (socket.server || socket).emit('hospital-ownership-update', freshOwnership);
+  await broadcastHospitalOwnership(hospitalOwnershipRef, socket);
 }
 
 function registerHospitalHandlers(socket, deps) {
   const {db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH } = deps;
 
-  // ==================== HOSPITAL / HEALING HANDLERS ====================
   socket.on('heal-broken-bone', async () => { await handleHealBrokenBone(db, socket); });
   socket.on('start-healing', async () => { await handleStartHealing(db, socket); });
   socket.on('watch-ad-for-faster-healing', async () => { await handleWatchAdForFasterHealing(db, socket); });

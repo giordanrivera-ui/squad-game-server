@@ -350,6 +350,44 @@ const crimeWitnessOpportunities = new Map();
 const lootDecisionWindows = new Map();
 const humans = new Map();
 
+// ==================== HELPER: Safely release a player from prison ====================
+async function releasePlayerFromPrison(displayName) {
+  if (!displayName) return;
+
+  try {
+    // 1. Remove from memory Map
+    imprisonedPlayers.delete(displayName);
+
+    // 2. Find the player in Firestore and clear their prison time
+    const query = await db.collection('players')
+      .where('displayName', '==', displayName)
+      .limit(1)
+      .get();
+
+    if (!query.empty) {
+      await query.docs[0].ref.update({
+        prisonEndTime: 0
+      });
+    }
+
+    console.log(`[PRISON] ${displayName} has been released from prison`);
+
+    // 3. Tell all players the prison list has changed
+    const prisonList = Array.from(imprisonedPlayers, ([name, endTime]) => ({
+      displayName: name,
+      prisonEndTime: endTime
+    }));
+
+    io.emit('prison-list-update', {
+      list: prisonList,
+      serverTime: Date.now()
+    });
+
+  } catch (err) {
+    console.error(`[PRISON] Failed to release ${displayName}:`, err);
+  }
+}
+
 // ==================== HUMAN FIRESTORE HELPERS ====================
 async function saveHumanToFirestore(human) {
   if (!human || !human.name) return;
@@ -367,49 +405,24 @@ async function saveHumanToFirestore(human) {
 // Runs every second. Removes expired prisoners from the in-memory list
 // AND also clears prisonEndTime in their Firestore document so they are
 // truly free even if they reconnect later.
+// ==================== IMPROVED AUTO-CLEANUP (runs every 15 seconds) ====================
 setInterval(async () => {
   const now = Date.now();
-  let changed = false;
-  const releasedPlayers = []; // Track who we released this tick
+  const toRelease = [];
 
+  // Check everyone currently in the memory Map
   for (const [displayName, prisonEndTime] of imprisonedPlayers.entries()) {
     if (prisonEndTime <= now) {
-      // === Also clear the prison time in Firestore ===
-      try {
-        const targetQuery = await db.collection('players')
-          .where('displayName', '==', displayName)
-          .limit(1)
-          .get();
-
-        if (!targetQuery.empty) {
-          await targetQuery.docs[0].ref.update({
-            prisonEndTime: 0
-            // We could also add lastLowLevelOp: 0 here if we want them
-            // to be able to do low-level ops immediately after release.
-          });
-        }
-      } catch (err) {
-        console.error(`[SERVER] Failed to clear prisonEndTime for ${displayName}:`, err);
-      }
-
-      imprisonedPlayers.delete(displayName);
-      releasedPlayers.push(displayName);
-      changed = true;
-      console.log(`[SERVER] ${displayName} has been released from prison (auto-cleanup)`);
+      toRelease.push(displayName);
     }
   }
 
-  if (changed) {
-    const prisonList = Array.from(imprisonedPlayers, ([displayName, prisonEndTime]) => ({
-      displayName,
-      prisonEndTime
-    }));
-    io.emit('prison-list-update', {
-      list: prisonList,
-      serverTime: Date.now()
-    });
+  // Release them one by one using our clean helper function
+  for (const name of toRelease) {
+    await releasePlayerFromPrison(name);
   }
-}, 1000);
+
+}, 1000); // Changed from 1000ms (1 second) to 15000ms (15 seconds)
 
 // ==================== AUTO-CLEANUP EXPIRED HITS ====================
 setInterval(async () => {
@@ -531,21 +544,39 @@ initializeHospitals().catch(console.error);
 // ==================== LOAD IMPRISONED PLAYERS FROM DATABASE ON STARTUP ====================
 async function loadActiveImprisonedPlayers() {
   const now = Date.now();
+  console.log('[PRISON] Loading prisoners from database on startup...');
+
   try {
+    // Get ALL players who have ANY prisonEndTime set (even if it's in the past)
     const snapshot = await db.collection('players')
-      .where('prisonEndTime', '>', now)   // only players whose prison time is still in the future
+      .where('prisonEndTime', '>', 0)
       .get();
 
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.displayName && data.prisonEndTime > now) {
-        imprisonedPlayers.set(data.displayName, data.prisonEndTime);
-      }
-    });
+    let loaded = 0;
+    let cleaned = 0;
 
-    console.log(`[SERVER] Loaded ${imprisonedPlayers.size} imprisoned players from database after startup`);
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const displayName = data.displayName;
+      const prisonEndTime = data.prisonEndTime;
+
+      if (!displayName) continue;
+
+      if (prisonEndTime > now) {
+        // Still in prison → load into memory
+        imprisonedPlayers.set(displayName, prisonEndTime);
+        loaded++;
+      } else {
+        // Prison time has already passed → clean it up in the database
+        await doc.ref.update({ prisonEndTime: 0 });
+        cleaned++;
+      }
+    }
+
+    console.log(`[PRISON] Startup complete. Loaded ${loaded} active prisoners. Cleaned up ${cleaned} expired prison records.`);
+
   } catch (err) {
-    console.error('[SERVER] Failed to load imprisoned players:', err);
+    console.error('[PRISON] Error during startup recovery:', err);
   }
 }
 
@@ -1296,44 +1327,42 @@ socket.on('place-hit', async (data) => {
 
   // ==================== RESCUE / SAVE PLAYER ====================
   socket.on('attempt-rescue', async (targetDisplayName) => {
-  const saverName = socket.data.displayName;
-  const saverEmail = socket.data.email;
-  if (!saverName || !saverEmail || saverName === targetDisplayName) return;
+    const saverName = socket.data.displayName;
+    const saverEmail = socket.data.email;
+    if (!saverName || !saverEmail || saverName === targetDisplayName) return;
 
-  // Get saver data
-  const saverDocRef = db.collection('players').doc(saverEmail);
-  const saverDoc = await saverDocRef.get();
-  if (!saverDoc.exists) return;
+    const saverDocRef = db.collection('players').doc(saverEmail);
+    const saverDoc = await saverDocRef.get();
+    if (!saverDoc.exists) return;
 
-  let saver = saverDoc.data();
-  const saverStealth = saver.stealth || 0;                    // ← Get Stealth
+    let saver = saverDoc.data();
+    const saverStealth = saver.stealth || 0;
 
-  // Cannot rescue while in prison
-  if (Date.now() < (saver.prisonEndTime || 0)) {
-    socket.emit('rescue-result', { success: false, message: 'You are in prison and cannot rescue others.' });
-    return;
-  }
+    // Cannot rescue while in prison
+    if (Date.now() < (saver.prisonEndTime || 0)) {
+      socket.emit('rescue-result', { success: false, message: 'You are in prison and cannot rescue others.' });
+      return;
+    }
 
-  // Target must actually be imprisoned
-  if (!imprisonedPlayers.has(targetDisplayName)) {
-    socket.emit('rescue-result', { success: false, message: 'That player is not in prison.' });
-    return;
-  }
+    // Target must actually be imprisoned
+    if (!imprisonedPlayers.has(targetDisplayName)) {
+      socket.emit('rescue-result', { success: false, message: 'That player is not in prison.' });
+      return;
+    }
 
-  // ==================== DYNAMIC RESCUE CHANCE ====================
-  let rescueChance = 0.75; // Base chance
+    // ==================== DYNAMIC RESCUE CHANCE ====================
+    let rescueChance = 0.75;
+    if (saverStealth >= 10) {
+      rescueChance = 0.80;
+    }
 
-  if (saverStealth >= 10) {
-    rescueChance = 0.80; // +5% from Stealth
-  }
+    const isSuccess = Math.random() < rescueChance;
 
-  const isSuccess = Math.random() < rescueChance;
+    if (isSuccess) {
+      // ==================== SUCCESS PATH (UPDATED) ====================
+      await releasePlayerFromPrison(targetDisplayName);
 
-  if (isSuccess) {
-    // SUCCESS: Free the target
-    imprisonedPlayers.delete(targetDisplayName);
-
-      // Reset target's prisonEndTime in Firestore
+      // Also reset lastLowLevelOp
       const targetQuery = await db.collection('players')
         .where('displayName', '==', targetDisplayName)
         .limit(1)
@@ -1341,7 +1370,6 @@ socket.on('place-hit', async (data) => {
 
       if (!targetQuery.empty) {
         await targetQuery.docs[0].ref.update({
-          prisonEndTime: 0,
           lastLowLevelOp: 0
         });
       }
@@ -1350,17 +1378,6 @@ socket.on('place-hit', async (data) => {
       saver.experience = (saver.experience || 0) + 15;
       await saverDocRef.set(saver);
 
-      // Broadcast clean prison list to everyone
-      const prisonList = Array.from(imprisonedPlayers, ([dn, et]) => ({
-        displayName: dn,
-        prisonEndTime: et
-      }));
-      io.emit('prison-list-update', {
-        list: prisonList,
-        serverTime: Date.now()
-      });
-
-      // Notify saver
       socket.emit('rescue-result', {
         success: true,
         message: `You successfully rescued ${targetDisplayName}! +15 EXP`
@@ -1368,24 +1385,20 @@ socket.on('place-hit', async (data) => {
 
       socket.emit('update-stats', saver);
 
-      // Notify rescued player if online
       const rescuedSocket = onlineSockets.get(targetDisplayName);
       if (rescuedSocket) {
         rescuedSocket.emit('update-stats', { prisonEndTime: 0 });
-
-        // Trigger full-screen celebration
         rescuedSocket.emit('player-rescued', {
           rescuer: saverName,
           message: `You were rescued by ${saverName}!`
         });
-
-        rescuedSocket.emit('rescue-result', {   // optional nice message
+        rescuedSocket.emit('rescue-result', {
           success: true,
           message: 'You have been rescued from prison!'
         });
       }
-  } else {
-    // FAILURE: Imprison the saver
+    } else {
+      // ==================== FAILURE PATH (unchanged) ====================
       const prisonEnd = Date.now() + 60000;
       saver.prisonEndTime = prisonEnd;
       imprisonedPlayers.set(saverName, prisonEnd);
@@ -1407,7 +1420,7 @@ socket.on('place-hit', async (data) => {
         success: false,
         message: `Rescue failed! You have been sent to prison for 60 seconds.`
       });
-  }
+    }
 });
 
   // ==================== OTHER HANDLERS ====================
