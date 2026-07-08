@@ -405,7 +405,6 @@ async function saveHumanToFirestore(human) {
 // Runs every second. Removes expired prisoners from the in-memory list
 // AND also clears prisonEndTime in their Firestore document so they are
 // truly free even if they reconnect later.
-// ==================== IMPROVED AUTO-CLEANUP (runs every 15 seconds) ====================
 setInterval(async () => {
   const now = Date.now();
   const toRelease = [];
@@ -422,7 +421,7 @@ setInterval(async () => {
     await releasePlayerFromPrison(name);
   }
 
-}, 1000); // Changed from 1000ms (1 second) to 15000ms (15 seconds)
+}, 1000);
 
 // ==================== AUTO-CLEANUP EXPIRED HITS ====================
 setInterval(async () => {
