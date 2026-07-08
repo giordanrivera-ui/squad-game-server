@@ -67,7 +67,7 @@ function updatePeterVicinity(peter, onlinePlayers, onlineSockets) {
   console.log(`[PETER] Vicinity updated. Players who saw him: ${selectedPlayers.join(', ')}`);
 }
 
-// Setup function that starts the 20-second cycle
+// Setup function that starts the 30-second cycle
 function setupPeterTheBeggar(humans, onlinePlayers, onlineSockets) {
   setInterval(() => {
     const peter = humans.get('Peter the Beggar');
@@ -82,7 +82,7 @@ function setupPeterTheBeggar(humans, onlinePlayers, onlineSockets) {
     // Keep the "last update time" fresh in memory (helps on restart)
     peter.lastHungerUpdate = Date.now();
 
-    // ==================== NEW: REST / NAP / SLEEP LOGIC ====================
+    // ==================== REST / NAP / SLEEP LOGIC ====================
     // Initialize tracking properties if they don't exist
     if (peter.consecutiveWalkingStreak === undefined) peter.consecutiveWalkingStreak = 0;
     if (peter.restCyclesRemaining === undefined) peter.restCyclesRemaining = 0;
@@ -168,9 +168,9 @@ function setupPeterTheBeggar(humans, onlinePlayers, onlineSockets) {
       updatePeterVicinity(peter, onlinePlayers, onlineSockets);
     }
 
-  }, 30000); // Every 20 seconds
+  }, 30000); // Every 30 seconds
 
-  console.log('[PETER] Peter the Beggar 20-second cycle started with rest/nap/sleep logic.');
+  console.log('[PETER] Peter the Beggar 30-second cycle started with rest/nap/sleep logic.');
 }
 
 module.exports = {

@@ -3,7 +3,7 @@ const { logTransaction, getAvailableBalance } = require('./utils');
 
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, ALLOWED_HOSPITAL_SERVICE_FIELDS } = require('./hospital_constants');
 const { handleWatchAdForFasterHealing } = require('./ads');
-const { handleStartEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimEfficientDoctorsResearch, handleClaimPerformanceResearch, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, getAllHospitalOwnership } = require('./hospital_research');
+const { handleStartEfficientDoctorsResearch, handleStartPerformanceResearch, handleClaimEfficientDoctorsResearch, handleClaimPerformanceResearch, catchUpEfficientDoctorsResearch, catchUpPerformanceResearches, getAllHospitalOwnership, getEarliestResearchEndTime } = require('./hospital_research');
 
 // ==================== DYNAMIC MAINTENANCE FEE CALCULATOR ====================
 // Base: $10 at 4:00 (240s)
@@ -794,56 +794,50 @@ function startHospitalResearchChecker(db, { io }) {
   setInterval(async () => {
     try {
       const now = Date.now();
+
+      const snapshot = await db.collection('hospitals')
+        .where('nextResearchEndTime', '<=', now)
+        .get();
+
+      if (snapshot.empty) {
+        return;
+      }
+
       const batch = db.batch();
       let completedCount = 0;
 
-      // Efficient Doctors
-      const efficientOverdue = await db.collection('hospitals')
-        .where('efficientDoctorsResearchEndTime', '>', 0)
-        .where('efficientDoctorsResearchEndTime', '<=', now)
-        .get();
+      for (const doc of snapshot.docs) {
+        const h = doc.data();
+        let updates = {};
 
-      for (const doc of efficientOverdue.docs) {
-        batch.update(doc.ref, {
-          hasEfficientDoctors: true,
-          efficientDoctorsResearchEndTime: 0
-        });
-        completedCount++;
-      }
+        if (h.efficientDoctorsResearchEndTime > 0 && h.efficientDoctorsResearchEndTime <= now) {
+          updates.hasEfficientDoctors = true;
+          updates.efficientDoctorsResearchEndTime = 0;
+        }
 
-      // Enhanced Stamina
-      const staminaOverdue = await db.collection('hospitals')
-        .where('enhancedStaminaResearchEndTime', '>', 0)
-        .where('enhancedStaminaResearchEndTime', '<=', now)
-        .get();
+        if (h.enhancedStaminaResearchEndTime > 0 && h.enhancedStaminaResearchEndTime <= now) {
+          updates.hasEnhancedStamina = true;
+          updates.enhancedStaminaResearchEndTime = 0;
+        }
 
-      for (const doc of staminaOverdue.docs) {
-        batch.update(doc.ref, {
-          hasEnhancedStamina: true,
-          enhancedStaminaResearchEndTime: 0
-        });
-        completedCount++;
-      }
+        if (h.enhancedConstitutionResearchEndTime > 0 && h.enhancedConstitutionResearchEndTime <= now) {
+          updates.hasEnhancedConstitution = true;
+          updates.enhancedConstitutionResearchEndTime = 0;
+        }
 
-      // Enhanced Constitution
-      const constitutionOverdue = await db.collection('hospitals')
-        .where('enhancedConstitutionResearchEndTime', '>', 0)
-        .where('enhancedConstitutionResearchEndTime', '<=', now)
-        .get();
+        if (Object.keys(updates).length > 0) {
+          const newNextTime = getEarliestResearchEndTime({ ...h, ...updates });
+          updates.nextResearchEndTime = newNextTime;
 
-      for (const doc of constitutionOverdue.docs) {
-        batch.update(doc.ref, {
-          hasEnhancedConstitution: true,
-          enhancedConstitutionResearchEndTime: 0
-        });
-        completedCount++;
+          batch.update(doc.ref, updates);
+          completedCount++;
+        }
       }
 
       if (completedCount > 0) {
         await batch.commit();
-        console.log(`[HOSPITAL RESEARCH] Auto-completed ${completedCount} hospital research(es)`);
+        console.log(`[HOSPITAL RESEARCH] Auto-completed ${completedCount} research(es)`);
 
-        // Broadcast to all clients so manager screens update immediately
         const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
         io.emit('hospital-ownership-update', freshOwnership);
       }

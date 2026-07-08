@@ -16,7 +16,7 @@ const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableB
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
-const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker } = require('./bonds.js');
+const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker, reconcileBondFlags } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
@@ -485,7 +485,7 @@ setInterval(() => {
     }
 }, 30000);
 
-// ==================== CLEANUP EXPIRED LOOT DECISIONS (FIXED FOR RESTARTS) ====================
+// ==================== CLEANUP EXPIRED LOOT DECISIONS ====================
 setInterval(async () => {
   try {
     const now = Date.now();
@@ -595,6 +595,7 @@ const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
+reconcileBondFlags(db).catch(console.error);
 startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
@@ -1675,7 +1676,7 @@ socket.on('private-message', async (data) => {
     if (targetSocket) {
       targetSocket.emit('private-message', baseMsg);
     } else if (recipientData.fcmTokens && recipientData.fcmTokens.length > 0) {
-      // FIXED: Send push if offline (use sendEachForMulticast)
+      // Send push if offline (use sendEachForMulticast)
       const fcmMessage = {
         notification: {
           title: `${from} sent a message`,
@@ -1686,7 +1687,7 @@ socket.on('private-message', async (data) => {
         },
         data: {
           type: 'private',
-          sender: from,  // FIXED: Renamed 'from' to 'sender' to avoid reserved key error
+          sender: from,
           msg: data.msg,
           id: msgId
         },
@@ -1824,8 +1825,8 @@ async function initializeHumans() {
       // Calculate missed hunger since last save
       if (data.lastHungerUpdate) {
         const millisecondsPassed = Math.max(0, Date.now() - (data.lastHungerUpdate || 0));   
-        const missedTicks = Math.floor(millisecondsPassed / 20000);
-        const hungerLost = missedTicks * 2;
+        const missedTicks = Math.floor(millisecondsPassed / 30000);
+        const hungerLost = missedTicks * 1;
         peter.hunger = Math.max(0, peter.hunger - hungerLost);
       }
 

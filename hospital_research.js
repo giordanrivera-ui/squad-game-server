@@ -2,13 +2,16 @@ const admin = require('firebase-admin');
 const { logTransaction } = require('./utils');
 const { EFFICIENT_DOCTORS_RESEARCH, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH } = require('./hospital_constants');
 
-async function getAllHospitalOwnership(hospitalOwnershipRef) {
-  const snapshot = await hospitalOwnershipRef.get();
-  const ownership = {};
-  snapshot.docs.forEach(doc => {
-    ownership[doc.id] = doc.data();
-  });
-  return ownership;
+// ==================== SAFE HELPER FUNCTION ====================
+function getEarliestResearchEndTime(hospitalData) {
+  const times = [
+    hospitalData.efficientDoctorsResearchEndTime,
+    hospitalData.enhancedStaminaResearchEndTime,
+    hospitalData.enhancedConstitutionResearchEndTime
+  ].filter(t => typeof t === 'number' && t > 0);
+
+  if (times.length === 0) return null;
+  return Math.min(...times);
 }
 
 // ==================== START RESEARCH ====================
@@ -59,9 +62,19 @@ async function handleStartEfficientDoctorsResearch(db, socket, hospitalDocId) {
     });
 
     const completionTime = Date.now() + EFFICIENT_DOCTORS_RESEARCH.durationMs;
-    await hospitalRef.update({
+
+    // ==================== FIXED: Calculate correct nextResearchEndTime ====================
+    const updatedHospital = {
+      ...hospitalData,
       efficientDoctorsResearchEndTime: completionTime
+    };
+    const newNextTime = getEarliestResearchEndTime(updatedHospital);
+
+    await hospitalRef.update({
+      efficientDoctorsResearchEndTime: completionTime,
+      nextResearchEndTime: newNextTime
     });
+    // ====================================================================================
 
     const freshPlayer = await playerRef.get();
     socket.emit('update-stats', freshPlayer.data());
@@ -131,9 +144,19 @@ async function handleStartPerformanceResearch(db, socket, hospitalDocId, researc
     });
 
     const completionTime = Date.now() + researchConfig.durationMs;
-    await hospitalRef.update({
+
+    // ==================== FIXED: Calculate correct nextResearchEndTime ====================
+    const updatedHospital = {
+      ...hospitalData,
       [endTimeField]: completionTime
+    };
+    const newNextTime = getEarliestResearchEndTime(updatedHospital);
+
+    await hospitalRef.update({
+      [endTimeField]: completionTime,
+      nextResearchEndTime: newNextTime
     });
+    // ====================================================================================
 
     const freshPlayer = await playerRef.get();
     socket.emit('update-stats', freshPlayer.data());
@@ -157,7 +180,6 @@ async function handleStartPerformanceResearch(db, socket, hospitalDocId, researc
 }
 
 // ==================== CLAIM RESEARCH ====================
-
 async function handleClaimEfficientDoctorsResearch(db, socket, hospitalDocId) {
   const email = socket.data.email;
   if (!email || !hospitalDocId) return;
@@ -177,6 +199,11 @@ async function handleClaimEfficientDoctorsResearch(db, socket, hospitalDocId) {
     hasEfficientDoctors: true,
     efficientDoctorsResearchEndTime: 0
   });
+
+  // Recalculate next research time
+  const freshHospital = await hospitalRef.get();
+  const newNextTime = getEarliestResearchEndTime(freshHospital.data());
+  await hospitalRef.update({ nextResearchEndTime: newNextTime });
 
   console.log(`[HOSPITAL RESEARCH] ${email} completed Efficient Doctors research on ${hospitalDocId}`);
 
@@ -209,6 +236,11 @@ async function handleClaimPerformanceResearch(db, socket, hospitalDocId, hasFiel
     [endTimeField]: 0
   });
 
+  // Recalculate next research time
+  const freshHospital = await hospitalRef.get();
+  const newNextTime = getEarliestResearchEndTime(freshHospital.data());
+  await hospitalRef.update({ nextResearchEndTime: newNextTime });
+
   console.log(`[HOSPITAL RESEARCH] ${email} completed ${researchName} research on ${hospitalDocId}`);
 
   const freshOwnership = await getAllHospitalOwnership(db.collection('hospitals'));
@@ -221,7 +253,6 @@ async function handleClaimPerformanceResearch(db, socket, hospitalDocId, hasFiel
 }
 
 // ==================== CATCH-UP FUNCTIONS ====================
-
 async function catchUpEfficientDoctorsResearch(db, { io }) {
   try {
     const now = Date.now();
@@ -235,10 +266,18 @@ async function catchUpEfficientDoctorsResearch(db, { io }) {
 
     const batch = db.batch();
     for (const doc of overdue.docs) {
+      const h = doc.data();
+
+      // Finish the research
       batch.update(doc.ref, {
         hasEfficientDoctors: true,
         efficientDoctorsResearchEndTime: 0
       });
+
+      // IMPORTANT: Recalculate nextResearchEndTime after finishing
+      const updatedData = { ...h, efficientDoctorsResearchEndTime: 0 };
+      const newNextTime = getEarliestResearchEndTime(updatedData);
+      batch.update(doc.ref, { nextResearchEndTime: newNextTime });
     }
     await batch.commit();
 
@@ -258,29 +297,47 @@ async function catchUpPerformanceResearches(db, { io }) {
     const batch = db.batch();
     let totalCompleted = 0;
 
+    // === Stamina Research ===
     const overdueStamina = await db.collection('hospitals')
       .where('enhancedStaminaResearchEndTime', '>', 0)
       .where('enhancedStaminaResearchEndTime', '<=', now)
       .get();
 
     for (const doc of overdueStamina.docs) {
+      const h = doc.data();
+
       batch.update(doc.ref, {
         hasEnhancedStamina: true,
         enhancedStaminaResearchEndTime: 0
       });
+
+      // Recalculate nextResearchEndTime
+      const updatedData = { ...h, enhancedStaminaResearchEndTime: 0 };
+      const newNextTime = getEarliestResearchEndTime(updatedData);
+      batch.update(doc.ref, { nextResearchEndTime: newNextTime });
+
       totalCompleted++;
     }
 
+    // === Constitution Research ===
     const overdueConstitution = await db.collection('hospitals')
       .where('enhancedConstitutionResearchEndTime', '>', 0)
       .where('enhancedConstitutionResearchEndTime', '<=', now)
       .get();
 
     for (const doc of overdueConstitution.docs) {
+      const h = doc.data();
+
       batch.update(doc.ref, {
         hasEnhancedConstitution: true,
         enhancedConstitutionResearchEndTime: 0
       });
+
+      // Recalculate nextResearchEndTime
+      const updatedData = { ...h, enhancedConstitutionResearchEndTime: 0 };
+      const newNextTime = getEarliestResearchEndTime(updatedData);
+      batch.update(doc.ref, { nextResearchEndTime: newNextTime });
+
       totalCompleted++;
     }
 
@@ -297,6 +354,15 @@ async function catchUpPerformanceResearches(db, { io }) {
   }
 }
 
+async function getAllHospitalOwnership(hospitalOwnershipRef) {
+  const snapshot = await hospitalOwnershipRef.get();
+  const ownership = {};
+  snapshot.docs.forEach(doc => {
+    ownership[doc.id] = doc.data();
+  });
+  return ownership;
+}
+
 module.exports = {
   handleStartEfficientDoctorsResearch,
   handleStartPerformanceResearch,
@@ -304,5 +370,6 @@ module.exports = {
   handleClaimPerformanceResearch,
   catchUpEfficientDoctorsResearch,
   catchUpPerformanceResearches,
-  getAllHospitalOwnership
+  getAllHospitalOwnership,
+  getEarliestResearchEndTime
 };
