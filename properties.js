@@ -191,7 +191,7 @@ async function handleBuyProperty(db, socket, propertyName) {
   if (!prop) return;
 
   const availableBalance = getAvailableBalance(p);
-  if (availableBalance < property.cost) {
+  if (availableBalance < prop.cost) {
     socket.emit('error', { message: 'Not enough money (some funds may be temporarily frozen)' });
     return;
   }
