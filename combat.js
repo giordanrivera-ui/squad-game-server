@@ -59,7 +59,7 @@ async function markPlayerAsDead(db, targetData, targetEmail, targetDisplayName, 
     takenAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
-  // ==================== NEW: RELEASE ALL PRIVATE HOSPITALS OWNED BY THIS PLAYER ====================
+  // ==================== RELEASE ALL PRIVATE HOSPITALS OWNED BY THIS PLAYER ====================
   try {
     const hospitalsSnapshot = await db.collection('hospitals')
       .where('ownerEmail', '==', targetEmail)

@@ -186,6 +186,8 @@ async function handleBuyBond(db, socket, bondData) {
       message: `✅ Bought ${bondData.title}! Coupon $${result.couponAmount.toFixed(0)} will be paid in ${BOND_NUM_PAYMENTS} installments every 2 minutes.`
     });
 
+    await updateGlobalEarliestBondDueTime(db);
+
   } catch (error) {
     console.error('[BUY BOND ERROR]', error);
     socket.emit('bond-result', {
@@ -195,13 +197,11 @@ async function handleBuyBond(db, socket, bondData) {
   }
 }
 
-// ==================== PROCESS ONE PLAYER'S BOND PAYMENTS (Clean Version) ====================
+// ==================== PROCESS ONE PLAYER'S BOND PAYMENTS (Correct & Safe Version) ====================
 async function processPlayerBondPayments(db, playerDoc, now, onlineSockets) {
   const playerEmail = playerDoc.id;
-  let notification = null;
 
   try {
-    // Transaction returns data we need for notification
     const result = await db.runTransaction(async (transaction) => {
       const snap = await transaction.get(playerDoc.ref);
       if (!snap.exists) return null;
@@ -303,11 +303,13 @@ async function processPlayerBondPayments(db, playerDoc, now, onlineSockets) {
       }
     });
 
-    // Send notification AFTER transaction succeeds (clean)
+    // ==================== SEND UPDATE TO PLAYER (Safe version with fresh read) ====================
     if (result && result.displayName && onlineSockets) {
       const socket = onlineSockets.get(result.displayName);
       if (socket) {
+        // We do one extra read here to get the CORRECT final balance
         const fresh = (await db.collection('players').doc(playerEmail).get()).data();
+        
         socket.emit('update-stats', fresh);
         socket.emit('new-transaction', {
           amount: result.totalRefund,
@@ -330,20 +332,39 @@ function startBondMaturityChecker(db, { onlineSockets }) {
     try {
       const now = Date.now();
 
+      // Step 1: Check our small note first (very fast)
+      const metaSnap = await db.collection('system').doc('bondScheduler').get();
+      const earliestDue = metaSnap.data()?.earliestNextPaymentTime || 0;
+
+      if (now < earliestDue) {
+        return; // Nothing is due yet, so skip the big search
+      }
+
+      // Step 2: Only do the bigger search if something might be due
       const snapshot = await db.collection('players')
+        .where('nextBondPaymentTime', '>', 0)
         .where('nextBondPaymentTime', '<=', now)
+        .orderBy('nextBondPaymentTime')
+        .limit(100)
         .get();
 
-      if (snapshot.empty) return;
+      if (snapshot.empty) {
+        await updateGlobalEarliestBondDueTime(db);
+        return;
+      }
 
+      // Step 3: Process the payments that are due
       for (const doc of snapshot.docs) {
         await processPlayerBondPayments(db, doc, now, onlineSockets);
       }
 
+      // Step 4: Update our small note with the new next due time
+      await updateGlobalEarliestBondDueTime(db);
+
     } catch (err) {
       console.error('[BOND CHECKER ERROR]', err);
     }
-  }, BOND_CHECKER_INTERVAL_MS);
+  }, 10000); // Check every 10 seconds
 }
 
 // ==================== STARTUP RECONCILIATION ====================
@@ -387,10 +408,31 @@ async function reconcileBondFlags(db) {
   }
 }
 
+// ==================== HELPER FUNCTION ====================
+async function updateGlobalEarliestBondDueTime(db) {
+  try {
+    const snap = await db.collection('players')
+      .where('nextBondPaymentTime', '>', 0)
+      .orderBy('nextBondPaymentTime')
+      .limit(1)
+      .get();
+
+    const earliest = snap.empty ? null : snap.docs[0].data().nextBondPaymentTime;
+
+    await db.collection('system').doc('bondScheduler').set({
+      earliestNextPaymentTime: earliest
+    }, { merge: true });
+
+  } catch (err) {
+    console.error('[BOND] Failed to update global earliest due time:', err);
+  }
+}
+
 module.exports = {
   handleRequestBondMarket,
   handleRefreshBondMarket,
   handleBuyBond,
   startBondMaturityChecker,
-  reconcileBondFlags
+  reconcileBondFlags,
+  updateGlobalEarliestBondDueTime
 };

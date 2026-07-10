@@ -182,7 +182,7 @@ async function handleInitiateSpecialOp(db, socket, data, logTransaction) {
   console.log(`[SPECIAL-OP] ${p.displayName || email} started "${data.operation}" with full party tracking`);
 }
 
-// ==================== ACCEPT INVITE HANDLER (FIXED) ====================
+// ==================== ACCEPT INVITE HANDLER ====================
 async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) {
   const joinerEmail = socket.data.email;
   const joinerName = socket.data.displayName;
@@ -218,7 +218,7 @@ async function handleAcceptSpecialOpInvite(db, socket, data, { onlineSockets }) 
   // even if the leader finished the course AFTER the party was created.
   party.leaderCompletedCourses = leaderData.completedCourses || [];
 
-  // === FIXED: Fetch joiner's FULL current data ===
+  // === Fetch joiner's FULL current data ===
   const joinerDoc = await db.collection('players').doc(joinerEmail).get();
   if (!joinerDoc.exists) {
     socket.emit('special-op-join-result', { success: false, message: 'Your player profile not found.' });
@@ -330,7 +330,7 @@ async function syncPartyMemberMarksmanship(db, playerEmail, newMarksmanship, { o
   }
 }
 
-// ==================== LIVE TEAM SYNERGY BONUS SYNC (ROBUST VERSION) ====================
+// ==================== LIVE TEAM SYNERGY BONUS SYNC ====================
 async function syncPartyTeamSynergy(db, leaderEmail, { onlineSockets }) {
   try {
     const leaderDoc = await db.collection('players').doc(leaderEmail).get();

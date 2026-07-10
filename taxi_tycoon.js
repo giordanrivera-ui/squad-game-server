@@ -86,7 +86,7 @@ function startDriverSalaryChecker(db, { onlineSockets }) {
   }, 1000);
 }
 
-// ==================== FIXED DRIVER PROGRESS CHECKER (uses driverId) ====================
+// ==================== DRIVER PROGRESS CHECKER (uses driverId) ====================
 function startDriverProgressChecker(db) {
   setInterval(async () => {
     try {
@@ -104,7 +104,7 @@ function startDriverProgressChecker(db) {
         for (const vehicle of p.taxiFleet) {
           if (!vehicle.assignedDriverId && !vehicle.assignedDriverName) continue;
 
-          // FIXED: Prefer driverId
+          // Prefer driverId
           let driver = p.hiredDrivers.find(d => d.driverId === vehicle.assignedDriverId);
           if (!driver && vehicle.assignedDriverName) {
             driver = p.hiredDrivers.find(d => d.name === vehicle.assignedDriverName);
@@ -547,7 +547,7 @@ async function handleUnassignDriverFromVehicle(db, socket, data) {
   for (let i = 0; i < p.taxiFleet.length; i++) {
     const vehicle = p.taxiFleet[i];
 
-    // FIXED: Prefer driverId
+    // Prefer driverId
     const matches = (data.driverId && vehicle.assignedDriverId === data.driverId) ||
                     (data.driverName && vehicle.assignedDriverName === data.driverName);
 

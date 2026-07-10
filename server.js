@@ -16,7 +16,7 @@ const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableB
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
-const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker, reconcileBondFlags } = require('./bonds.js');
+const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker, reconcileBondFlags, updateGlobalEarliestBondDueTime } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
@@ -31,6 +31,7 @@ const { registerRespawnHandler } = require('./respawn.js');
 const { registerSellHandlers } = require('./sell.js');
 const Human = require('./human');
 const { setupPeterTheBeggar } = require('./peterthebeggar');
+const { registerDeliverJusticeHandlers, cleanupExpiredLootDecision, processLootDecision } = require('./deliver_justice');
 
 // Firebase Admin
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -89,258 +90,6 @@ function removeFromOnlineList(displayName) {
   onlineSockets.delete(displayName);
   io.emit('online-players', Array.from(onlinePlayers));
   console.log(`[SERVER] ${displayName} removed from online list (death or cleanup)`);
-}
-
-// ==================== Clean up expired loot decision safely (even after restart) ====================
-async function cleanupExpiredLootDecision(witnessName, savedDecision) {
-  if (!savedDecision) return;
-
-  const criminalQuery = await db.collection('players')
-    .where('displayName', '==', savedDecision.perpetrator)
-    .limit(1)
-    .get();
-
-  if (criminalQuery.empty) return;
-
-  const criminalRef = criminalQuery.docs[0].ref;
-
-  const frozenMoney = savedDecision.frozenMoney || 0;
-  const frozenItems = savedDecision.frozenItems || [];
-
-  const itemsToRemoveSignatures = new Set(
-    frozenItems.map(item => `${item.name}|${item.type || ''}|${item.frozenUntil}`)
-  );
-
-  try {
-    await db.runTransaction(async (transaction) => {
-      const criminalSnap = await transaction.get(criminalRef);
-      if (!criminalSnap.exists) return;
-
-      let criminalData = criminalSnap.data();
-
-      // Destroy the loot (return case)
-      if (frozenMoney > 0) {
-        criminalData.balance = Math.max(0, (criminalData.balance || 0) - frozenMoney);
-      }
-
-      const currentInventory = criminalData.inventory || [];
-      const updatedInventory = currentInventory.filter(item => {
-        const signature = `${item.name}|${item.type || ''}|${item.frozenUntil}`;
-        const isPartOfThisDecision = itemsToRemoveSignatures.has(signature);
-        if (isPartOfThisDecision) return false;
-        const isStillFrozen = item.frozenUntil && item.frozenUntil > Date.now();
-        return !item.frozenUntil || isStillFrozen;
-      });
-
-      criminalData.inventory = updatedInventory;
-      const currentFrozen = criminalData.frozenCrimeMoney || 0;
-      criminalData.frozenCrimeMoney = Math.max(0, currentFrozen - frozenMoney);
-
-      if (criminalData.frozenCrimeMoney === 0) {
-        delete criminalData.frozenCrimeMoney;
-        delete criminalData.crimeFreezeUntil;
-      }
-
-      transaction.set(criminalRef, criminalData);
-    });
-
-    console.log(`[LOOT] Cleaned up expired decision for ${witnessName} (criminal = ${savedDecision.perpetrator})`);
-  } catch (err) {
-    console.error('[LOOT EXPIRED CLEANUP ERROR]', err);
-  }
-}
-
-// ==================== HELPER: Process Loot Decision (Take vs Return) ====================
-async function processLootDecision(witnessName, choice, witnessSocket = null, isAuto = false) {
-  const decision = lootDecisionWindows.get(witnessName);
-  if (!decision) return;
-
-  // Clear the scheduled timeout if it exists
-  if (decision.timeoutId) {
-    clearTimeout(decision.timeoutId);
-  }
-
-  // NEW SAFETY: Remove from memory map RIGHT NOW so the 30-second poller
-  // cannot accidentally run cleanupExpiredLootDecision at the same time.
-  lootDecisionWindows.delete(witnessName);
-
-  const witnessQuery = await db.collection('players').where('displayName', '==', witnessName).limit(1).get();
-  const criminalQuery = await db.collection('players').where('displayName', '==', decision.perpetrator).limit(1).get();
-
-  if (witnessQuery.empty || criminalQuery.empty) {
-  // Criminal no longer exists (probably died) → clean up witness's state so they are not stuck
-  console.log(`[LOOT] Criminal ${decision.perpetrator} no longer exists (died?). Cleaning up witness decision.`);
-  
-  lootDecisionWindows.delete(witnessName);
-  
-  // Clear the pending decision from witness's database
-  if (witnessQuery.docs[0]) {
-    witnessQuery.docs[0].ref.update({
-      pendingLootDecision: admin.firestore.FieldValue.delete()
-    }).catch(() => {});
-  }
-  
-  if (witnessSocket) {
-    witnessSocket.emit('loot-decision-result', {
-      success: false,
-      message: 'The criminal has died or left. Decision cancelled.'
-    });
-  }
-  return;
-}
-
-  const witnessRef = witnessQuery.docs[0].ref;
-  const criminalRef = criminalQuery.docs[0].ref;
-
-  const frozenMoney = decision.frozenMoney || 0;
-  const frozenItems = decision.frozenItems || [];
-
-  const criminalSocket = onlineSockets.get(decision.perpetrator);
-
-  // Create signatures for the items we are deciding on
-  const itemsToRemoveSignatures = new Set(
-    frozenItems.map(item => 
-      `${item.name}|${item.type || ''}|${item.frozenUntil}`
-    )
-  );
-
-    // ========== SAFE TRANSACTION STARTS HERE ==========
-  let lootSuccess = false;   // NEW: We will only say "success" if this becomes true
-
-  try {
-    await db.runTransaction(async (transaction) => {
-      // Read fresh data inside the transaction
-      const witnessSnap = await transaction.get(witnessRef);
-      const criminalSnap = await transaction.get(criminalRef);
-
-      if (!witnessSnap.exists || !criminalSnap.exists) {
-        throw new Error('Player not found during loot transaction');
-      }
-
-      let witnessData = witnessSnap.data();
-      let criminalData = criminalSnap.data();
-
-      const cleanItems = frozenItems.map(item => {
-        const { frozenUntil, ...clean } = item;
-        return clean;
-      });
-
-      if (choice === 'take') {
-        // === WITNESS TAKES THE LOOT (ALL AT ONCE) ===
-        if (frozenMoney > 0) {
-          witnessData.balance = (witnessData.balance || 0) + frozenMoney;
-          criminalData.balance = Math.max(0, (criminalData.balance || 0) - frozenMoney);
-        }
-
-        if (cleanItems.length > 0) {
-          witnessData.inventory = [...(witnessData.inventory || []), ...cleanItems];
-        }
-
-        // Remove the specific frozen items from criminal + clean frozen fields
-        const currentInventory = criminalData.inventory || [];
-        const updatedInventory = currentInventory.filter(item => {
-          const signature = `${item.name}|${item.type || ''}|${item.frozenUntil}`;
-          const isPartOfThisDecision = itemsToRemoveSignatures.has(signature);
-          if (isPartOfThisDecision) return false;
-          const isStillFrozen = item.frozenUntil && item.frozenUntil > Date.now();
-          return !item.frozenUntil || isStillFrozen;
-        });
-
-        criminalData.inventory = updatedInventory;
-        const currentFrozen = criminalData.frozenCrimeMoney || 0;
-        criminalData.frozenCrimeMoney = Math.max(0, currentFrozen - frozenMoney);
-
-        if (criminalData.frozenCrimeMoney === 0) {
-          delete criminalData.frozenCrimeMoney;
-          delete criminalData.crimeFreezeUntil;
-        }
-
-      } else {
-        // === RETURN / DESTROY LOOT (ALL AT ONCE) ===
-        if (frozenMoney > 0) {
-          criminalData.balance = Math.max(0, (criminalData.balance || 0) - frozenMoney);
-        }
-
-        const currentInventory = criminalData.inventory || [];
-        const updatedInventory = currentInventory.filter(item => {
-          const signature = `${item.name}|${item.type || ''}|${item.frozenUntil}`;
-          const isPartOfThisDecision = itemsToRemoveSignatures.has(signature);
-          if (isPartOfThisDecision) return false;
-          const isStillFrozen = item.frozenUntil && item.frozenUntil > Date.now();
-          return !item.frozenUntil || isStillFrozen;
-        });
-
-        criminalData.inventory = updatedInventory;
-        const currentFrozen = criminalData.frozenCrimeMoney || 0;
-        criminalData.frozenCrimeMoney = Math.max(0, currentFrozen - frozenMoney);
-
-        if (criminalData.frozenCrimeMoney === 0) {
-          delete criminalData.frozenCrimeMoney;
-          delete criminalData.crimeFreezeUntil;
-        }
-      }
-
-      // Write everything back in one atomic operation
-      transaction.set(witnessRef, witnessData);
-      transaction.set(criminalRef, criminalData);
-    });
-
-    console.log(`[LOOT] ${choice.toUpperCase()} completed safely for ${witnessName} vs ${decision.perpetrator}`);
-    lootSuccess = true;   // ← NEW: Only mark as success if we reach here
-
-  } catch (err) {
-    console.error('[LOOT TRANSACTION ERROR]', err);
-    // We do NOT set lootSuccess = true here, so it stays false
-  }
-  // ========== TRANSACTION ENDS HERE ==========
-
-  // Log transactions (only for 'take' case) — only if it actually succeeded
-  if (lootSuccess && choice === 'take' && frozenMoney > 0) {
-    if (witnessSocket) {
-      const witnessData = (await witnessRef.get()).data();
-      await logTransaction(witnessSocket, frozenMoney, `Took loot from ${decision.perpetrator}`, witnessData, witnessRef);
-    }
-    if (criminalSocket) {
-      const criminalData = (await criminalRef.get()).data();
-      await logTransaction(criminalSocket, -frozenMoney, `Lost loot to ${witnessName} (justice)`, criminalData, criminalRef);
-    }
-  } else if (lootSuccess && choice === 'return' && frozenMoney > 0 && criminalSocket) {
-    const criminalData = (await criminalRef.get()).data();
-    await logTransaction(criminalSocket, -frozenMoney, `Lost loot (justice returned)`, criminalData, criminalRef);
-  }
-
-  // Send result messages to players — only say success if the transaction worked
-  if (witnessSocket) {
-    witnessSocket.emit('loot-decision-result', { 
-      success: lootSuccess, 
-      choice, 
-      amount: frozenMoney 
-    });
-    if (lootSuccess) {
-      const updatedWitness = await witnessRef.get();
-      witnessSocket.emit('update-stats', updatedWitness.data());
-    }
-  }
-
-  if (criminalSocket) {
-    criminalSocket.emit('loot-decision-result', {
-      success: lootSuccess,
-      choice,
-      takenBy: choice === 'take' ? witnessName : undefined,
-      amount: frozenMoney
-    });
-    if (lootSuccess) {
-      const updatedCriminal = await criminalRef.get();
-      criminalSocket.emit('update-stats', updatedCriminal.data());
-    }
-  }
-
-  // Clean up pendingLootDecision from Firestore (we do this even on failure so the player isn't stuck)
-  if (witnessQuery.docs[0]) {
-    witnessQuery.docs[0].ref.update({
-      pendingLootDecision: admin.firestore.FieldValue.delete()
-    }).catch(err => console.error('[LOOT] Failed to clear persisted decision (non-fatal):', err));
-  }
 }
 
 // ==================== GLOBAL PRISON LIST ====================
@@ -511,25 +260,15 @@ setInterval(async () => {
 
       const witnessName = doc.data().displayName;
 
-      // SAFETY CHECK: If this decision is still actively being handled
-      // (timeout is running or player just clicked), skip it.
-      // Only run this cleanup for true "orphaned" decisions (server restart, etc.)
       if (lootDecisionWindows.has(witnessName)) {
         continue;
       }
 
-      console.log(`[LOOT] Cleaning up expired persisted decision for ${witnessName}`);
+      await cleanupExpiredLootDecision(witnessName, decision, db);
 
-      // Use the new safe helper that works even after server restart
-      await cleanupExpiredLootDecision(witnessName, decision);
-
-      // Remove the pending flag from database
       await doc.ref.update({
         pendingLootDecision: admin.firestore.FieldValue.delete()
       });
-
-      // Also remove from memory map (in case it somehow got re-added)
-      lootDecisionWindows.delete(witnessName);
     }
   } catch (err) {
     console.error('[LOOT] Error in expired decision cleanup:', err);
@@ -625,7 +364,8 @@ const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
 startBondMaturityChecker(db, { onlineSockets });
-reconcileBondFlags(db).catch(console.error);
+await updateGlobalEarliestBondDueTime(db);
+// reconcileBondFlags(db).catch(console.error);
 startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
@@ -953,6 +693,7 @@ io.on('connection', (socket) => {
   registerHospitalHandlers(socket, { db, hospitalOwnershipRef, onlineSockets, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH });
   registerFitnessHandlers(socket, { db, logTransaction });
   registerSellHandlers(socket, { db, logTransaction });
+  registerDeliverJusticeHandlers(socket, { db, onlineSockets, crimeWitnessOpportunities, lootDecisionWindows, clearCrimeFreezeForPlayer, logTransaction });
 
   // ====================== KILL ATTEMPT ======================
   socket.on('attempt-kill', async (data) => {
@@ -963,252 +704,6 @@ io.on('connection', (socket) => {
       removeFromOnlineList
     });
   });
-
-socket.on('deliver-justice', async (data) => {
-  const witnessName = socket.data.displayName;
-  const perpetratorName = data?.perpetrator;
-  if (!witnessName || !perpetratorName) return;
-
-  // Validate 6-second opportunity
-  const opportunities = crimeWitnessOpportunities.get(witnessName);
-const opportunityData = opportunities?.get(perpetratorName);
-
-// Get the expiry time (works for both old number and new object)
-const opportunityExpiry = typeof opportunityData === 'number' 
-    ? opportunityData 
-    : opportunityData?.expiry;
-
-if (!opportunityExpiry || Date.now() > opportunityExpiry) {
-    socket.emit('deliver-justice-result', {
-      success: false,
-      message: 'You did not witness this crime or the opportunity has expired.'
-    });
-    return;
-  }
-
-  // Consume the justice opportunity
-  opportunities.delete(perpetratorName);
-  if (opportunities.size === 0) crimeWitnessOpportunities.delete(witnessName);
-
-  // Cancel the 6-second auto-unfreeze timer because the witness took action
-if (typeof opportunityData === 'object' && opportunityData.timeoutId) {
-  clearTimeout(opportunityData.timeoutId);
-  console.log(`[JUSTICE] Cancelled 6s auto-unfreeze timer for ${perpetratorName} because ${witnessName} acted`);
-}
-
-  const witnessQuery = await db.collection('players').where('displayName', '==', witnessName).limit(1).get();
-  const criminalQuery = await db.collection('players').where('displayName', '==', perpetratorName).limit(1).get();
-
-  if (witnessQuery.empty || criminalQuery.empty) {
-  console.log(`[JUSTICE] Criminal or witness no longer exists during deliver-justice.`);
-  return;
-}
-
-  const witnessDoc = witnessQuery.docs[0];
-  const criminalDoc = criminalQuery.docs[0];
-  const witness = witnessDoc.data();
-  const criminal = criminalDoc.data();
-
-  // ==================== ARCHETYPE + RPS + SCORING (keep existing logic) ====================
-  const wStr = witness.strength || 0;
-  const wSte = witness.stealth || 0;
-  const cStr = criminal.strength || 0;
-  const cSte = criminal.stealth || 0;
-
-  const witnessTotal = wStr + wSte;
-  const criminalTotal = cStr + cSte;
-
-  const getArchetype = (str, ste) => {
-    // Safety check: if either stat is zero, we can't divide
-    if (str === 0 && ste === 0) return 'Mixed';
-    if (str === 0) return 'Pure Stealth';
-    if (ste === 0) return 'Pure Strength';
-
-    const ratio = Math.max(str, ste) / Math.min(str, ste);
-    if (ratio >= 1.5) return str > ste ? 'Pure Strength' : 'Pure Stealth';
-    return 'Mixed';
-  };
-
-  const witnessArchetype = getArchetype(wStr, wSte);
-  const criminalArchetype = getArchetype(cStr, cSte);
-
-  let rpsWinner = null;
-  if (witnessArchetype === criminalArchetype) {
-    rpsWinner = 'tie';
-  } else if (
-    (witnessArchetype === 'Pure Stealth' && criminalArchetype === 'Mixed') ||
-    (witnessArchetype === 'Mixed' && criminalArchetype === 'Pure Strength') ||
-    (witnessArchetype === 'Pure Strength' && criminalArchetype === 'Pure Stealth')
-  ) {
-    rpsWinner = 'witness';
-  } else {
-    rpsWinner = 'criminal';
-  }
-
-  // ==================== SCORE + BONUS CALCULATION ====================
-  let witnessScore = 0;
-  let criminalScore = 0;
-  let archetypeBonus = 0;
-  let dominanceBonus = 0;
-
-  let witnessInvestmentBonus = 0;
-  let criminalInvestmentBonus = 0;
-
-  if (rpsWinner === 'witness') {
-    archetypeBonus = 24;
-    dominanceBonus = Math.min((Math.max(wStr, wSte) / Math.max(Math.max(cStr, cSte), 1)) * 12, 30);
-    witnessInvestmentBonus = Math.min(witnessTotal / 3, 20);
-
-    witnessScore = archetypeBonus + dominanceBonus + witnessInvestmentBonus;
-    criminalScore = 20;
-
-  } else if (rpsWinner === 'criminal') {
-    archetypeBonus = 24;
-    dominanceBonus = Math.min((Math.max(cStr, cSte) / Math.max(Math.max(wStr, wSte), 1)) * 12, 30);
-    criminalInvestmentBonus = Math.min(criminalTotal / 3, 20);
-
-    criminalScore = archetypeBonus + dominanceBonus + criminalInvestmentBonus;
-    witnessScore = 20;
-
-  } else {
-    // ==================== TIE LOGIC ====================
-    witnessScore = 10;
-    criminalScore = 10;
-    archetypeBonus = 10;
-
-    if (witnessTotal > criminalTotal) {
-      witnessInvestmentBonus = witnessTotal / 3;
-      criminalInvestmentBonus = criminalTotal / 4.5;
-    } else if (criminalTotal > witnessTotal) {
-      criminalInvestmentBonus = criminalTotal / 3;
-      witnessInvestmentBonus = witnessTotal / 4.5;
-    } else {
-      witnessInvestmentBonus = 10;
-      criminalInvestmentBonus = 10;
-    }
-
-    witnessScore += witnessInvestmentBonus;
-    criminalScore += criminalInvestmentBonus;
-  }
-
-  const witnessRoll = Math.floor(Math.random() * (70 - 22 + 1)) + 22;
-  const criminalRoll = Math.floor(Math.random() * (70 - 22 + 1)) + 22;
-
-  const witnessFinal = witnessRoll + witnessScore;
-  const criminalFinal = criminalRoll + criminalScore;
-  const witnessWins = witnessFinal > criminalFinal;
-
-  // ==================== EMIT RESULTS ====================
-  const payload = {
-    witnessName,
-    perpetratorName,
-    witnessArchetype,
-    criminalArchetype,
-    rpsWinner,
-    witnessScore: Math.round(witnessScore),
-    criminalScore: Math.round(criminalScore),
-    witnessFinal: Math.round(witnessFinal),
-    criminalFinal: Math.round(criminalFinal),
-    witnessRoll,
-    criminalRoll,
-    archetypeBonus: Math.round(archetypeBonus),
-    dominanceBonus: Math.round(dominanceBonus),
-    witnessInvestmentBonus: Math.round(witnessInvestmentBonus),
-    criminalInvestmentBonus: Math.round(criminalInvestmentBonus),
-    isWinner: witnessWins,
-    viewerIsWitness: true
-  };
-
-  socket.emit('deliver-justice-result', payload);
-
-  const criminalSocket = onlineSockets.get(perpetratorName);
-  if (criminalSocket) {
-    criminalSocket.emit('deliver-justice-result', {
-      ...payload,
-      isWinner: !witnessWins,
-      viewerIsWitness: false
-    });
-  }
-
-  if (!witnessWins) {
-    clearCrimeFreezeForPlayer(db, perpetratorName);
-  }
-
-  // ==================== EFFICIENT: Start 10s loot decision with setTimeout ====================
-  if (witnessWins) {
-    // === IMPORTANT FIX: Use ONLY the money from THIS specific crime ===
-    const frozenMoney = (typeof opportunityData === 'object' && opportunityData.frozenAmount) 
-        ? opportunityData.frozenAmount 
-        : (criminal.frozenCrimeMoney || 0);
-
-    // For Mug/Loot grocery crimes, there are no items stolen in the success loot.
-    // So we set frozenItems to empty array. This prevents taking other crimes' items.
-    const frozenItems = [];
-
-    const decisionData = {
-      perpetrator: perpetratorName,
-      expiry: Date.now() + 10000,
-      frozenMoney,
-      frozenItems: JSON.parse(JSON.stringify(frozenItems))
-    };
-
-    // Schedule automatic "Return" after 10 seconds
-    const timeoutId = setTimeout(async () => {
-      try {
-        await processLootDecision(witnessName, 'return', null, true);
-      } catch (err) {
-        console.error(`[LOOT] Auto-forfeit failed for ${witnessName}:`, err);
-      }
-      lootDecisionWindows.delete(witnessName);
-    }, 10000);
-
-    decisionData.timeoutId = timeoutId;
-    lootDecisionWindows.set(witnessName, decisionData);
-
-    // === Tell the player RIGHT NOW that they have a loot decision ===
-    socket.emit('loot-decision-pending', {
-      perpetrator: decisionData.perpetrator,
-      expiry: decisionData.expiry,
-      frozenMoney: decisionData.frozenMoney
-    });
-
-    const witnessDocRef = db.collection('players').doc(socket.data.email);
-    witnessDocRef.update({
-        pendingLootDecision: {
-            perpetrator: perpetratorName,
-            expiry: decisionData.expiry,
-            frozenMoney: decisionData.frozenMoney,
-            frozenItems: decisionData.frozenItems,
-            createdAt: Date.now()
-        }
-    }).catch(err => console.error('[LOOT] Failed to persist decision:', err));
-
-    console.log(`[JUSTICE] ${witnessName} won on ${perpetratorName}. 10s loot decision scheduled.`);
-  }
-});
-
-// ==================== Decide-loot-fate ====================
-socket.on('decide-loot-fate', async (data) => {
-  const witnessName = socket.data.displayName;
-  const { perpetrator, choice } = data;
-
-  if (!witnessName || !perpetrator || !['take', 'return'].includes(choice)) return;
-
-  const decision = lootDecisionWindows.get(witnessName);
-  if (!decision || decision.perpetrator !== perpetrator) {
-    socket.emit('loot-decision-result', { success: false, message: 'No active loot decision.' });
-    return;
-  }
-
-  // Extra safety: respect the expiry timestamp
-  if (Date.now() > decision.expiry) {
-    // Timer already expired or about to — let the timeout handle it
-    socket.emit('loot-decision-result', { success: false, message: 'The decision window has closed.' });
-    return;
-  }
-
-  await processLootDecision(witnessName, choice, socket);
-});
 
   // ==================== MARTIAL ARTS SELECTION ====================
   socket.on('select-martial-art', async (data) => {
@@ -1223,61 +718,61 @@ socket.on('decide-loot-fate', async (data) => {
   });
 
   // ==================== PLACE HIT (BOUNTY) ====================
-socket.on('place-hit', async (data) => {
-  const posterEmail = socket.data.email;
-  if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
-    socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
-    return;
-  }
+  socket.on('place-hit', async (data) => {
+    const posterEmail = socket.data.email;
+    if (!posterEmail || typeof data.target !== 'string' || typeof data.reward !== 'number' || data.reward < 1000) {
+      socket.emit('hit-result', { success: false, message: 'Invalid hit details.' });
+      return;
+    }
 
-  const posterDoc = await db.collection('players').doc(posterEmail).get();
-  if (!posterDoc.exists) return;
+    const posterDoc = await db.collection('players').doc(posterEmail).get();
+    if (!posterDoc.exists) return;
 
-  let poster = posterDoc.data();
+    let poster = posterDoc.data();
 
-  // Clean up expired crime freeze data if needed
-  const wasCleaned = cleanupExpiredCrimeFreeze(poster);
-  if (wasCleaned) {
-    await posterDoc.ref.set(poster);
-  }
+    // Clean up expired crime freeze data if needed
+    const wasCleaned = cleanupExpiredCrimeFreeze(poster);
+    if (wasCleaned) {
+      await posterDoc.ref.set(poster);
+    }
 
-  // ==================== Respect crime freeze ====================
-  if (getAvailableBalance(poster) < data.reward) {
-    socket.emit('hit-result', { 
-      success: false, 
-      message: 'Not enough money for the bounty (some funds may be temporarily frozen)' 
+    // ==================== Respect crime freeze ====================
+    if (getAvailableBalance(poster) < data.reward) {
+      socket.emit('hit-result', { 
+        success: false, 
+        message: 'Not enough money for the bounty (some funds may be temporarily frozen)' 
+      });
+      return;
+    }
+
+    const durationMinutes = data.durationDays || 5;
+    const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);
+
+    const endTime = Date.now() + durationMs;
+    const hitId = `${posterEmail}-${Date.now()}`;
+
+    await db.collection('hitlist').doc(hitId).set({
+      target: data.target,
+      posterEmail,
+      reward: data.reward,
+      endTime,
+      active: true
     });
-    return;
-  }
 
-  const durationMinutes = data.durationDays || 5;
-  const durationMs = Math.max(durationMinutes * 60 * 1000, 5 * 60 * 1000);
+    // Deduct from poster
+    await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
+    await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, posterDoc.data(), posterDoc.ref);
 
-  const endTime = Date.now() + durationMs;
-  const hitId = `${posterEmail}-${Date.now()}`;
+    const updatedPoster = await posterDoc.ref.get();
+    socket.emit('update-stats', updatedPoster.data());
 
-  await db.collection('hitlist').doc(hitId).set({
-    target: data.target,
-    posterEmail,
-    reward: data.reward,
-    endTime,
-    active: true
+    socket.emit('hit-result', { 
+      success: true, 
+      message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
+    });
+
+    io.emit('hitlist-update');
   });
-
-  // Deduct from poster
-  await posterDoc.ref.update({ balance: admin.firestore.FieldValue.increment(-data.reward) });
-  await logTransaction(socket, -data.reward, `Bounty Placed on ${data.target}`, posterDoc.data(), posterDoc.ref);
-
-  const updatedPoster = await posterDoc.ref.get();
-  socket.emit('update-stats', updatedPoster.data());
-
-  socket.emit('hit-result', { 
-    success: true, 
-    message: `Bounty of $${data.reward} placed on ${data.target} for ${durationMinutes} minutes!` 
-  });
-
-  io.emit('hitlist-update');
-});
 
   // ==================== EXECUTE OPERATION ====================
   socket.on('execute-operation', async (data) => {

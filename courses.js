@@ -133,7 +133,7 @@ const courseTemplates = [
   }
 ];
 
-// ==================== FIXED + ENHANCED UNIFIED COURSE LIST ====================
+// ==================== UNIFIED COURSE LIST ====================
 function getUnifiedCourses(playerData) {
   const now = Date.now();
 
@@ -173,7 +173,7 @@ function getUnifiedCourses(playerData) {
       if (!advancedCompleted) return null;
     }
 
-    // ==================== NEW: Street Tactics chain logic (exact mirror of HR) ====================
+    // ==================== Street Tactics chain logic (exact mirror of HR) ====================
     if (template.id === "advanced-street-tactics") {
       const basicCompleted = (playerData.completedCourses || [])
         .some(c => c.id === "street-tactics" && c.completionTime <= now);
@@ -348,7 +348,7 @@ async function handlePurchaseCourse(db, socket, courseId, { onlineSockets, syncP
     completionTime: completionTime
   });
 
-  // ==================== NEW: Team Synergy family handling ====================
+  // ==================== Team Synergy family handling ====================
   // If this was any of the three Team Synergy courses AND the player is currently
   // leading a party, immediately recalculate and broadcast the new power.
   const isTeamSynergyCourse = 
