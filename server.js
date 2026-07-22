@@ -363,13 +363,20 @@ const onlinePlayers = new Set();
 const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
-await rebuildBondScheduler(db);
-startBondScheduler(db, { onlineSockets });
-startDriverSalaryChecker(db, { onlineSockets });
-startDriverProgressChecker(db);
-startTaxiJobChecker(db, { onlineSockets });
-startHospitalMaintenanceChecker(db, { onlineSockets, io });
-catchUpActiveHospitalResearches(db, io).catch(console.error);
+// ==================== START ALL AUTO-CHECKERS ====================
+(async () => {
+  try {
+    await rebuildBondScheduler(db);
+    startBondScheduler(db, { onlineSockets });
+    startDriverSalaryChecker(db, { onlineSockets });
+    startDriverProgressChecker(db);
+    startTaxiJobChecker(db, { onlineSockets });
+    startHospitalMaintenanceChecker(db, { onlineSockets, io });
+    catchUpActiveHospitalResearches(db, io).catch(console.error);
+  } catch (err) {
+    console.error('[STARTUP] Failed to start auto-checkers:', err);
+  }
+})();
 
 const timeFormatter = new Intl.DateTimeFormat('en-GB', { 
   timeZone: 'Europe/London', 
