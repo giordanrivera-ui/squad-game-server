@@ -16,7 +16,7 @@ const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableB
 const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
-const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondMaturityChecker, reconcileBondFlags, updateGlobalEarliestBondDueTime } = require('./bonds.js');
+const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondScheduler, rebuildBondScheduler, processOverdueForPlayer } = require('./bonds.js');
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
@@ -363,9 +363,8 @@ const onlinePlayers = new Set();
 const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
-startBondMaturityChecker(db, { onlineSockets });
-await updateGlobalEarliestBondDueTime(db);
-// reconcileBondFlags(db).catch(console.error);
+await rebuildBondScheduler(db);
+startBondScheduler(db, { onlineSockets });
 startDriverSalaryChecker(db, { onlineSockets });
 startDriverProgressChecker(db);
 startTaxiJobChecker(db, { onlineSockets });
@@ -580,10 +579,18 @@ io.on('connection', (socket) => {
     onlinePlayers.add(socket.data.displayName);
     onlineSockets.set(socket.data.displayName, socket);
 
+    // Instant bond catch-up so the player sees any overdue coupons immediately
+    if (playerData.hasActiveBonds) {
+      processOverdueForPlayer(db, email, onlineSockets).catch(err => {
+        console.error('[BONDS] Overdue catch-up failed on register:', err);
+      });
+    }
+
     io.emit('online-players', Array.from(onlinePlayers));
 
     console.log(`[SERVER] ${socket.data.displayName} joined - online now: ${onlinePlayers.size}`);
 
+    await processOverdueForPlayer(db, email, onlineSockets);
 
     socket.emit('init', {
       player: playerData,
