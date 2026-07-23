@@ -21,7 +21,7 @@ const {
   rebuildPropertyScheduler,
   startPropertyScheduler,
   processOverduePropertiesForPlayer
-} = require('./properties.js');
+} = require('./properties');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondScheduler, rebuildBondScheduler, processOverdueForPlayer } = require('./bonds.js');
