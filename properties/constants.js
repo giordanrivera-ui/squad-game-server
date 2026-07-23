@@ -173,9 +173,7 @@ const UPGRADE_BOOSTS = {
  * In non-production environments the original 2-minute test value is used
  * so existing development / QA behaviour is preserved.
  */
-const CLAIM_INTERVAL_MS = (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production')
-  ? 4 * 60 * 60 * 1000
-  : 2 * 60 * 1000;
+const CLAIM_INTERVAL_MS =  2 * 60 * 1000;
 
 module.exports = {
   PROPERTIES,
