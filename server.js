@@ -13,7 +13,7 @@ const io = new Server(server, {
 });
 
 const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableBalance, cleanupExpiredCrimeFreeze, clearCrimeFreezeForPlayer } = require('./utils');
-const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties.js');
+const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondScheduler, rebuildBondScheduler, processOverdueForPlayer } = require('./bonds.js');
