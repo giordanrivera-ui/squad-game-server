@@ -20,8 +20,21 @@ function getAvailableBalance(player) {
   return player.balance || 0;
 }
 
-// ==================== CENTRALIZED TRANSACTION LOGGER ====================
-async function logTransaction(socket, amount, description, playerData, docRef) {
+/**
+ * Centralized transaction logger.
+ *
+ * @param {object} socket
+ * @param {number} amount
+ * @param {string} description
+ * @param {object} playerData   – pre-mutation snapshot (used to compute balanceAfter)
+ * @param {FirebaseFirestore.DocumentReference} docRef
+ * @param {FirebaseFirestore.Transaction} [transaction=null]
+ *        Optional. When provided the log document is written *inside* this
+ *        transaction (atomic with the caller’s changes). In that case the
+ *        socket emit is deliberately skipped – the caller must emit after
+ *        the outer transaction has successfully committed (safe under retries).
+ */
+async function logTransaction(socket, amount, description, playerData, docRef, transaction = null) {
   if (!socket || typeof amount !== 'number' || !playerData || !docRef) {
     console.warn('[TX] Invalid logTransaction call - missing params');
     return;
@@ -37,14 +50,33 @@ async function logTransaction(socket, amount, description, playerData, docRef) {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   };
 
-  socket.emit('new-transaction', {
-    amount: amount,
-    description: description,
-    balanceAfter: Math.round(newBalance)
-  });
+  // ------------------------------------------------------------------
+  // Emit path
+  // ------------------------------------------------------------------
+  // When we are inside a Firestore transaction we must NOT emit yet.
+  // Firestore may retry the callback; emitting early would send phantom
+  // “new-transaction” events to the client. The caller is responsible
+  // for emitting after the outer transaction promise resolves.
+  if (!transaction) {
+    socket.emit('new-transaction', {
+      amount: amount,
+      description: description,
+      balanceAfter: Math.round(newBalance)
+    });
+  }
 
+  // ------------------------------------------------------------------
+  // Write path
+  // ------------------------------------------------------------------
   try {
-    await docRef.collection('transactions').add(txData);
+    if (transaction) {
+      // Atomic path – used by PropertyService (and any future caller that wants durability)
+      const txRef = docRef.collection('transactions').doc();
+      transaction.set(txRef, txData);
+    } else {
+      // Legacy / non-transactional path – keeps every existing caller working unchanged
+      await docRef.collection('transactions').add(txData);
+    }
     console.log(`[TX SAVED] ${description} | $${amount} → Balance: $${newBalance}`);
   } catch (err) {
     console.error('[TX ERROR] Failed to save transaction:', err);

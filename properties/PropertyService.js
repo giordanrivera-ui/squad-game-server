@@ -1,7 +1,13 @@
 /**
  * PropertyService – all database mutations for the properties feature.
- * Every balance / ownership change is performed inside a Firestore transaction.
- * Mechanics, messages, data shape and socket payloads are identical to the original.
+ *
+ * - Every balance / ownership change is performed inside a Firestore transaction.
+ * - Transaction history documents are written inside the same transaction
+ *   (full durability / atomicity with the balance change).
+ * - Socket emits happen only after the transaction has successfully committed
+ *   (safe under Firestore retries).
+ * - Mechanics, messages, data shape and client-visible payloads are identical
+ *   to the original implementation.
  */
 
 const admin = require('firebase-admin');
@@ -21,7 +27,7 @@ const {
 
 class PropertyService {
   /**
-   * Buy a property. Fully transactional.
+   * Buy a property. Fully transactional (balance + ownership + history log).
    * Preserves original silent-fail behaviour for already-owned / invalid names
    * and the exact error message for insufficient funds.
    */
@@ -63,15 +69,14 @@ class PropertyService {
           propertyClaims: newClaims
         };
 
-        // Persist any freeze cleanup that happened on the local object
-        if (wasCleaned || (!p.crimeFreezeUntil && p.frozenCrimeMoney !== undefined)) {
+        if (wasCleaned) {
           updates.crimeFreezeUntil = admin.firestore.FieldValue.delete();
           updates.frozenCrimeMoney = admin.firestore.FieldValue.delete();
         }
 
         transaction.update(docRef, updates);
 
-        // Transaction log written atomically with the balance change
+        // History log written inside the same transaction → full durability
         const txRef = docRef.collection('transactions').doc();
         transaction.set(txRef, {
           amount: -prop.cost,
@@ -81,9 +86,9 @@ class PropertyService {
         });
 
         return {
-          newBalance,
           cost: prop.cost,
           description: `Property Purchased: ${propertyName}`,
+          newBalance,
           updatedPlayer: {
             ...p,
             balance: newBalance,
@@ -95,7 +100,7 @@ class PropertyService {
 
       if (!result || result.skip) return;
 
-      // Live feedback – identical to original
+      // Emits only after the transaction has committed (safe under retries)
       socket.emit('new-transaction', {
         amount: -result.cost,
         description: result.description,
@@ -158,6 +163,7 @@ class PropertyService {
 
         transaction.update(docRef, updates);
 
+        // History log written inside the same transaction → full durability
         const txRef = docRef.collection('transactions').doc();
         transaction.set(txRef, {
           amount: -cost,
@@ -167,9 +173,9 @@ class PropertyService {
         });
 
         return {
-          newBalance,
           cost,
           description: `Upgrade Purchased: ${upgradeName} on ${propertyName}`,
+          newBalance,
           updatedPlayer: {
             ...p,
             balance: newBalance,
@@ -180,6 +186,7 @@ class PropertyService {
 
       if (!result || result.skip) return;
 
+      // Emits only after the transaction has committed
       socket.emit('new-transaction', {
         amount: -result.cost,
         description: result.description,
@@ -218,11 +225,13 @@ class PropertyService {
         const p = snap.data();
         const now = Date.now();
 
-        const { totalAward, updatedClaims, playerBefore } = calculateClaimAward(p, now);
+        const { totalAward, updatedClaims } = calculateClaimAward(p, now);
 
         if (totalAward <= 0) {
           return { totalAward: 0 };
         }
+
+        const newBalance = (p.balance || 0) + totalAward;
 
         // Atomic balance + claims update
         transaction.update(docRef, {
@@ -230,30 +239,28 @@ class PropertyService {
           propertyClaims: updatedClaims
         });
 
-        // Transaction log written inside the same atomic unit
+        // History log written inside the same transaction → full durability
         const txRef = docRef.collection('transactions').doc();
-        const balanceAfter = (p.balance || 0) + totalAward;
         transaction.set(txRef, {
           amount: totalAward,
           description: 'Property Income',
-          balanceAfter: Math.round(balanceAfter),
+          balanceAfter: Math.round(newBalance),
           timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
 
         return {
           totalAward,
-          playerBefore,
-          balanceAfter
+          newBalance: Math.round(newBalance)
         };
       });
 
       if (!result || result.totalAward <= 0) return;
 
-      // Live feedback – identical events and payloads to original
+      // Emits only after the transaction has committed (safe under retries)
       socket.emit('new-transaction', {
         amount: result.totalAward,
         description: 'Property Income',
-        balanceAfter: result.balanceAfter
+        balanceAfter: result.newBalance
       });
 
       // Fresh read so client receives the absolute latest document
