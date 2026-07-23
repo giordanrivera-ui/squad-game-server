@@ -246,7 +246,6 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _incomeTimer = Timer.periodic(const Duration(minutes: 2), (_) {SocketService().claimIncome();});
     _dashboardTimer = Timer.periodic(const Duration(seconds: 1), (_) {if (mounted) setState(() {});});
     WidgetsBinding.instance.addObserver(this);
 

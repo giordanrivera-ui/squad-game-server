@@ -13,7 +13,15 @@ const io = new Server(server, {
 });
 
 const { logTransaction, getRankTitle, addExperienceAndGrantPoints, getAvailableBalance, cleanupExpiredCrimeFreeze, clearCrimeFreezeForPlayer } = require('./utils');
-const { properties, handleBuyProperty, handleBuyUpgrade, handleClaimIncome } = require('./properties');
+const {
+  properties,
+  handleBuyProperty,
+  handleBuyUpgrade,
+  handleClaimIncome,
+  rebuildPropertyScheduler,
+  startPropertyScheduler,
+  processOverduePropertiesForPlayer
+} = require('./properties.js');
 const { handleKillAttempt, markPlayerAsDead } = require('./combat.js');
 const { handleExecuteOperation } = require('./operations.js');
 const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBondScheduler, rebuildBondScheduler, processOverdueForPlayer } = require('./bonds.js');
@@ -21,17 +29,8 @@ const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
 const { 
-  startHospitalMaintenanceChecker, 
-  ENHANCED_STAMINA_RESEARCH, 
-  ENHANCED_CONSTITUTION_RESEARCH, 
-  handleUpdateHospitalStaminaCost, 
-  handleUpdateHospitalConstitutionCost, 
-  handlePurchaseEnhancedStamina, 
-  handleSetSelectedEpinephrineQuality, 
-  registerHospitalHandlers,
-  initializeHospitalSystem,
-  getAllHospitalOwnership
-} = require('./hospital.js');
+  startHospitalMaintenanceChecker, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, 
+  handleSetSelectedEpinephrineQuality, registerHospitalHandlers,initializeHospitalSystem,getAllHospitalOwnership} = require('./hospital.js');
 const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
@@ -349,6 +348,10 @@ const onlineSockets = new Map();
 
     await rebuildBondScheduler(db);
     startBondScheduler(db, { onlineSockets });
+
+    await rebuildPropertyScheduler(db);
+    startPropertyScheduler(db, { onlineSockets });
+
     startDriverSalaryChecker(db, { onlineSockets });
     startDriverProgressChecker(db);
     startTaxiJobChecker(db, { onlineSockets });
@@ -577,7 +580,10 @@ io.on('connection', (socket) => {
 
     console.log(`[SERVER] ${socket.data.displayName} joined - online now: ${onlinePlayers.size}`);
 
-    await processOverdueForPlayer(db, email, onlineSockets);
+    await processOverduePropertiesForPlayer(db, email, onlineSockets);
+
+    const freshSnap = await db.collection('players').doc(email).get();
+    const freshPlayer = freshSnap.exists ? freshSnap.data() : playerData;
 
     socket.emit('init', {
       player: playerData,

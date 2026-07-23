@@ -6,7 +6,12 @@
  */
 
 const { PROPERTIES } = require('./constants');
-const { propertyService } = require('./PropertyService');
+const {
+  propertyService,
+  rebuildPropertyScheduler,
+  startPropertyScheduler,
+  processOverduePropertiesForPlayer
+} = require('./PropertyService');
 
 // ---------- Backward-compatible handler signatures ----------
 
@@ -23,7 +28,7 @@ async function handleClaimIncome(db, socket) {
 }
 
 module.exports = {
-  // Original data export (kept for any external inspection / tests)
+  // Original data export
   properties: PROPERTIES,
 
   // Original handler names – identical signatures
@@ -31,6 +36,11 @@ module.exports = {
   handleBuyUpgrade,
   handleClaimIncome,
 
-  // New optional access for future code
+  // New scheduler surface
+  rebuildPropertyScheduler,
+  startPropertyScheduler,
+  processOverduePropertiesForPlayer,
+
+  // Optional direct access
   propertyService,
 };

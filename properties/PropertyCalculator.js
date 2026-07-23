@@ -24,7 +24,6 @@ function getUpgradeBoost(propertyName, upgradeName) {
 
 /**
  * Sum all owned upgrade boosts for a single property.
- * Exact original behaviour.
  */
 function calculateBoost(propertyName, ownedUpgradeNames = []) {
   let boost = 0;
@@ -37,10 +36,6 @@ function calculateBoost(propertyName, ownedUpgradeNames = []) {
 /**
  * Calculate the full claim award for a player.
  * Returns exact same structure the original handleClaimIncome computed.
- *
- * @param {object} player – plain player data
- * @param {number} [now=Date.now()]
- * @returns {{ totalAward: number, updatedClaims: Array, playerBefore: object }}
  */
 function calculateClaimAward(player, now = Date.now()) {
   const intervalMs = CLAIM_INTERVAL_MS;
@@ -67,7 +62,6 @@ function calculateClaimAward(player, now = Date.now()) {
 
     const intervals = Math.floor(elapsedMs / intervalMs);
 
-    // Exact original boost calculation
     const ownedUps = ownedUpgrades[claim.name] || [];
     const boost = calculateBoost(claim.name, ownedUps);
 
@@ -88,8 +82,22 @@ function calculateClaimAward(player, now = Date.now()) {
 }
 
 /**
+ * Earliest next claim time across all owned properties.
+ * Used by the scheduler.
+ */
+function getEarliestNextClaimTime(claims, owned) {
+  if (!claims || !owned || claims.length === 0 || owned.length === 0) return null;
+
+  const intervalMs = CLAIM_INTERVAL_MS;
+  const times = claims
+    .filter(c => owned.includes(c.name) && typeof c.lastClaim === 'number')
+    .map(c => c.lastClaim + intervalMs);
+
+  return times.length > 0 ? Math.min(...times) : null;
+}
+
+/**
  * Validate that a property can be bought by this player data.
- * Returns null if ok, or an error reason string.
  */
 function validateBuyProperty(player, propertyName) {
   const owned = player.ownedProperties || [];
@@ -123,7 +131,9 @@ module.exports = {
   getUpgradeBoost,
   calculateBoost,
   calculateClaimAward,
+  getEarliestNextClaimTime,
   validateBuyProperty,
   validateBuyUpgrade,
   PROPERTIES, // re-export for convenience
+  CLAIM_INTERVAL_MS,
 };
