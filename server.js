@@ -20,7 +20,18 @@ const { handleRequestBondMarket, handleRefreshBondMarket, handleBuyBond, startBo
 const { weaponTemplates, handleRequestWeapons, handlePurchaseWeapons } = require('./weapons.js');
 const { vehicleTemplates, handleRequestVehicles, handlePurchaseVehicles } = require('./vehicles.js');
 const { startDriverSalaryChecker, startDriverProgressChecker, startTaxiJobChecker, registerTaxiHandlers } = require('./taxi_tycoon.js');
-const { startHospitalMaintenanceChecker, ENHANCED_STAMINA_RESEARCH, ENHANCED_CONSTITUTION_RESEARCH, handleUpdateHospitalStaminaCost, handleUpdateHospitalConstitutionCost, handlePurchaseEnhancedStamina, handleSetSelectedEpinephrineQuality, registerHospitalHandlers } = require('./hospital.js');
+const { 
+  startHospitalMaintenanceChecker, 
+  ENHANCED_STAMINA_RESEARCH, 
+  ENHANCED_CONSTITUTION_RESEARCH, 
+  handleUpdateHospitalStaminaCost, 
+  handleUpdateHospitalConstitutionCost, 
+  handlePurchaseEnhancedStamina, 
+  handleSetSelectedEpinephrineQuality, 
+  registerHospitalHandlers,
+  initializeHospitalSystem,
+  getAllHospitalOwnership
+} = require('./hospital.js');
 const { hospitalCounts } = require('./hospital_constants');
 const { handleInitiateSpecialOp, handleCancelSpecialOp, handleAssignSpecialWeapon, handleAcceptSpecialOpInvite, syncPartyMemberRank, handleLeaveSpecialOp, syncPartyMemberMarksmanship, syncPartyTeamSynergy } = require('./specialOperations.js');
 const { handleRequestCourses, handlePurchaseCourse } = require('./courses.js');
@@ -40,35 +51,6 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-
-// Initialize default hospitals if they don't exist
-async function initializeHospitals() {
-  for (const [location, count] of Object.entries(hospitalCounts)) {
-    for (let i = 1; i <= count; i++) {
-      const docId = `${location}-hospital-${i}`;
-      const doc = await hospitalOwnershipRef.doc(docId).get();
-      if (!doc.exists) {
-        await hospitalOwnershipRef.doc(docId).set({
-          location: location,
-          index: i,
-          isPublic: i === 1,                    // only first hospital is public
-          ownerEmail: null,
-          ownerDisplayName: null,
-          createdAt: Date.now()
-        });
-      }
-    }
-  }
-}
-
-async function getAllHospitalOwnership() {
-  const snapshot = await hospitalOwnershipRef.get();
-  const ownership = {};
-  snapshot.docs.forEach(doc => {
-    ownership[doc.id] = doc.data();
-  });
-  return ownership;
-}
 
 // ==================== MARKSMANSHIP BONUS HELPER ====================
 // +1% overall power per Marksmanship point (only when weapon equipped)
@@ -277,8 +259,6 @@ setInterval(async () => {
 
 const hospitalOwnershipRef = db.collection('hospitals');
 
-initializeHospitals().catch(console.error);
-
 // ==================== LOAD IMPRISONED PLAYERS FROM DATABASE ON STARTUP ====================
 async function loadActiveImprisonedPlayers() {
   const now = Date.now();
@@ -363,16 +343,16 @@ const onlinePlayers = new Set();
 const onlineSockets = new Map();
 
 // ==================== START ALL AUTO-CHECKERS ====================
-// ==================== START ALL AUTO-CHECKERS ====================
 (async () => {
   try {
+    await initializeHospitalSystem(db, io);
+
     await rebuildBondScheduler(db);
     startBondScheduler(db, { onlineSockets });
     startDriverSalaryChecker(db, { onlineSockets });
     startDriverProgressChecker(db);
     startTaxiJobChecker(db, { onlineSockets });
     startHospitalMaintenanceChecker(db, { onlineSockets, io });
-    catchUpActiveHospitalResearches(db, io).catch(console.error);
   } catch (err) {
     console.error('[STARTUP] Failed to start auto-checkers:', err);
   }
@@ -607,7 +587,7 @@ io.on('connection', (socket) => {
       vehicles: vehicleTemplates,
       weapons: weaponTemplates,
       hospitalCounts: hospitalCounts,
-      hospitalOwnership: await getAllHospitalOwnership()
+      hospitalOwnership: getAllHospitalOwnership()
     });
     socket.emit('time', timeFormatter.format(new Date()));
 

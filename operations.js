@@ -17,7 +17,7 @@ const validOperations = new Set([
   ...highLevelOps
 ]);
 
-// ==================== CONSTANTS (for maintainability) ====================
+// ==================== CONSTANTS ====================
 const JUSTICE_WINDOW_MS = 6000;      // Time witness has to decide take/return
 const CRIME_FREEZE_MS = 17000;       // How long criminal's loot is frozen
 const ALERT_COOLDOWN_MS = 10000;     // Cooldown before same witness can be alerted again
